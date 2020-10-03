@@ -836,6 +836,17 @@ panfrost_resource_destroy(struct pipe_screen *screen,
         free(rsrc);
 }
 
+static void
+panfrost_clear_render_target(struct pipe_context *pipe,
+                             struct pipe_surface *dst,
+                             const union pipe_color_union *color,
+                             unsigned dstx, unsigned dsty,
+                             unsigned width, unsigned height,
+                             bool render_condition_enabled)
+{
+        /* TODO */
+}
+
 /* Most of the time we can do CPU-side transfers, but sometimes we need to use
  * the 3D pipe for this. Let's wrap u_blitter to blit to/from staging textures.
  * Code adapted from freedreno */
@@ -1605,6 +1616,7 @@ panfrost_resource_context_init(struct pipe_context *pctx)
         pctx->texture_unmap = u_transfer_helper_transfer_unmap;
         pctx->create_surface = panfrost_create_surface;
         pctx->surface_destroy = panfrost_surface_destroy;
+        pctx->clear_render_target = panfrost_clear_render_target;
         pctx->resource_copy_region = util_resource_copy_region;
         pctx->blit = panfrost_blit;
         pctx->generate_mipmap = panfrost_generate_mipmap;
