@@ -201,18 +201,17 @@ pan_afbc_body_align(uint64_t modifier)
 #define CHECKSUM_TILE_HEIGHT 16
 #define CHECKSUM_BYTES_PER_TILE 8
 
-unsigned
-panfrost_compute_checksum_size(
-        struct pan_image_slice_layout *slice,
-        unsigned width,
-        unsigned height)
+struct pan_image_slice_crc
+panfrost_compute_checksum_size(unsigned width, unsigned height)
 {
         unsigned tile_count_x = DIV_ROUND_UP(width, CHECKSUM_TILE_WIDTH);
         unsigned tile_count_y = DIV_ROUND_UP(height, CHECKSUM_TILE_HEIGHT);
 
-        slice->crc.stride = tile_count_x * CHECKSUM_BYTES_PER_TILE;
-
-        return slice->crc.stride * tile_count_y;
+        struct pan_image_slice_crc ret = {
+                .stride = tile_count_x * CHECKSUM_BYTES_PER_TILE,
+                .size = ret.stride * tile_count_y,
+        };
+        return ret;
 }
 
 unsigned
@@ -392,9 +391,7 @@ pan_image_layout_init(struct pan_image_layout *layout,
 
                 /* Add a checksum region if necessary */
                 if (layout->crc) {
-                        slice->crc.size =
-                                panfrost_compute_checksum_size(slice, width, height);
-
+                        slice->crc = panfrost_compute_checksum_size(width, height);
                         slice->crc.offset = offset;
                         offset += slice->crc.size;
                         slice->size += slice->crc.size;
