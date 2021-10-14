@@ -847,6 +847,39 @@ panfrost_clear_render_target(struct pipe_context *pipe,
         /* TODO */
 }
 
+static void
+panfrost_clear_depth_stencil(struct pipe_context *pipe,
+                             struct pipe_surface *dst,
+                             unsigned clear_flags,
+                             double depth, unsigned stencil,
+                             unsigned dstx, unsigned dsty,
+                             unsigned width, unsigned height,
+                             bool render_condition_enabled)
+{
+        struct panfrost_context *ctx = pan_context(pipe);
+
+        /* TODO: dstx, etc. */
+
+        struct pipe_framebuffer_state tmp;
+        util_copy_framebuffer_state(&tmp, &ctx->pipe_framebuffer);
+
+        struct pipe_framebuffer_state fb = {
+                .width = dst->width,
+                .height = dst->height,
+                .layers = 1,
+                .samples = 1,
+                .nr_cbufs = 0,
+                .zsbuf = dst,
+        };
+        pipe->set_framebuffer_state(pipe, &fb);
+
+        struct panfrost_batch *batch = panfrost_get_fresh_batch_for_fbo(ctx, "Clear depth/stencil");
+        panfrost_batch_clear(batch, clear_flags, NULL, depth, stencil);
+
+        pipe->set_framebuffer_state(pipe, &tmp);
+        util_unreference_framebuffer_state(&tmp);
+}
+
 /* Most of the time we can do CPU-side transfers, but sometimes we need to use
  * the 3D pipe for this. Let's wrap u_blitter to blit to/from staging textures.
  * Code adapted from freedreno */
@@ -1617,6 +1650,7 @@ panfrost_resource_context_init(struct pipe_context *pctx)
         pctx->create_surface = panfrost_create_surface;
         pctx->surface_destroy = panfrost_surface_destroy;
         pctx->clear_render_target = panfrost_clear_render_target;
+        pctx->clear_depth_stencil = panfrost_clear_depth_stencil;
         pctx->resource_copy_region = util_resource_copy_region;
         pctx->blit = panfrost_blit;
         pctx->generate_mipmap = panfrost_generate_mipmap;
