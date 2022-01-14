@@ -844,7 +844,28 @@ panfrost_clear_render_target(struct pipe_context *pipe,
                              unsigned width, unsigned height,
                              bool render_condition_enabled)
 {
-        /* TODO */
+        struct panfrost_context *ctx = pan_context(pipe);
+
+        /* TODO: dstx, etc. */
+
+        struct pipe_framebuffer_state tmp = {0};
+        util_copy_framebuffer_state(&tmp, &ctx->pipe_framebuffer);
+
+        struct pipe_framebuffer_state fb = {
+                .width = dst->width,
+                .height = dst->height,
+                .layers = 1,
+                .samples = 1,
+                .nr_cbufs = 1,
+                .cbufs[0] = dst,
+        };
+        pipe->set_framebuffer_state(pipe, &fb);
+
+        struct panfrost_batch *batch = panfrost_get_fresh_batch_for_fbo(ctx, "Clear render target");
+        panfrost_batch_clear(batch, PIPE_CLEAR_COLOR0, color, 0, 0);
+
+        pipe->set_framebuffer_state(pipe, &tmp);
+        util_unreference_framebuffer_state(&tmp);
 }
 
 static void
