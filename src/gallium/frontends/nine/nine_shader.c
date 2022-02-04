@@ -2159,7 +2159,7 @@ static inline unsigned
 d3dstt_to_tgsi_tex(BYTE sampler_type)
 {
     switch (sampler_type) {
-    case NINED3DSTT_1D:     return TGSI_TEXTURE_1D;
+    case NINED3DSTT_1D:     return TGSI_TEXTURE_2D;
     case NINED3DSTT_2D:     return TGSI_TEXTURE_2D;
     case NINED3DSTT_VOLUME: return TGSI_TEXTURE_3D;
     case NINED3DSTT_CUBE:   return TGSI_TEXTURE_CUBE;
@@ -2172,7 +2172,7 @@ static inline unsigned
 d3dstt_to_tgsi_tex_shadow(BYTE sampler_type)
 {
     switch (sampler_type) {
-    case NINED3DSTT_1D: return TGSI_TEXTURE_SHADOW1D;
+    case NINED3DSTT_1D: return TGSI_TEXTURE_SHADOW2D;
     case NINED3DSTT_2D: return TGSI_TEXTURE_SHADOW2D;
     case NINED3DSTT_VOLUME:
     case NINED3DSTT_CUBE:
@@ -2186,7 +2186,7 @@ ps1x_sampler_type(const struct nine_shader_info *info, unsigned stage)
 {
     boolean shadow = !!(info->sampler_mask_shadow & (1 << stage));
     switch ((info->sampler_ps1xtypes >> (stage * 2)) & 0x3) {
-    case 1: return shadow ? TGSI_TEXTURE_SHADOW1D : TGSI_TEXTURE_1D;
+    case 1: return shadow ? TGSI_TEXTURE_SHADOW2D : TGSI_TEXTURE_2D;
     case 0: return shadow ? TGSI_TEXTURE_SHADOW2D : TGSI_TEXTURE_2D;
     case 3: return TGSI_TEXTURE_3D;
     default:
