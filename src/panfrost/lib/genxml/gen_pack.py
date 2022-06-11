@@ -747,12 +747,12 @@ class Parser(object):
         print("}\n\n")
 
         # Should be a whole number of words
-        assert((self.group.length % 4) == 0)
+        assert((group.length % 4) == 0)
 
-        print('#define {} {}'.format (name + "_LENGTH", self.group.length))
-        if self.group.align != None:
-            print('#define {} {}'.format (name + "_ALIGN", self.group.align))
-        print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), self.group.length // 4))
+        print('#define {} {}'.format (name + "_LENGTH", group.length))
+        if group.align != None:
+            print('#define {} {}'.format (name + "_ALIGN", group.align))
+        print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_unpack_function(self, name, group):
         print("static inline void")
