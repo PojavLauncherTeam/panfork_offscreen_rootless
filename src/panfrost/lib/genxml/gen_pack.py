@@ -46,6 +46,15 @@ pack_header = """
 
 #include "util/bitpack_helpers.h"
 
+struct pan_command_stream {
+  uint64_t *ptr;
+  unsigned instrs_left;
+};
+
+struct pan_command_stream_decoded {
+  uint32_t values[256];
+};
+
 #define __gen_unpack_float(x, y, z) uif(__gen_unpack_uint(x, y, z))
 
 static inline uint32_t
@@ -96,6 +105,22 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
    unsigned odd = val >> 5;
 
    return (2*odd + 1) << shift;
+}
+
+// TODO: Do something when running out of space
+static inline void
+__gen_alloc_cs(struct pan_command_stream *s, uint32_t alloc)
+{
+   assert(s->instrs_left >= alloc);
+   s->instrs_left -= alloc;
+}
+
+static inline void
+__gen_emit_cs_32(struct pan_command_stream *s, uint8_t index, uint32_t value)
+{
+  uint64_t flags = (uint64_t)2 << 56;
+  uint64_t instr = flags | ((uint64_t) index << 48) | value;
+  *(s->ptr++) = instr;
 }
 
 #define PREFIX1(A) MALI_ ## A
@@ -429,8 +454,11 @@ class Group(object):
                     words[b] = self.Word()
                 words[b].contributors.append(contributor)
 
-    def emit_pack_function(self):
-        self.get_length()
+    def emit_pack_function(self, csf=False):
+        if csf:
+            self.length = 256 * 4
+        else:
+            self.get_length()
 
         words = {}
         self.collect_words(self.fields, 0, '', words)
@@ -452,7 +480,8 @@ class Group(object):
         for index in range(self.length // 4):
             # Handle MBZ words
             if not index in words:
-                print("   cl[%2d] = 0;" % index)
+                if not csf:
+                    print("   cl[%2d] = 0;" % index)
                 continue
 
             word = words[index]
@@ -460,7 +489,11 @@ class Group(object):
             word_start = index * 32
 
             v = None
-            prefix = "   cl[%2d] =" % index
+            if csf:
+                # TODO: Use 48-bit uploads where possible
+                prefix = "   __gen_emit_cs_32(s, 0x%02x," % index
+            else:
+                prefix = "   cl[%2d] = (" % index
 
             for contributor in word.contributors:
                 field = contributor.field
@@ -509,7 +542,7 @@ class Group(object):
                         s = "%s >> %d" % (s, shift)
 
                     if contributor == word.contributors[-1]:
-                        print("%s %s;" % (prefix, s))
+                        print("%s %s);" % (prefix, s))
                     else:
                         print("%s %s |" % (prefix, s))
                     prefix = "           "
@@ -528,22 +561,23 @@ class Group(object):
         count = (end - start + 1)
         return (((1 << count) - 1) << start)
 
-    def emit_unpack_function(self):
+    def emit_unpack_function(self, check_unused=True):
         # First, verify there is no garbage in unused bits
         words = {}
         self.collect_words(self.fields, 0, '', words)
 
-        for index in range(self.length // 4):
-            base = index * 32
-            word = words.get(index, self.Word())
-            masks = [self.mask_for_word(index, c.start, c.end) for c in word.contributors]
-            mask = reduce(lambda x,y: x | y, masks, 0)
+        if check_unused:
+            for index in range(self.length // 4):
+                base = index * 32
+                word = words.get(index, self.Word())
+                masks = [self.mask_for_word(index, c.start, c.end) for c in word.contributors]
+                mask = reduce(lambda x,y: x | y, masks, 0)
 
-            ALL_ONES = 0xffffffff
+                ALL_ONES = 0xffffffff
 
-            if mask != ALL_ONES:
-                TMPL = '   if (((const uint32_t *) cl)[{}] & {}) fprintf(stderr, "XXX: Invalid field of {} unpacked at word {}\\n");'
-                print(TMPL.format(index, hex(mask ^ ALL_ONES), self.label, index))
+                if mask != ALL_ONES:
+                    TMPL = '   if (((const uint32_t *) cl)[{}] & {}) fprintf(stderr, "XXX: Invalid field of {} unpacked at word {}\\n");'
+                    print(TMPL.format(index, hex(mask ^ ALL_ONES), self.label, index))
 
         fieldrefs = []
         self.collect_fields(self.fields, 0, '', fieldrefs)
@@ -675,6 +709,8 @@ class Parser(object):
             self.values.append(Value(attrs))
         elif name == "aggregate":
             aggregate_name = self.gen_prefix(safe_name(attrs["name"].upper()))
+            # TODO: Make .layout less "global"?
+            self.layout = attrs.get("layout", "struct")
             self.aggregate = Aggregate(self, aggregate_name, attrs)
             self.aggregates[attrs['name']] = self.aggregate
         elif name == "section":
@@ -723,10 +759,15 @@ class Parser(object):
 
     def emit_aggregate(self):
         aggregate = self.aggregate
-        print("struct %s_packed {" % aggregate.name.lower())
-        print("   uint32_t opaque[{}];".format(aggregate.get_size() // 4))
-        print("};\n")
-        print('#define {}_LENGTH {}'.format(aggregate.name.upper(), aggregate.size))
+
+        if self.layout == "struct":
+            print("struct %s_packed {" % aggregate.name.lower())
+            print("   uint32_t opaque[{}];".format(aggregate.get_size() // 4))
+            print("};\n")
+            print('#define {}_LENGTH {}'.format(aggregate.name.upper(), aggregate.size))
+        else:
+            assert(self.layout == "cs")
+
         if aggregate.align != None:
             print('#define {}_ALIGN {}'.format(aggregate.name.upper(), aggregate.align))
         for section in aggregate.sections:
@@ -754,12 +795,22 @@ class Parser(object):
             print('#define {} {}'.format (name + "_ALIGN", group.align))
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
-    def emit_unpack_function(self, name, group):
+    def emit_cs_pack_function(self, name, group):
+        print("static inline void\n%s_pack(struct pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{" %
+              (name, ' ' * (len(name) + 6), name))
+
+        group.emit_pack_function(csf=True)
+
+        print("}\n\n")
+
+        assert(group.length == 256 * 4)
+
+    def emit_unpack_function(self, name, group, csf=False):
         print("static inline void")
         print("%s_unpack(const uint8_t * restrict cl,\n%sstruct %s * restrict values)\n{" %
               (name.upper(), ' ' * (len(name) + 8), name))
 
-        group.emit_unpack_function()
+        group.emit_unpack_function(check_unused=not csf)
 
         print("}\n")
 
@@ -779,6 +830,9 @@ class Parser(object):
         if self.layout == "struct":
             self.emit_pack_function(self.struct, self.group)
             self.emit_unpack_function(self.struct, self.group)
+        elif self.layout == "cs":
+            self.emit_cs_pack_function(self.struct, self.group)
+            self.emit_unpack_function(self.struct, self.group, csf=True)
         else:
             assert(self.layout == "none")
         self.emit_print_function(self.struct, self.group)

@@ -861,7 +861,11 @@ static void
 pandecode_tiler_job(const struct MALI_JOB_HEADER *h,
                     mali_ptr job, unsigned gpu_id)
 {
+#if PAN_ARCH <= 9
         struct mali_tiler_job_packed *PANDECODE_PTR_VAR(p, job);
+#else
+        void *p = NULL;
+#endif
         pan_section_unpack(p, TILER_JOB, DRAW, draw);
         pandecode_dcd(&draw, h->type, gpu_id);
         pandecode_log("Tiler Job Payload:\n");
@@ -1081,7 +1085,11 @@ pandecode_dcd(const struct MALI_DRAW *p, enum mali_job_type job_type,
 static void
 pandecode_malloc_vertex_job(mali_ptr job, unsigned gpu_id)
 {
+#if PAN_ARCH <= 9
         struct mali_malloc_vertex_job_packed *PANDECODE_PTR_VAR(p, job);
+#else
+        void *p = NULL;
+#endif
 
         DUMP_SECTION(MALLOC_VERTEX_JOB, PRIMITIVE, p, "Primitive:\n");
         DUMP_SECTION(MALLOC_VERTEX_JOB, INSTANCE_COUNT, p, "Instance count:\n");
