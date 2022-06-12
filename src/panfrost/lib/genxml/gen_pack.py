@@ -322,7 +322,7 @@ class Field(object):
 
         if ":" in str(attrs["start"]):
             (word, bit) = attrs["start"].split(":")
-            self.start = (int(word) * 32) + int(bit)
+            self.start = (int(word, 0) * 32) + int(bit)
         else:
             self.start = int(attrs["start"])
 
@@ -695,6 +695,9 @@ class Parser(object):
             self.group.align = int(attrs["align"]) if "align" in attrs else None
             self.structs[attrs["name"]] = self.group
         elif name == "field":
+            if self.layout == "cs" and not attrs["start"].startswith("0x"):
+                #print(f"#warning Skipping non-CS field {attrs['name']}")
+                return
             self.group.fields.append(Field(self, attrs))
             self.values = []
         elif name == "enum":
