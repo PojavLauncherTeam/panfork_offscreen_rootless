@@ -3077,7 +3077,8 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
 {
         UNUSED struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
 
-        bool lines = (info->mode == PIPE_PRIM_LINES ||
+        // TODO: Remove UNUSED
+        UNUSED bool lines = (info->mode == PIPE_PRIM_LINES ||
                       info->mode == PIPE_PRIM_LINE_LOOP ||
                       info->mode == PIPE_PRIM_LINE_STRIP);
 
@@ -3105,10 +3106,14 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
 
                 cfg.job_task_split = 6;
 #else
+// TODO: Verify bit is correct, this shouldn't be hard
+#if PAN_ARCH == 9
                 struct panfrost_compiled_shader *fs =
                         ctx->prog[PIPE_SHADER_FRAGMENT];
 
+
                 cfg.allow_rotating_primitives = !(lines || fs->info.bifrost.uses_flat_shading);
+#endif
                 cfg.primitive_restart = info->primitive_restart;
 
                 /* Non-fixed restart indices should have been lowered */
@@ -3141,7 +3146,10 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
                 }
 
 #if PAN_ARCH >= 6
+// TODO: Does this exist on v10?
+#if PAN_ARCH <= 9
                 cfg.secondary_shader = secondary_shader;
+#endif
 #endif
         }
 }
@@ -3647,8 +3655,12 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 
         UNUSED struct panfrost_ptr tiler, vertex;
 
+        // TODO: Clean up this tree of ifdefs
         if (idvs) {
-#if PAN_ARCH >= 9
+#if PAN_ARCH >= 10
+                // TODO: This should point to the command stream pointer
+                tiler = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
+#elif PAN_ARCH == 9
                 tiler = pan_pool_alloc_desc(&batch->pool.base, MALLOC_VERTEX_JOB);
 #elif PAN_ARCH >= 6
                 tiler = pan_pool_alloc_desc(&batch->pool.base, INDEXED_VERTEX_JOB);
@@ -3656,8 +3668,15 @@ panfrost_direct_draw(struct panfrost_batch *batch,
                 unreachable("IDVS is unsupported on Midgard");
 #endif
         } else {
+#if PAN_ARCH >= 10
+                // TODO: These be the command stream pointer
+                // In this case they must be the same!
+                vertex = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
+                tiler = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
+#else
                 vertex = pan_pool_alloc_desc(&batch->pool.base, COMPUTE_JOB);
                 tiler = pan_pool_alloc_desc(&batch->pool.base, TILER_JOB);
+#endif
         }
 
         unsigned vertex_count = ctx->vertex_count;

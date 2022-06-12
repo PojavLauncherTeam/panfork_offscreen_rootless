@@ -815,7 +815,7 @@ class Parser(object):
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_cs_pack_function(self, name, group):
-        print("static inline void\n%s_pack(struct pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{" %
+        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{struct pan_command_stream *s = (void *)cl;" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True)
