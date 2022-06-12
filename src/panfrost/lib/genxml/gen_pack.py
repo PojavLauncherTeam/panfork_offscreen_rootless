@@ -116,10 +116,10 @@ __gen_alloc_cs(struct pan_command_stream *s, uint32_t alloc)
 }
 
 static inline void
-__gen_emit_cs_32(struct pan_command_stream *s, uint8_t index, uint32_t value)
+__gen_emit_cs_32(struct pan_command_stream *s,
+                 uint8_t flags, uint8_t index, uint32_t value)
 {
-  uint64_t flags = (uint64_t)2 << 56;
-  uint64_t instr = flags | ((uint64_t) index << 48) | value;
+  uint64_t instr = ((uint64_t)flags << 56) | ((uint64_t) index << 48) | value;
   *(s->ptr++) = instr;
 }
 
@@ -345,6 +345,10 @@ class Field(object):
 
         self.modifier  = parse_modifier(attrs.get("modifier"))
 
+        action = attrs.get("action")
+        self.time = {None: 0, "exec": 1}[action]
+        self.flags = {None: 0, "exec": 4}[action]
+
     def emit_template_struct(self, dim):
         if self.type == 'address':
             type = 'uint64_t'
@@ -410,9 +414,11 @@ class Group(object):
                 field.emit_template_struct(dim)
 
     class Word:
-        def __init__(self):
+        def __init__(self, time=None, flags=0):
             self.size = 32
             self.contributors = []
+            self.time = time
+            self.flags = flags
 
     class FieldRef:
         def __init__(self, field, path, start, end):
@@ -451,8 +457,13 @@ class Group(object):
             last_word = contributor.end // 32
             for b in range(first_word, last_word + 1):
                 if not b in words:
-                    words[b] = self.Word()
+                    words[b] = self.Word(field.time, field.flags)
+
+                assert(words[b].time == field.time)
+                assert(words[b].flags == field.flags)
                 words[b].contributors.append(contributor)
+
+        return
 
     def emit_pack_function(self, csf=False):
         if csf:
@@ -477,11 +488,15 @@ class Group(object):
             elif field.modifier[0] == "log2":
                 print("   assert(util_is_power_of_two_nonzero(values->{}));".format(field.name))
 
-        for index in range(self.length // 4):
+        if csf:
+            index_list = sorted(words, key=lambda x: (words[x].time, x))
+        else:
+            index_list = range(self.length // 4)
+
+        for index in index_list:
             # Handle MBZ words
             if not index in words:
-                if not csf:
-                    print("   cl[%2d] = 0;" % index)
+                print("   cl[%2d] = 0;" % index)
                 continue
 
             word = words[index]
@@ -491,7 +506,8 @@ class Group(object):
             v = None
             if csf:
                 # TODO: Use 48-bit uploads where possible
-                prefix = "   __gen_emit_cs_32(s, 0x%02x," % index
+                flags = word.flags | 2
+                prefix = "   __gen_emit_cs_32(s, %i, 0x%02x," % (flags, index)
             else:
                 prefix = "   cl[%2d] = (" % index
 

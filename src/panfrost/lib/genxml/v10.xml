@@ -606,8 +606,8 @@
   </enum>
 
   <struct name="Primitive" layout="cs">
-    <field name="Draw mode" size="8" start="0x00:0" type="Draw Mode" default="None" flags="6" layout="end"/>
-    <field name="Index type" size="3" start="0x00:8" type="Index Type" default="None" flags="6" layout="end"/>
+    <field name="Draw mode" size="8" start="0x00:0" type="Draw Mode" default="None" action="exec"/>
+    <field name="Index type" size="3" start="0x00:8" type="Index Type" default="None" action="exec"/>
     <field name="Point size array format" size="2" start="0x38:11" type="Point Size Array Format"/>
     <field name="Primitive restart" size="2" start="0x38:18" type="Primitive Restart"/>
 
