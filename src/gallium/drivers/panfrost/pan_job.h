@@ -195,7 +195,7 @@ struct panfrost_batch {
         /* Referenced resources, holds a pipe_reference. */
         struct set *resources;
 
-        struct pan_command_stream s;
+        pan_command_stream s;
 };
 
 /* Functions for managing the above */

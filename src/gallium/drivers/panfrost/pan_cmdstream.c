@@ -3419,8 +3419,8 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
          */
         secondary_shader &= fs_required;
 
-        panfrost_emit_primitive(ctx, info, draw, 0, secondary_shader,
-                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
+        panfrost_emit_primitive(ctx, info, draw, 0, secondary_shader, job);
+//                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
 
         pan_section_pack(job, MALLOC_VERTEX_JOB, INSTANCE_COUNT, cfg) {
                 cfg.count = info->instance_count;
@@ -3659,7 +3659,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         if (idvs) {
 #if PAN_ARCH >= 10
                 // TODO: This should point to the command stream pointer
-                tiler = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
+                tiler = pan_pool_alloc_aligned(&batch->pool.base, 65536, 64);
 #elif PAN_ARCH == 9
                 tiler = pan_pool_alloc_desc(&batch->pool.base, MALLOC_VERTEX_JOB);
 #elif PAN_ARCH >= 6
@@ -3771,8 +3771,14 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 #if PAN_ARCH >= 9
         assert(idvs && "Memory allocated IDVS required on Valhall");
 
+#if PAN_ARCH >= 10
+        // todo: That &...
+        panfrost_emit_malloc_vertex(batch, info, draw, indices,
+                                    secondary_shader, &tiler.cpu);
+#else
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
                                     secondary_shader, tiler.cpu);
+#endif
 
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
                          MALI_JOB_TYPE_MALLOC_VERTEX, false, false, 0,

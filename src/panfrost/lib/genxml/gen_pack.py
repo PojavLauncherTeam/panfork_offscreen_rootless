@@ -46,10 +46,8 @@ pack_header = """
 
 #include "util/bitpack_helpers.h"
 
-struct pan_command_stream {
-  uint64_t *ptr;
-  unsigned instrs_left;
-};
+/* Assume that the caller has done adequate bounds checking */
+typedef uint64_t * pan_command_stream;
 
 struct pan_command_stream_decoded {
   uint32_t values[256];
@@ -107,20 +105,12 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
    return (2*odd + 1) << shift;
 }
 
-// TODO: Do something when running out of space
 static inline void
-__gen_alloc_cs(struct pan_command_stream *s, uint32_t alloc)
-{
-   assert(s->instrs_left >= alloc);
-   s->instrs_left -= alloc;
-}
-
-static inline void
-__gen_emit_cs_32(struct pan_command_stream *s,
+__gen_emit_cs_32(pan_command_stream *s,
                  uint8_t flags, uint8_t index, uint32_t value)
 {
   uint64_t instr = ((uint64_t)flags << 56) | ((uint64_t) index << 48) | value;
-  *(s->ptr++) = instr;
+  *((*s)++) = instr;
 }
 
 #define PREFIX1(A) MALI_ ## A
@@ -815,7 +805,7 @@ class Parser(object):
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_cs_pack_function(self, name, group):
-        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{struct pan_command_stream *s = (void *)cl;" %
+        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{pan_command_stream *s = (pan_command_stream *)cl;" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True)
