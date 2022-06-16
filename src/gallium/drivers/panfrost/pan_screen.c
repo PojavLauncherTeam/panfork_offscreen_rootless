@@ -822,7 +822,7 @@ panfrost_create_screen(int fd, struct renderonly *ro)
 
         /* Bail early on unsupported hardware */
         if (dev->model == NULL) {
-                debug_printf("panfrost: Unsupported model %X", dev->gpu_id);
+                debug_printf("panfrost: Unsupported model %X\n", dev->gpu_id);
                 panfrost_destroy_screen(&(screen->base));
                 return NULL;
         }

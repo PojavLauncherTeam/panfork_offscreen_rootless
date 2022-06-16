@@ -70,6 +70,7 @@ const struct panfrost_model panfrost_model_list[] = {
         MODEL(0x7212, "G52", "TGOx", HAS_ANISO, 16384, {}),
         MODEL(0x7402, "G52 r1", "TGOx", HAS_ANISO, 16384, {}),
         MODEL(0x9093, "G57", "TNAx", HAS_ANISO, 16384, {}),
+        MODEL(0xa002, "G610", "LODx", HAS_ANISO, 16384), // todo is this correct?
 };
 
 #undef NO_ANISO
