@@ -996,12 +996,15 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
                 payload.bound_max_y = fb->extent.maxy >> MALI_TILE_SHIFT;
                 payload.framebuffer = fbd;
 
-#if PAN_ARCH >= 5
+                // TODO: The location of `tile_enable_map` for v10
+#if PAN_ARCH >= 5 && PAN_ARCH < 10
                 if (fb->tile_map.base) {
                         payload.has_tile_enable_map = true;
                         payload.tile_enable_map = fb->tile_map.base;
                         payload.tile_enable_map_row_stride = fb->tile_map.stride;
                 }
+#else
+                assert(!fb->tile_map.base);
 #endif
         }
 }
