@@ -1431,8 +1431,8 @@
     <field name="Vertex attribute stride" start="0:16" size="16" type="uint"/>
   </struct>
 
-  <struct name="Tiler Pointer" size="2">
-    <field name="Address" size="64" start="0:0" type="address"/>
+  <struct name="Tiler Pointer" layout="cs">
+    <field name="Address" size="64" start="0x28:0" type="address"/>
   </struct>
 
   <struct name="Primitive Size" size="2">
