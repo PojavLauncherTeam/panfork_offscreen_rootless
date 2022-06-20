@@ -1076,7 +1076,10 @@ pandecode_dcd(const struct MALI_DRAW *p, enum mali_job_type job_type,
                 }
         }
 
+        // TODO v10
+#if PAN_ARCH < 10
         pandecode_shader_environment(&p->shader, gpu_id);
+#endif
         DUMP_UNPACKED(DRAW, *p, "Draw:\n");
 }
 

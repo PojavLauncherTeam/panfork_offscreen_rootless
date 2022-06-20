@@ -3272,7 +3272,9 @@ panfrost_emit_draw(void *out,
                                 cfg.occlusion_query = MALI_OCCLUSION_MODE_PREDICATE;
 
                         struct panfrost_resource *rsrc = pan_resource(ctx->occlusion_query->rsrc);
-                        cfg.occlusion = rsrc->image.data.bo->ptr.gpu;
+#if PAN_ARCH < 10
+                        cfg.occlusion = rsrc->image.data.bo->ptr.gpu; // TODO v10
+#endif
                         panfrost_batch_write_rsrc(ctx->batch, rsrc,
                                               PIPE_SHADER_FRAGMENT);
                 }
@@ -3282,7 +3284,10 @@ panfrost_emit_draw(void *out,
                         ctx->prog[PIPE_SHADER_FRAGMENT];
 
                 cfg.multisample_enable = rast->multisample;
-                cfg.sample_mask = rast->multisample ? ctx->sample_mask : 0xFFFF;
+
+#if PAN_ARCH < 10
+                cfg.sample_mask = rast->multisample ? ctx->sample_mask : 0xFFFF; // TODO v10
+#endif
 
                 /* Use per-sample shading if required by API Also use it when a
                  * blend shader is used with multisampling, as this is handled
@@ -3295,7 +3300,9 @@ panfrost_emit_draw(void *out,
 
                 cfg.single_sampled_lines = !rast->multisample;
 
-                cfg.vertex_array.packet = true;
+#if PAN_ARCH < 10
+                cfg.vertex_array.packet = true; // TODO v10
+#endif
 
                 cfg.minimum_z = batch->minimum_z;
                 cfg.maximum_z = batch->maximum_z;
@@ -3326,9 +3333,11 @@ panfrost_emit_draw(void *out,
                          * Only set when there is a fragment shader, since
                          * otherwise no colour updates are possible.
                          */
+#if PAN_ARCH < 10
                         cfg.render_target_mask =
                                 (fs->info.outputs_written >> FRAG_RESULT_DATA0) &
-                                ctx->fb_rt_mask;
+                                ctx->fb_rt_mask; // TODO v10
+#endif
 
                         /* Also use per-sample shading if required by the shader
                          */
@@ -3353,9 +3362,11 @@ panfrost_emit_draw(void *out,
                         cfg.overdraw_alpha0 = panfrost_overdraw_alpha(ctx, 0);
                         cfg.overdraw_alpha1 = panfrost_overdraw_alpha(ctx, 1);
 
+#if PAN_ARCH < 10
                         panfrost_emit_shader(batch, &cfg.shader, PIPE_SHADER_FRAGMENT,
                                              batch->rsd[PIPE_SHADER_FRAGMENT],
-                                             batch->tls.gpu);
+                                             batch->tls.gpu); // TODO v10
+#endif
                 } else {
                         /* These operations need to be FORCE to benefit from the
                          * depth-only pass optimizations.
@@ -3452,9 +3463,12 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 cfg.address = panfrost_batch_get_bifrost_tiler(batch, ~0);
         }
 
-        STATIC_ASSERT(sizeof(batch->scissor) == pan_size(SCISSOR));
+        /* For v10, we shouldn't have to emit the scissor most of the time */
+#if PAN_ARCH < 10
+        STATIC_ASSERT(sizeof(batch->scissor) == pan_size(SCISSOR)); // TODO v10
         memcpy(pan_section_ptr(job, MALLOC_VERTEX_JOB, SCISSOR),
                &batch->scissor, pan_size(SCISSOR));
+#endif
 
         panfrost_emit_primitive_size(ctx, info->mode == PIPE_PRIM_POINTS, 0,
                                      pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE_SIZE));
@@ -3577,19 +3591,25 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
                 cfg.workgroup_count_y = info->instance_count;
                 cfg.workgroup_count_z = 1;
 
+#if PAN_ARCH < 10
                 panfrost_emit_shader(batch, &cfg.compute, PIPE_SHADER_VERTEX,
                                      batch->rsd[PIPE_SHADER_VERTEX],
-                                     batch->tls.gpu);
+                                     batch->tls.gpu); // TODO v10
+#endif
 
                 /* TODO: Indexing. Also, this is a legacy feature... */
-                cfg.compute.attribute_offset = batch->ctx->offset_start;
+#if PAN_ARCH < 10
+                cfg.compute.attribute_offset = batch->ctx->offset_start; // TODO v10
+#endif
 
                 /* Transform feedback shaders do not use barriers or shared
                  * memory, so we may merge workgroups.
                  */
                 cfg.allow_merging_workgroups = true;
-                cfg.task_increment = 1;
+#if PAN_ARCH < 10
+                cfg.task_increment = 1; // TODO v10
                 cfg.task_axis = MALI_TASK_AXIS_Z;
+#endif
         }
 #else
         struct mali_invocation_packed invocation;
@@ -4186,9 +4206,11 @@ panfrost_launch_grid(struct pipe_context *pipe,
                 cfg.workgroup_count_y = num_wg[1];
                 cfg.workgroup_count_z = num_wg[2];
 
+#if PAN_ARCH < 10
                 panfrost_emit_shader(batch, &cfg.compute, PIPE_SHADER_COMPUTE,
                                      batch->rsd[PIPE_SHADER_COMPUTE],
-                                     panfrost_emit_shared_memory(batch, info));
+                                     panfrost_emit_shared_memory(batch, info)); // TODO v10
+#endif
 
                 /* Workgroups may be merged if the shader does not use barriers
                  * or shared memory. This condition is checked against the
@@ -4200,8 +4222,10 @@ panfrost_launch_grid(struct pipe_context *pipe,
                         cs->info.cs.allow_merging_workgroups &&
                         (info->variable_shared_mem == 0);
 
-                cfg.task_increment = 1;
+#if PAN_ARCH < 10
+                cfg.task_increment = 1; // TODO v10
                 cfg.task_axis = MALI_TASK_AXIS_Z;
+#endif
         }
 #endif
 
