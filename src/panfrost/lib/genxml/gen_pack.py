@@ -335,10 +335,6 @@ class Field(object):
 
         self.modifier  = parse_modifier(attrs.get("modifier"))
 
-        action = attrs.get("action")
-        self.time = {None: 0, "exec": 1}[action]
-        self.flags = {None: 0, "exec": 4}[action]
-
     def emit_template_struct(self, dim):
         if self.type == 'address':
             type = 'uint64_t'
@@ -404,11 +400,9 @@ class Group(object):
                 field.emit_template_struct(dim)
 
     class Word:
-        def __init__(self, time=None, flags=0):
+        def __init__(self):
             self.size = 32
             self.contributors = []
-            self.time = time
-            self.flags = flags
 
     class FieldRef:
         def __init__(self, field, path, start, end):
@@ -447,10 +441,8 @@ class Group(object):
             last_word = contributor.end // 32
             for b in range(first_word, last_word + 1):
                 if not b in words:
-                    words[b] = self.Word(field.time, field.flags)
+                    words[b] = self.Word()
 
-                assert(words[b].time == field.time)
-                assert(words[b].flags == field.flags)
                 words[b].contributors.append(contributor)
 
         return
@@ -479,7 +471,7 @@ class Group(object):
                 print("   assert(util_is_power_of_two_nonzero(values->{}));".format(field.name))
 
         if csf:
-            index_list = sorted(words, key=lambda x: (words[x].time, x))
+            index_list = sorted(words)
         else:
             index_list = range(self.length // 4)
 
@@ -496,7 +488,7 @@ class Group(object):
             v = None
             if csf:
                 # TODO: Use 48-bit uploads where possible
-                flags = word.flags | 2
+                flags = 2
                 prefix = "   __gen_emit_cs_32(s, %i, 0x%02x," % (flags, index)
             else:
                 prefix = "   cl[%2d] = (" % index
