@@ -353,7 +353,8 @@ class Field(object):
             type = 'uint64_t'
         elif self.type == 'int':
             type = 'int32_t'
-        elif self.type in ['uint', 'hex', 'uint/float', 'padded', 'Pixel Format']:
+            # TODO: Convert to tuple
+        elif self.type in ['uint', 'hex', 'register', 'uint/float', 'padded', 'Pixel Format']:
             type = 'uint32_t'
         elif self.type in self.parser.structs:
             type = 'struct ' + self.parser.gen_prefix(safe_name(self.type.upper()))
@@ -530,7 +531,7 @@ class Group(object):
                     elif field.modifier[0] == "log2":
                         value = "util_logbase2({})".format(value)
 
-                if field.type in ["uint", "hex", "uint/float", "address", "Pixel Format"]:
+                if field.type in ["uint", "hex", "uint/float", "address", "register", "Pixel Format"]:
                     s = "util_bitpack_uint(%s, %d, %d)" % \
                         (value, start, end)
                 elif field.type == "padded":
@@ -605,7 +606,7 @@ class Group(object):
             args.append(str(fieldref.start))
             args.append(str(fieldref.end))
 
-            if field.type in set(["uint", "hex", "uint/float", "address", "Pixel Format"]):
+            if field.type in set(["uint", "hex", "uint/float", "address", "register", "Pixel Format"]):
                 convert = "__gen_unpack_uint"
             elif field.type in self.parser.enums:
                 convert = "(enum %s)__gen_unpack_uint" % enum_name(field.type)
@@ -659,7 +660,7 @@ class Group(object):
                 print('   fprintf(fp, "%*s{}: %f\\n", indent, "", {});'.format(name, val))
             elif field.type in ["uint", "hex"] and (field.end - field.start) >= 32:
                 print('   fprintf(fp, "%*s{}: 0x%" PRIx64 "\\n", indent, "", {});'.format(name, val))
-            elif field.type == "hex":
+            elif field.type in ("hex", "register"):
                 print('   fprintf(fp, "%*s{}: 0x%x\\n", indent, "", {});'.format(name, val))
             elif field.type == "uint/float":
                 print('   fprintf(fp, "%*s{}: 0x%X (%f)\\n", indent, "", {}, uif({}));'.format(name, val, val))
