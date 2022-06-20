@@ -55,6 +55,7 @@ struct pan_scoreboard {
 };
 
 #ifdef PAN_ARCH
+#if PAN_ARCH < 10
 /*
  * There are various types of Mali jobs:
  *
@@ -266,6 +267,7 @@ panfrost_scoreboard_initialize_tiler(struct pan_pool *pool,
         scoreboard->first_job = transfer.gpu;
         return transfer;
 }
+#endif /* PAN_ARCH < 10 */
 #endif /* PAN_ARCH */
 
 #endif
