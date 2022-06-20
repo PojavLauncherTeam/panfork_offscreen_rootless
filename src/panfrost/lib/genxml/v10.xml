@@ -605,9 +605,14 @@
     <value name="Explicit" value="3"/>
   </enum>
 
+  <struct name="IDVS launch" layout="ins" op="6">
+    <field name="Draw mode" size="8" start="0" type="Draw Mode" default="None"/>
+    <field name="Index type" size="3" start="8" type="Index Type" default="None"/>
+    <field name="Unk register 1" size="8" start="32" type="register" default="0x42"/>
+    <field name="Unk register 2" size="8" start="40" type="register" default="0x4a"/>
+  </struct>
+
   <struct name="Primitive" layout="cs">
-    <field name="Draw mode" size="8" start="0x00:0" type="Draw Mode" default="None" action="exec"/>
-    <field name="Index type" size="3" start="0x00:8" type="Index Type" default="None" action="exec"/>
     <field name="Point size array format" size="2" start="0x38:11" type="Point Size Array Format"/>
     <field name="Primitive restart" size="2" start="0x38:18" type="Primitive Restart"/>
 

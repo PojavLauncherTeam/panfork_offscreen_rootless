@@ -106,6 +106,13 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
 }
 
 static inline void
+__gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
+{
+  instr |= ((uint64_t)op << 56);
+  *((*s)++) = instr;
+}
+
+static inline void
 __gen_emit_cs_32(pan_command_stream *s,
                  uint8_t flags, uint8_t index, uint32_t value)
 {
@@ -400,8 +407,8 @@ class Group(object):
                 field.emit_template_struct(dim)
 
     class Word:
-        def __init__(self):
-            self.size = 32
+        def __init__(self, size=32):
+            self.size = size
             self.contributors = []
 
     class FieldRef:
@@ -425,7 +432,7 @@ class Group(object):
             end = offset + field.end
             all_fields.append(self.FieldRef(field, field_path, start, end))
 
-    def collect_words(self, fields, offset, path, words):
+    def collect_words(self, fields, offset, path, words, ins=False):
         for field in fields:
             field_path = '{}{}'.format(path, field.name)
             start = offset + field.start
@@ -439,22 +446,27 @@ class Group(object):
             contributor = self.FieldRef(field, field_path, start, end)
             first_word = contributor.start // 32
             last_word = contributor.end // 32
+            if ins:
+                assert(last_word < 2)
+                first_word = last_word = 0
+
             for b in range(first_word, last_word + 1):
                 if not b in words:
-                    words[b] = self.Word()
+                    words[b] = self.Word(size=64 if ins else 32)
 
                 words[b].contributors.append(contributor)
 
         return
 
-    def emit_pack_function(self, csf=False):
+    def emit_pack_function(self, csf=False, ins=False):
         if csf:
             self.length = 256 * 4
         else:
             self.get_length()
+            assert(not ins)
 
         words = {}
-        self.collect_words(self.fields, 0, '', words)
+        self.collect_words(self.fields, 0, '', words, ins)
 
         # Validate the modifier is lossless
         for field in self.fields:
@@ -481,12 +493,17 @@ class Group(object):
                 print("   cl[%2d] = 0;" % index)
                 continue
 
+            if ins:
+                assert(index == 0)
+
             word = words[index]
 
             word_start = index * 32
 
             v = None
-            if csf:
+            if ins:
+                prefix = "   __gen_emit_cs_ins(s, 0x%02x," % self.op
+            elif csf:
                 # TODO: Use 48-bit uploads where possible
                 flags = 2
                 prefix = "   __gen_emit_cs_32(s, %i, 0x%02x," % (flags, index)
@@ -498,7 +515,7 @@ class Group(object):
                 name = field.name
                 start = contributor.start
                 end = contributor.end
-                contrib_word_start = (start // 32) * 32
+                contrib_word_start = (start // word.size) * word.size
                 start -= contrib_word_start
                 end -= contrib_word_start
 
@@ -691,6 +708,7 @@ class Parser(object):
             if "size" in attrs:
                 self.group.length = int(attrs["size"]) * 4
             self.group.align = int(attrs["align"]) if "align" in attrs else None
+            self.group.op = int(attrs["op"]) if "op" in attrs else None
             self.structs[attrs["name"]] = self.group
         elif name == "field":
             if self.layout == "cs" and not attrs["start"].startswith("0x"):
@@ -806,6 +824,16 @@ class Parser(object):
 
         assert(group.length == 256 * 4)
 
+    def emit_ins_pack_function(self, name, group):
+        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{pan_command_stream *s = (pan_command_stream *)cl;" %
+              (name, ' ' * (len(name) + 6), name))
+
+        group.emit_pack_function(csf=True, ins=True)
+
+        print("}\n\n")
+
+        assert(group.length == 256 * 4)
+
     def emit_unpack_function(self, name, group, csf=False):
         print("static inline void")
         print("%s_unpack(const uint8_t * restrict cl,\n%sstruct %s * restrict values)\n{" %
@@ -834,6 +862,10 @@ class Parser(object):
         elif self.layout == "cs":
             self.emit_cs_pack_function(self.struct, self.group)
             self.emit_unpack_function(self.struct, self.group, csf=True)
+        elif self.layout == "ins":
+            # TODO: I don't think that the current unpack emit functions would
+            # work
+            self.emit_ins_pack_function(self.struct, self.group)
         else:
             assert(self.layout == "none")
         self.emit_print_function(self.struct, self.group)
