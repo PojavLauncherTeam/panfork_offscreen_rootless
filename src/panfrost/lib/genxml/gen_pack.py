@@ -846,9 +846,6 @@ class Parser(object):
             assert(self.layout == "none")
         self.emit_print_function(self.struct, self.group)
 
-    def enum_prefix(self, name):
-        return 
-
     def emit_enum(self):
         e_name = enum_name(self.enum)
         prefix = e_name if self.enum != 'Format' else global_prefix
