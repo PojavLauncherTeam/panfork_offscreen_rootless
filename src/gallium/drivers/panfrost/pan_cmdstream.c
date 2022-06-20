@@ -3083,7 +3083,9 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
                       info->mode == PIPE_PRIM_LINE_STRIP);
 
         pan_pack(out, PRIMITIVE, cfg) {
+#if PAN_ARCH < 10
                 cfg.draw_mode = pan_draw_mode(info->mode);
+#endif
                 if (panfrost_writes_point_size(ctx))
                         cfg.point_size_array_format = MALI_POINT_SIZE_ARRAY_FORMAT_FP16;
 
@@ -3121,15 +3123,17 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
 #endif
 
                 cfg.index_count = ctx->indirect_draw ? 1 : draw->count;
-                cfg.index_type = panfrost_translate_index_size(info->index_size);
-
+                enum mali_index_type index_type = panfrost_translate_index_size(info->index_size);
+#if PAN_ARCH < 10
+                cfg.index_type = index_type;
+#endif
 
                 if (PAN_ARCH >= 9) {
                         /* Base vertex offset on Valhall is used for both
                          * indexed and non-indexed draws, in a simple way for
                          * either. Handle both cases.
                          */
-                        if (cfg.index_type)
+                        if (index_type)
                                 cfg.base_vertex_offset = draw->index_bias;
                         else
                                 cfg.base_vertex_offset = draw->start;
@@ -3137,7 +3141,7 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
                         /* Indices are moved outside the primitive descriptor
                          * on Valhall, so we don't need to set that here
                          */
-                } else if (cfg.index_type) {
+                } else if (index_type) {
                         cfg.base_vertex_offset = draw->index_bias - ctx->offset_start;
 
 #if PAN_ARCH <= 7
@@ -3670,7 +3674,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         } else {
 #if PAN_ARCH >= 10
                 // TODO: These be the command stream pointer
-                // In this case they must be the same!
+                // In this case they must be the same! (i.e. alias)
                 vertex = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
                 tiler = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
 #else
@@ -3775,14 +3779,19 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         // todo: That &...
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
                                     secondary_shader, &tiler.cpu);
+
+        pan_pack(&tiler.cpu, IDVS_LAUNCH, cfg) {
+                cfg.draw_mode = pan_draw_mode(info->mode);
+                cfg.index_type = panfrost_translate_index_size(info->index_size);
+        }
 #else
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
                                     secondary_shader, tiler.cpu);
-#endif
 
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
                          MALI_JOB_TYPE_MALLOC_VERTEX, false, false, 0,
                          0, &tiler, false);
+#endif
 #else
         /* Fire off the draw itself */
         panfrost_draw_emit_tiler(batch, info, draw, &invocation, indices,
