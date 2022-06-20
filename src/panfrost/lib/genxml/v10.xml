@@ -1275,9 +1275,10 @@
   </struct>
 
   <aggregate name="Fragment Job" align="128">
-    <section name="Header" offset="0" type="Job Header"/>
     <section name="Payload" offset="32" type="Fragment Job Payload"/>
   </aggregate>
+
+  <struct name="Fragment launch" layout="ins" op="7"/>
 
   <enum name="Write Value Type">
     <value name="Cycle Counter" value="1"/>

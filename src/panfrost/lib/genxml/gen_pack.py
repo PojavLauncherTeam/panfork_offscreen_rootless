@@ -483,7 +483,9 @@ class Group(object):
             elif field.modifier[0] == "log2":
                 print("   assert(util_is_power_of_two_nonzero(values->{}));".format(field.name))
 
-        if csf:
+        if ins:
+            index_list = (0, )
+        elif csf:
             index_list = sorted(words)
         else:
             index_list = range(self.length // 4)
@@ -491,11 +493,11 @@ class Group(object):
         for index in index_list:
             # Handle MBZ words
             if not index in words:
-                print("   cl[%2d] = 0;" % index)
+                if ins:
+                    print("   __gen_emit_cs_ins(s, 0x%02x, 0);" % self.op)
+                else:
+                    print("   cl[%2d] = 0;" % index)
                 continue
-
-            if ins:
-                assert(index == 0)
 
             word = words[index]
 

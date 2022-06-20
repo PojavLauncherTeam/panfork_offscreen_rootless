@@ -984,10 +984,12 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
                             mali_ptr fbd,
                             void *out)
 {
+#if PAN_ARCH < 10
         pan_section_pack(out, FRAGMENT_JOB, HEADER, header) {
                 header.type = MALI_JOB_TYPE_FRAGMENT;
                 header.index = 1;
         }
+#endif
 
         pan_section_pack(out, FRAGMENT_JOB, PAYLOAD, payload) {
                 payload.bound_min_x = fb->extent.minx >> MALI_TILE_SHIFT;
@@ -1007,4 +1009,9 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
                 assert(!fb->tile_map.base);
 #endif
         }
+
+        /* TODO: Do this here? */
+#if PAN_ARCH >= 10
+        pan_pack(out, FRAGMENT_LAUNCH, launch);
+#endif
 }
