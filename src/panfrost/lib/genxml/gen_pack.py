@@ -114,9 +114,9 @@ __gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
 
 static inline void
 __gen_emit_cs_32(pan_command_stream *s,
-                 uint8_t flags, uint8_t index, uint32_t value)
+                 uint8_t op, uint8_t index, uint32_t value)
 {
-  uint64_t instr = ((uint64_t)flags << 56) | ((uint64_t) index << 48) | value;
+  uint64_t instr = ((uint64_t)op << 56) | ((uint64_t) index << 48) | value;
   *((*s)++) = instr;
 }
 
