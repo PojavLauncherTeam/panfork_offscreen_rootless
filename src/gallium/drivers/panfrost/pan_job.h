@@ -195,7 +195,9 @@ struct panfrost_batch {
         /* Referenced resources, holds a pipe_reference. */
         struct set *resources;
 
-        pan_command_stream s;
+        /* Command stream pointers for CSF Valhall */
+        pan_command_stream cs_vertex;
+        pan_command_stream cs_fragment;
 };
 
 /* Functions for managing the above */
