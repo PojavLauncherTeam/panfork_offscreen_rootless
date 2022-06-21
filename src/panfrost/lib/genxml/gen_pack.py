@@ -113,10 +113,16 @@ __gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
 }
 
 static inline void
-__gen_emit_cs_32(pan_command_stream *s,
-                 uint8_t op, uint8_t index, uint32_t value)
+__gen_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
 {
-  uint64_t instr = ((uint64_t)op << 56) | ((uint64_t) index << 48) | value;
+  uint64_t instr = (0x2ULL << 56) | ((uint64_t) index << 48) | value;
+  *((*s)++) = instr;
+}
+
+static inline void
+__gen_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
+{
+  uint64_t instr = (0x1ULL << 56) | ((uint64_t) index << 48) | value;
   *((*s)++) = instr;
 }
 
@@ -467,7 +473,7 @@ class Group(object):
             assert(not ins)
 
         words = {}
-        self.collect_words(self.fields, 0, '', words, ins)
+        self.collect_words(self.fields, 0, '', words, ins=ins)
 
         # Validate the modifier is lossless
         for field in self.fields:
@@ -495,7 +501,7 @@ class Group(object):
             if not index in words:
                 if ins:
                     print("   __gen_emit_cs_ins(s, 0x%02x, 0);" % self.op)
-                else:
+                elif not csf:
                     print("   cl[%2d] = 0;" % index)
                 continue
 
@@ -503,13 +509,23 @@ class Group(object):
 
             word_start = index * 32
 
+            size = 32
+            # Can we move all fields from the next index here?
+            if csf and index + 1 in words:
+                word_next = words[index + 1]
+                end = max(c.end for c in word_next.contributors)
+                if end - word_start < 48:
+                    size = 48
+                    word.contributors += [x for x in word_next.contributors if not x in word.contributors]
+                    del words[index + 1]
+
             v = None
             if ins:
                 prefix = "   __gen_emit_cs_ins(s, 0x%02x," % self.op
+            elif size == 48:
+                prefix = "   __gen_emit_cs_48(s, 0x%02x," % index
             elif csf:
-                # TODO: Use 48-bit uploads where possible
-                flags = 2
-                prefix = "   __gen_emit_cs_32(s, %i, 0x%02x," % (flags, index)
+                prefix = "   __gen_emit_cs_32(s, 0x%02x," % index
             else:
                 prefix = "   cl[%2d] = (" % index
 
@@ -556,8 +572,10 @@ class Group(object):
 
                 if not s == None:
                     shift = word_start - contrib_word_start
-                    if shift:
+                    if shift > 0:
                         s = "%s >> %d" % (s, shift)
+                    elif shift < 0:
+                        s = "%s << %d" % (s, -shift)
 
                     if contributor == word.contributors[-1]:
                         print("%s %s);" % (prefix, s))
@@ -818,7 +836,7 @@ class Parser(object):
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_cs_pack_function(self, name, group):
-        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{pan_command_stream *s = (pan_command_stream *)cl;" %
+        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{\n   pan_command_stream *s = (pan_command_stream *)cl;" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True)
@@ -828,7 +846,7 @@ class Parser(object):
         assert(group.length == 256 * 4)
 
     def emit_ins_pack_function(self, name, group):
-        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{pan_command_stream *s = (pan_command_stream *)cl;" %
+        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{   pan_command_stream *s = (pan_command_stream *)cl;" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True, ins=True)

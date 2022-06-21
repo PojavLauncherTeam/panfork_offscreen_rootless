@@ -1076,7 +1076,7 @@
     <field name="ZS Clean Pixel Write Enable" size="1" start="0:31" type="bool"/>
 
     <field name="CRC Row Stride" size="32" start="1:0" type="uint"/>
-    <field name="CRC Clear Color" size="64" start="2:0" type="hex"/>
+    <field name="CRC Clear Color" size="48" start="2:16" type="hex"/>
     <field name="CRC Base" size="64" start="4:0" type="address"/>
 
     <field name="ZS Writeback Base" size="64" start="8:0" type="address"/>
@@ -1248,8 +1248,8 @@
     <field name="Bound Max Y" size="12" start="0x2b:16" type="uint"/>
     <field name="Tile render order" size="3" start="0x2b:28" type="Tile Render Order" default="Z Order"/>
     <field name="Has Tile Enable Map" size="1" start="0x2b:31" type="bool"/>
-    <field name="Framebuffer" size="64" start="0x28:0" type="address"/>
-    <field name="Tile Enable Map" size="64" start="4:0" type="address"/>
+    <field name="Framebuffer" size="48" start="0x28:0" type="address"/>
+    <field name="Tile Enable Map" size="48" start="4:0" type="address"/>
     <field name="Tile Enable Map Row Stride" size="8" start="6:0" type="uint"/>
   </struct>
 
@@ -1260,11 +1260,12 @@
   <struct name="Fragment launch" layout="ins" op="7"/>
 
   <struct name="Shader Environment" size="16" align="64">
+    <!-- TODO: Are 48-bit items correct? -->
     <field name="Attribute offset" start="0:0" size="32" type="uint"/>
     <field name="FAU count" start="1:0" size="8" type="uint"/>
-    <field name="Resources" start="8:0" size="64" type="address"/>
-    <field name="Shader" start="10:0" size="64" type="address"/>
-    <field name="Thread storage" start="12:0" size="64" type="address"/>
+    <field name="Resources" start="8:0" size="48" type="address"/>
+    <field name="Shader" start="10:0" size="48" type="address"/>
+    <field name="Thread storage" start="12:0" size="48" type="address"/>
     <field name="FAU" start="14:0" size="64" type="address"/>
   </struct>
 
@@ -1368,11 +1369,11 @@
 
     <field name="Minimum Z" start="0x2c:0" size="32" type="float"/>
     <field name="Maximum Z" start="0x2d:0" size="32" type="float"/>
-    <field name="Depth/stencil" start="0x34:0" size="64" type="address"/>
+    <field name="Depth/stencil" start="0x34:0" size="48" type="address"/>
     <field name="Blend count" start="0x32:0" size="4" type="uint"/>
     <field name="Blend" start="0x32:4" size="60" type="address" modifier="shr(4)"/>
+    <field name="Occlusion" size="48" start="0x2e:0" type="address"/>
     <!-- TODO: Shader stuff -->
-    <field name="Occlusion" size="64" start="14:0" type="address"/>
     <field name="Shader" start="16:0" size="512" type="Shader Environment"/>
   </struct>
 
@@ -1387,12 +1388,12 @@
   </struct>
 
   <struct name="Tiler Pointer" layout="cs">
-    <field name="Address" size="64" start="0x28:0" type="address"/>
+    <field name="Address" size="48" start="0x28:0" type="address"/>
   </struct>
 
   <struct name="Primitive Size" layout="cs">
     <field name="Constant" size="32" start="0x3c:0" type="float"/>
-    <field name="Size Array" size="64" start="0x3c:0" type="uint"/>
+    <field name="Size Array" size="48" start="0x3c:0" type="uint"/>
   </struct>
 
   <struct name="Indices" size="2">
