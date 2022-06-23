@@ -47,7 +47,13 @@ pack_header = """
 #include "util/bitpack_helpers.h"
 
 /* Assume that the caller has done adequate bounds checking */
-typedef uint64_t * pan_command_stream;
+//typedef uint64_t * pan_command_stream;
+typedef struct pan_command_stream {
+   union {
+      uint32_t values[1];
+      uint64_t *ptr;
+   };
+} pan_command_stream;
 
 struct pan_command_stream_decoded {
   uint32_t values[256];
@@ -103,27 +109,6 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
    unsigned odd = val >> 5;
 
    return (2*odd + 1) << shift;
-}
-
-static inline void
-__gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
-{
-  instr |= ((uint64_t)op << 56);
-  *((*s)++) = instr;
-}
-
-static inline void
-__gen_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
-{
-  uint64_t instr = (0x2ULL << 56) | ((uint64_t) index << 48) | value;
-  *((*s)++) = instr;
-}
-
-static inline void
-__gen_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
-{
-  uint64_t instr = (0x1ULL << 56) | ((uint64_t) index << 48) | value;
-  *((*s)++) = instr;
 }
 
 #define PREFIX1(A) MALI_ ## A
@@ -209,6 +194,65 @@ v7_format_printer = """
         mali_rgb_component_order_as_str((enum mali_rgb_component_order)(format & ((1 << 12) - 1))), \\
         (format & (1 << 21)) ? " XXX BAD BIT" : "");
 
+"""
+
+no_cs = "".join([f"""
+#define MALI_{y} MALI_{x}
+#define MALI_{y}_header MALI_{x}_header
+#define MALI_{y}_pack MALI_{x}_pack
+#define MALI_{y}_LENGTH MALI_{x}_LENGTH
+#define MALI_{y}_ALIGN MALI_{x}_ALIGN
+#define mali_{y.lower()}_packed mali_{x.lower()}_packed
+#define MALI_{y}_unpack MALI_{x}_unpack
+#define MALI_{y}_print MALI_{x}_print
+""" for x, y in (("DRAW", "DRAW_NO_CS"), )]) + """
+
+#define pan_pack_cs_v10(dst, _, T, name) pan_pack(dst, T, name)
+
+//#define pan_pack_cs(dst, T, name)                       \\//
+//   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\//
+//        *_loop_terminate = (void *) (dst);                  \\//
+//        __builtin_expect(_loop_terminate != NULL, 1);       \\//
+//        ({ PREFIX2(T, pack)(dst->cpu, &name);  \\//
+//           _loop_terminate = NULL; }))
+"""
+
+with_cs = """
+#define pan_pack_cs(dst, T, name)                       \\
+   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\
+        *_loop_terminate = (void *) (dst);                  \\
+        __builtin_expect(_loop_terminate != NULL, 1);       \\
+        ({ PREFIX2(T, pack)(dst, &name);  \\
+           _loop_terminate = NULL; }))
+
+// TODO: assert that the first argument is NULL
+#define pan_pack_cs_v10(_, dst, T, name) pan_pack_cs(dst, T, name)
+
+#define pan_pack_ins(dst, T, name)                       \\
+   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\
+        *_loop_terminate = (void *) (dst);                  \\
+        __builtin_expect(_loop_terminate != NULL, 1);       \\
+        ({ PREFIX2(T, pack_ins)(dst, &name);  \\
+           _loop_terminate = NULL; }))
+
+static inline void
+__gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
+{
+  instr |= ((uint64_t)op << 56);
+  *((s->ptr)++) = instr;
+}
+
+static inline void
+__gen_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
+{
+  __gen_emit_cs_ins(s, 2, ((uint64_t) index << 48) | value);
+}
+
+static inline void
+__gen_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
+{
+  __gen_emit_cs_ins(s, 1, ((uint64_t) index << 48) | value);
+}
 """
 
 def to_alphanum(name):
@@ -719,6 +763,10 @@ class Parser(object):
                     print(v6_format_printer)
                 else:
                     print(v7_format_printer)
+                if arch < 10:
+                    print(no_cs)
+                else:
+                    print(with_cs)
         elif name == "struct":
             name = attrs["name"]
             self.layout = attrs.get("layout", "struct")
@@ -836,7 +884,7 @@ class Parser(object):
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_cs_pack_function(self, name, group):
-        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{\n   pan_command_stream *s = (pan_command_stream *)cl;" %
+        print("static inline void\n%s_pack(pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{\n" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True)
@@ -846,7 +894,7 @@ class Parser(object):
         assert(group.length == 256 * 4)
 
     def emit_ins_pack_function(self, name, group):
-        print("static inline void\n%s_pack(uint32_t * restrict cl,\n%sconst struct %s * restrict values)\n{   pan_command_stream *s = (pan_command_stream *)cl;" %
+        print("static inline void\n%s_pack_ins(pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True, ins=True)

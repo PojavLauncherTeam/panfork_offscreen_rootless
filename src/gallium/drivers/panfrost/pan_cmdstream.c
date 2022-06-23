@@ -795,8 +795,17 @@ panfrost_emit_viewport(struct panfrost_batch *batch)
         }
 
         return T.gpu;
-#else
+#elif PAN_ARCH == 9
         pan_pack(&batch->scissor, SCISSOR, cfg) {
+                cfg.scissor_minimum_x = minx;
+                cfg.scissor_minimum_y = miny;
+                cfg.scissor_maximum_x = maxx;
+                cfg.scissor_maximum_y = maxy;
+        }
+
+        return 0;
+#else
+        pan_pack_cs(&batch->cs_vertex, SCISSOR, cfg) {
                 cfg.scissor_minimum_x = minx;
                 cfg.scissor_minimum_y = miny;
                 cfg.scissor_maximum_x = maxx;
@@ -2904,14 +2913,14 @@ panfrost_draw_emit_vertex(struct panfrost_batch *batch,
 #endif
 
 static void
-panfrost_emit_primitive_size(struct panfrost_context *ctx,
+panfrost_emit_primitive_size(struct panfrost_batch *batch,
                              bool points, mali_ptr size_array,
                              void *prim_size)
 {
-        struct panfrost_rasterizer *rast = ctx->rasterizer;
+        struct panfrost_rasterizer *rast = batch->ctx->rasterizer;
 
-        pan_pack(prim_size, PRIMITIVE_SIZE, cfg) {
-                if (panfrost_writes_point_size(ctx)) {
+        pan_pack_cs_v10(prim_size, &batch->cs_vertex, PRIMITIVE_SIZE, cfg) {
+                if (panfrost_writes_point_size(batch->ctx)) {
                         cfg.size_array = size_array;
                 } else {
                         cfg.constant = points ?
@@ -3070,11 +3079,12 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
  * jobs and Valhall IDVS jobs
  */
 static void
-panfrost_emit_primitive(struct panfrost_context *ctx,
+panfrost_emit_primitive(struct panfrost_batch *batch,
                         const struct pipe_draw_info *info,
                         const struct pipe_draw_start_count_bias *draw,
                         mali_ptr indices, bool secondary_shader, void *out)
 {
+        struct panfrost_context *ctx = batch->ctx;
         UNUSED struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
 
         // TODO: Remove UNUSED
@@ -3082,7 +3092,7 @@ panfrost_emit_primitive(struct panfrost_context *ctx,
                       info->mode == PIPE_PRIM_LINE_LOOP ||
                       info->mode == PIPE_PRIM_LINE_STRIP);
 
-        pan_pack(out, PRIMITIVE, cfg) {
+        pan_pack_cs_v10(out, &batch->cs_vertex, PRIMITIVE, cfg) {
 #if PAN_ARCH < 10
                 cfg.draw_mode = pan_draw_mode(info->mode);
 #endif
@@ -3252,7 +3262,7 @@ panfrost_emit_draw(void *out,
         struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
         bool polygon = (prim == PIPE_PRIM_TRIANGLES);
 
-        pan_pack(out, DRAW, cfg) {
+        pan_pack_cs_v10(out, &batch->cs_vertex, DRAW, cfg) {
                 /*
                  * From the Gallium documentation,
                  * pipe_rasterizer_state::cull_face "indicates which faces of
@@ -3434,7 +3444,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
          */
         secondary_shader &= fs_required;
 
-        panfrost_emit_primitive(ctx, info, draw, 0, secondary_shader, job);
+        panfrost_emit_primitive(batch, info, draw, 0, secondary_shader, job);
 //                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
 
         pan_section_pack(job, MALLOC_VERTEX_JOB, INSTANCE_COUNT, cfg) {
@@ -3470,7 +3480,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                &batch->scissor, pan_size(SCISSOR));
 #endif
 
-        panfrost_emit_primitive_size(ctx, info->mode == PIPE_PRIM_POINTS, 0,
+        panfrost_emit_primitive_size(batch, info->mode == PIPE_PRIM_POINTS, 0,
                                      pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE_SIZE));
 
         pan_section_pack(job, MALLOC_VERTEX_JOB, INDICES, cfg) {
@@ -3518,12 +3528,10 @@ panfrost_draw_emit_tiler(struct panfrost_batch *batch,
                          mali_ptr pos, mali_ptr psiz, bool secondary_shader,
                          void *job)
 {
-        struct panfrost_context *ctx = batch->ctx;
-
         void *section = pan_section_ptr(job, TILER_JOB, INVOCATION);
         memcpy(section, invocation_template, pan_size(INVOCATION));
 
-        panfrost_emit_primitive(ctx, info, draw, indices, secondary_shader,
+        panfrost_emit_primitive(batch, info, draw, indices, secondary_shader,
                                 pan_section_ptr(job, TILER_JOB, PRIMITIVE));
 
         void *prim_size = pan_section_ptr(job, TILER_JOB, PRIMITIVE_SIZE);
@@ -3540,7 +3548,7 @@ panfrost_draw_emit_tiler(struct panfrost_batch *batch,
         panfrost_emit_draw(pan_section_ptr(job, TILER_JOB, DRAW),
                            batch, true, prim, pos, fs_vary, varyings);
 
-        panfrost_emit_primitive_size(ctx, prim == PIPE_PRIM_POINTS, psiz, prim_size);
+        panfrost_emit_primitive_size(batch, prim == PIPE_PRIM_POINTS, psiz, prim_size);
 }
 #endif
 
@@ -3626,8 +3634,8 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
                                   attribs, attrib_bufs, t.cpu);
 #endif
 #if PAN_ARCH >= 10
-        // TODO NULL
-        pan_pack(NULL, COMPUTE_LAUNCH, cfg) {
+        // TODO: Use a seperate compute queue?
+        pan_pack_ins(&batch->cs_vertex, COMPUTE_LAUNCH, cfg) {
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;
         }
@@ -3808,7 +3816,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
                                     secondary_shader, &tiler.cpu);
 
-        pan_pack(&tiler.cpu, IDVS_LAUNCH, cfg) {
+        pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, cfg) {
                 cfg.draw_mode = pan_draw_mode(info->mode);
                 cfg.index_type = panfrost_translate_index_size(info->index_size);
         }
@@ -4259,7 +4267,7 @@ panfrost_launch_grid(struct pipe_context *pipe,
 
 #if PAN_ARCH >= 10
         // TODO NULL
-        pan_pack(NULL, COMPUTE_LAUNCH, cfg) {
+        pan_pack_ins(NULL, COMPUTE_LAUNCH, cfg) {
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;
         }

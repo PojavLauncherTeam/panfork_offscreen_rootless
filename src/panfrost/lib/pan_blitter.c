@@ -1150,7 +1150,7 @@ pan_preload_emit_dcd(struct pan_pool *pool,
                                         blend.cpu);
         }
 
-        pan_pack(out, DRAW, cfg) {
+        pan_pack(out, DRAW_NO_CS, cfg) {
                 if (zs) {
                         /* ZS_EMIT requires late update/kill */
                         cfg.zs_update_operation = MALI_PIXEL_KILL_FORCE_LATE;

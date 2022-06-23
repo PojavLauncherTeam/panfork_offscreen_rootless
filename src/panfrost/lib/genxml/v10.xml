@@ -1340,7 +1340,7 @@
     <field name="Vertex attribute stride" size="16" start="2:16" type="uint"/>
   </struct>
 
-  <struct name="Struct Draw" align="64">
+  <struct name="Draw No CS" align="64">
     <field name="Allow forward pixel to kill" size="1" start="0:0" type="bool"/>
     <field name="Allow forward pixel to be killed" size="1" start="0:1" type="bool"/>
     <field name="Pixel kill operation" size="2" start="0:2" type="Pixel Kill"/>
