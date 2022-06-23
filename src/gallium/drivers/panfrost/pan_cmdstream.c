@@ -795,17 +795,8 @@ panfrost_emit_viewport(struct panfrost_batch *batch)
         }
 
         return T.gpu;
-#elif PAN_ARCH == 9
-        pan_pack(&batch->scissor, SCISSOR, cfg) {
-                cfg.scissor_minimum_x = minx;
-                cfg.scissor_minimum_y = miny;
-                cfg.scissor_maximum_x = maxx;
-                cfg.scissor_maximum_y = maxy;
-        }
-
-        return 0;
 #else
-        pan_pack_cs(&batch->cs_vertex, SCISSOR, cfg) {
+        pan_pack_cs_v10(&batch->scissor, &batch->cs_vertex, SCISSOR, cfg) {
                 cfg.scissor_minimum_x = minx;
                 cfg.scissor_minimum_y = miny;
                 cfg.scissor_maximum_x = maxx;
@@ -3451,6 +3442,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 cfg.count = info->instance_count;
         }
 
+#if PAN_ARCH == 9
         pan_section_pack(job, MALLOC_VERTEX_JOB, ALLOCATION, cfg) {
                 if (secondary_shader) {
                         unsigned v = vs->info.varyings.output_count;
@@ -3468,6 +3460,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                         cfg.vertex_attribute_stride = 0;
                 }
         }
+#endif
 
         pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, TILER, cfg) {
                 cfg.address = panfrost_batch_get_bifrost_tiler(batch, ~0);
@@ -3812,9 +3805,8 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         assert(idvs && "Memory allocated IDVS required on Valhall");
 
 #if PAN_ARCH >= 10
-        // todo: That &...
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
-                                    secondary_shader, &tiler.cpu);
+                                    secondary_shader, NULL);
 
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, cfg) {
                 cfg.draw_mode = pan_draw_mode(info->mode);
