@@ -416,6 +416,7 @@ pandecode_invocation(const void *i)
 }
 #endif /* PAN_ARCH <= 7 */
 
+#if PAN_ARCH < 10
 static void
 pandecode_primitive(const void *p)
 {
@@ -453,6 +454,7 @@ pandecode_primitive_size(const void *s, bool constant)
 
         DUMP_UNPACKED(PRIMITIVE_SIZE, ps, "Primitive Size:\n")
 }
+#endif /* PAN_ARCH < 10 */
 
 #if PAN_ARCH <= 7
 static void
@@ -901,12 +903,21 @@ pandecode_tiler_job(const struct MALI_JOB_HEADER *h,
         pandecode_indent--;
         pandecode_log("\n");
 }
+#endif /* PAN_ARCH < 10 */
 
 static void
-pandecode_fragment_job(mali_ptr job, unsigned gpu_id)
+pandecode_fragment_job(mali_ptr job, uint32_t *cs_buf, uint32_t *cs_buf_unk,
+                       unsigned gpu_id)
 {
+#if PAN_ARCH < 10
         struct mali_fragment_job_packed *PANDECODE_PTR_VAR(p, job);
+#endif
+
+#if PAN_ARCH < 10
         pan_section_unpack(p, FRAGMENT_JOB, PAYLOAD, s);
+#else
+        pan_unpack_cs(cs_buf, cs_buf_unk, FRAGMENT_JOB_PAYLOAD, s);
+#endif
 
         UNUSED struct pandecode_fbd info = pandecode_fbd(s.framebuffer, true, gpu_id);
 
@@ -939,6 +950,7 @@ pandecode_fragment_job(mali_ptr job, unsigned gpu_id)
         pandecode_log("\n");
 }
 
+#if PAN_ARCH < 10
 static void
 pandecode_write_value_job(mali_ptr job)
 {
@@ -1204,7 +1216,7 @@ GENX(pandecode_jc)(mali_ptr jc_gpu_va, unsigned gpu_id)
 #endif
 
                 case MALI_JOB_TYPE_FRAGMENT:
-                        pandecode_fragment_job(jc_gpu_va, gpu_id);
+                        pandecode_fragment_job(jc_gpu_va, NULL, NULL, gpu_id);
                         break;
 
                 default:
@@ -1249,7 +1261,7 @@ static void
 pandecode_csf_dump_state(uint32_t *state)
 {
         uint64_t *st_64 = (uint64_t *)state;
-        for (unsigned i = 0; i < 16; ++i) {
+        for (unsigned i = 0; i < 256 / 4; ++i) {
                 uint64_t v1 = st_64[i * 2];
                 uint64_t v2 = st_64[i * 2 + 1];
 
@@ -1258,6 +1270,138 @@ pandecode_csf_dump_state(uint32_t *state)
 
                 pandecode_log("0x%2x: 0x%16"PRIx64" 0x%16"PRIx64"\n",
                               i * 4, v1, v2);
+        }
+}
+
+static void
+pandecode_cs_buffer(uint64_t *commands, unsigned size,
+                    uint32_t *buffer, uint32_t *buffer_unk,
+                    unsigned gpu_id);
+
+static void
+pandecode_cs_command(uint64_t command,
+                     uint32_t *buffer, uint32_t *buffer_unk,
+                     unsigned gpu_id)
+{
+        uint8_t op = command >> 56;
+        uint8_t addr = (command >> 48) & 0xff;
+        uint64_t value = command & 0xffffffffffffULL;
+
+        uint32_t h = value >> 32;
+        uint32_t l = value;
+
+        uint8_t arg1 = h & 0xff;
+        uint8_t arg2 = h >> 8;
+
+        switch (op) {
+        case 0:
+                if (addr || value)
+                        pandecode_log("nop %02x, #0x%"PRIx64"\n", addr, value);
+                else
+                        pandecode_log("nop\n");
+                break;
+        case 1:
+                buffer[addr] = l;
+                //buffer_unk[addr] = buffer[addr] = l;
+                //buffer_unk[addr + 1] = buffer[addr + 1] = h;
+                pandecode_log("mov x%02x, #0x%"PRIx64"\n", addr, value);
+                break;
+        case 2:
+                buffer_unk[addr] = buffer[addr] = l;
+                pandecode_log("mov w%02x, #0x%"PRIx64"\n", addr, value);
+                break;
+        case 4: {
+                uint32_t masked = l & 0xffff0000;
+                unsigned job_div = l & 0x3fff;
+                unsigned job_div_scale = (l >> 14) & 3;
+                unsigned div = job_div << job_div_scale;
+                if (h != 0xff00 || addr || masked)
+                        pandecode_log("compute (unk %02x), (unk %04x), "
+                                      "(unk %x), div %i\n", addr, h, masked, div);
+                else
+                        pandecode_log("compute div %i\n", div);
+                break;
+        }
+        case 6: {
+                uint32_t masked = l & 0xfffff8f0;
+                uint8_t mode = l & 0xf;
+                uint8_t index = (l >> 8) & 7;
+                if (addr || masked)
+                        pandecode_log("idvs (unk %02x), w%02x, w%02x, (unk %x), "
+                                      "mode %i index %i\n",
+                                      addr, arg1, arg2, masked, mode, index);
+                else
+                        pandecode_log("idvs w%02x, w%02x, mode %i index %i\n",
+                                      arg1, arg2, mode, index);
+                //pandecode_csf_indexed_vertex(buffer, buffer_unk, gpu_id, si);
+                pandecode_csf_dump_state(buffer_unk);
+                break;
+        }
+        case 7: {
+                if (addr || value)
+                        pandecode_log("fragment (unk %02x), (unk %"PRIx64")\n\n",
+                                      addr, value);
+                else
+                        pandecode_log("fragment\n\n");
+
+                pandecode_indent++;
+
+                pandecode_fragment_job(0, buffer, buffer_unk, gpu_id);
+                pandecode_csf_dump_state(buffer_unk);
+
+                pandecode_indent--;
+
+                break;
+        }
+        case 0x20: {
+                const char *name;
+                /* TODO: This appears to be wrong... */
+                switch (buffer[arg1]) {
+                case 0xc8:
+                        name = "vertex";
+                        break;
+                case 0xf8:
+                        name = "fragment";
+                        break;
+                case 0x108:
+                        name = "compute";
+                        break;
+                default:
+                        name = "unk";
+                }
+
+                if (addr || l)
+                        pandecode_log("job (unk %02x), w%02x (%s), x%02x, (unk %x)\n",
+                                      addr, arg1, name, arg2, l);
+                else
+                        pandecode_log("job w%02x (%s), x%02x\n", arg1, name, arg2);
+
+                uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
+                uint64_t *t = pandecode_fetch_gpu_mem(target, 1);
+                pandecode_indent++;
+                pandecode_cs_buffer(t, ~0, buffer, buffer_unk, gpu_id);
+                pandecode_indent--;
+                break;
+        }
+        case 0x26: {
+                pandecode_log("str (unk %02x), w%02x, [x%02x, unk %x]\n",
+                              addr, arg1, arg2, l);
+                break;
+        }
+        default:
+                pandecode_log("UNK %02x %02x, #0x%"PRIx64"\n", addr, op, value);
+                break;
+        }
+}
+
+static void
+pandecode_cs_buffer(uint64_t *commands, unsigned size,
+                    uint32_t *buffer, uint32_t *buffer_unk,
+                    unsigned gpu_id)
+{
+        // TODO: loop condition
+        for (uint64_t c = *commands; c; c = *(++commands)) {
+                pandecode_cs_command(c, buffer, buffer_unk, gpu_id);
         }
 }
 
@@ -1271,112 +1415,12 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
         uint32_t buffer[256] = {0};
         uint32_t buffer_unk[256] = {0};
 
-        uint64_t *commands = pandecode_fetch_gpu_mem(NULL, cs_gpu_va, 1);
+        uint64_t *commands = pandecode_fetch_gpu_mem(cs_gpu_va, 1);
 
         pan_hexdump(stdout, (uint8_t *)commands, size, false);
 
-        // TODO: loop condition
-        for (uint64_t c = *commands; c; c = *(++commands)) {
-                uint8_t command = c >> 56;
-                uint8_t addr = (c >> 48) & 0xff;
-                uint64_t value = c & 0xffffffffffffULL;
+        pandecode_cs_buffer(commands, size, buffer, buffer_unk, gpu_id);
 
-                uint32_t h = value >> 32;
-                uint32_t l = value;
-
-                uint8_t arg1 = h & 0xff;
-                uint8_t arg2 = h >> 8;
-
-                switch (command) {
-                case 0:
-                        if (addr || value)
-                                pandecode_log("nop %02x, #0x%"PRIx64"\n", addr, value);
-                        else
-                                pandecode_log("nop\n");
-                        break;
-                case 1:
-                        buffer_unk[addr] = buffer[addr] = l;
-                        buffer_unk[addr + 1] = buffer[addr + 1] = h;
-                        pandecode_log("mov x%02x, #0x%"PRIx64"\n", addr, value);
-                        break;
-                case 2:
-                        buffer_unk[addr] = buffer[addr] = l;
-                        pandecode_log("mov w%02x, #0x%"PRIx64"\n", addr, value);
-                        break;
-                case 4: {
-                        uint32_t masked = l & 0xffff0000;
-                        unsigned job_div = l & 0x3fff;
-                        unsigned job_div_scale = (l >> 14) & 3;
-                        unsigned div = job_div << job_div_scale;
-                        if (h != 0xff00 || addr || masked)
-                                pandecode_log("compute (unk %02x), (unk %04x), "
-                                              "(unk %x), div %i\n", addr, h, masked, div);
-                        else
-                                pandecode_log("compute div %i\n", div);
-                        break;
-                }
-                case 6: {
-                        uint32_t masked = l & 0xfffff8f0;
-                        uint8_t mode = l & 0xf;
-                        uint8_t index = (l >> 8) & 7;
-                        if (addr || masked)
-                                pandecode_log("idvs (unk %02x), w%02x, w%02x, (unk %x), "
-                                              "mode %i index %i\n",
-                                              addr, arg1, arg2, masked, mode, index);
-                        else
-                                pandecode_log("idvs w%02x, w%02x, mode %i index %i\n",
-                                              arg1, arg2, mode, index);
-                        //pandecode_csf_indexed_vertex(buffer, buffer_unk, gpu_id, si);
-                        pandecode_csf_dump_state(buffer_unk);
-                        break;
-                }
-                case 7: {
-                        if (addr || value)
-                                pandecode_log("fragment (unk %02x), (unk %"PRIx64")\n",
-                                              addr, value);
-                        else
-                                pandecode_log("fragment\n");
-                        break;
-                }
-                case 0x20: {
-                        const char *name;
-                        /* TODO: This appears to be wrong... */
-                        switch (buffer[arg1]) {
-                        case 0xc8:
-                                name = "vertex";
-                                break;
-                        case 0xf8:
-                                name = "fragment";
-                                break;
-                        case 0x108:
-                                name = "compute";
-                                break;
-                        default:
-                                name = "unk";
-                        }
-
-                        if (addr || l)
-                                pandecode_log("job (unk %02x), w%02x (%s), x%02x, (unk %x)\n",
-                                              addr, arg1, name, arg2, l);
-                        else
-                                pandecode_log("job w%02x (%s), x%02x\n", arg1, name, arg2);
-
-                        uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
-                        pandecode_indent++;
-                        GENX(pandecode_cs)(target, ~0, gpu_id);
-                        pandecode_indent--;
-                        break;
-                }
-                case 0x26: {
-                        pandecode_log("str (unk %02x), w%02x, [x%02x, unk %x]\n",
-                                      addr, arg1, arg2, l);
-                        break;
-                }
-                default:
-                        pandecode_log("UNK %02x %02x, #0x%"PRIx64"\n", addr, command, value);
-                        break;
-                }
-        }
         pandecode_log("\n");
 }
 #endif

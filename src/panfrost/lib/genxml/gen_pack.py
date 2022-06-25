@@ -111,6 +111,20 @@ __gen_unpack_padded(const uint8_t *restrict cl, uint32_t start, uint32_t end)
    return (2*odd + 1) << shift;
 }
 
+static inline void
+__gen_clear_value(uint8_t *restrict cl, uint32_t start, uint32_t end)
+{
+   for (uint32_t byte = start / 8; byte <= end / 8; byte++) {
+      uint8_t m = 0;
+      if (byte == start / 8)
+         m |= 0xff >> (8 - start % 8);
+      if (byte == end / 8)
+         m |= 0xff << (1 + end % 8);
+
+      cl[byte] &= m;
+   }
+}
+
 #define PREFIX1(A) MALI_ ## A
 #define PREFIX2(A, B) MALI_ ## A ## _ ## B
 #define PREFIX4(A, B, C, D) MALI_ ## A ## _ ## B ## _ ## C ## _ ## D
@@ -245,6 +259,10 @@ with_cs = """
         __builtin_expect(_loop_terminate != NULL, 1);       \\
         ({ PREFIX2(T, pack_ins)(dst, &name);  \\
            _loop_terminate = NULL; }))
+
+#define pan_unpack_cs(buf, buf_unk, T, name) \\
+        struct PREFIX1(T) name; \\
+        PREFIX2(T, unpack)(buf, buf_unk, &name)
 
 static inline void
 __gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
@@ -652,12 +670,12 @@ class Group(object):
         count = (end - start + 1)
         return (((1 << count) - 1) << start)
 
-    def emit_unpack_function(self, check_unused=True):
+    def emit_unpack_function(self, csf=False):
         # First, verify there is no garbage in unused bits
         words = {}
         self.collect_words(self.fields, 0, '', words)
 
-        if check_unused:
+        if not csf:
             for index in range(self.length // 4):
                 base = index * 32
                 word = words.get(index, self.Word())
@@ -712,6 +730,9 @@ class Group(object):
             if field.modifier and field.modifier[0] == "align":
                 mask = hex(field.modifier[1] - 1)
                 print('   assert(!(values->{} & {}));'.format(fieldref.path, mask))
+
+            if csf:
+                print('   __gen_clear_value({});'.format(', '.join(['cl_unk'] + args[1:])))
 
     def emit_print_function(self):
         for field in self.fields:
@@ -916,12 +937,24 @@ class Parser(object):
 
         assert(group.length == 256 * 4)
 
-    def emit_unpack_function(self, name, group, csf=False):
+    def emit_unpack_function(self, name, group):
         print("static inline void")
         print("%s_unpack(const uint8_t * restrict cl,\n%sstruct %s * restrict values)\n{" %
               (name.upper(), ' ' * (len(name) + 8), name))
 
-        group.emit_unpack_function(check_unused=not csf)
+        group.emit_unpack_function()
+
+        print("}\n")
+
+    def emit_cs_unpack_function(self, name, group):
+        print("static inline void")
+        print("%s_unpack(const uint32_t * restrict buffer, uint32_t * restrict buffer_unk,\n"
+              "%sstruct %s * restrict values)\n{"
+              "   const uint8_t *cl = (uint8_t *)buffer;\n"
+              "   uint8_t *cl_unk = (uint8_t *)buffer_unk;\n" %
+              (name.upper(), ' ' * (len(name) + 8), name))
+
+        group.emit_unpack_function(csf=True)
 
         print("}\n")
 
@@ -943,7 +976,7 @@ class Parser(object):
             self.emit_unpack_function(self.struct, self.group)
         elif self.layout == "cs":
             self.emit_cs_pack_function(self.struct, self.group)
-            self.emit_unpack_function(self.struct, self.group, csf=True)
+            self.emit_cs_unpack_function(self.struct, self.group)
         elif self.layout == "ins":
             # TODO: I don't think that the current unpack emit functions would
             # work
