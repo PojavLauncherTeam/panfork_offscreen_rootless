@@ -4794,7 +4794,6 @@ init_batch(struct panfrost_batch *batch)
         memset(batch->cs_vertex_bo->ptr.cpu, 0, batch->cs_vertex_bo->size);
         memset(batch->cs_fragment_bo->ptr.cpu, 0, batch->cs_fragment_bo->size);
 
-        // TODO v10
         batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
         batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
 #endif

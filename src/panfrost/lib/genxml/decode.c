@@ -1245,13 +1245,31 @@ GENX(pandecode_abort_on_fault)(mali_ptr jc_gpu_va)
 #endif
 
 #if PAN_ARCH >= 10
+static void
+pandecode_csf_dump_state(uint32_t *state)
+{
+        uint64_t *st_64 = (uint64_t *)state;
+        for (unsigned i = 0; i < 16; ++i) {
+                uint64_t v1 = st_64[i * 2];
+                uint64_t v2 = st_64[i * 2 + 1];
+
+                if (!v1 && !v2)
+                        continue;
+
+                pandecode_log("0x%2x: 0x%16"PRIx64" 0x%16"PRIx64"\n",
+                              i * 4, v1, v2);
+        }
+}
+
 // TODO: Does it make sense to pass in the length?
 void
 GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
 {
         pandecode_dump_file_open();
 
+        // TODO: Pass down the buffer during recursion
         uint32_t buffer[256] = {0};
+        uint32_t buffer_unk[256] = {0};
 
         uint64_t *commands = pandecode_fetch_gpu_mem(NULL, cs_gpu_va, 1);
 
@@ -1277,12 +1295,12 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
                                 pandecode_log("nop\n");
                         break;
                 case 1:
-                        buffer[addr] = l;
-                        buffer[addr + 1] = h;
+                        buffer_unk[addr] = buffer[addr] = l;
+                        buffer_unk[addr + 1] = buffer[addr + 1] = h;
                         pandecode_log("mov x%02x, #0x%"PRIx64"\n", addr, value);
                         break;
                 case 2:
-                        buffer[addr] = l;
+                        buffer_unk[addr] = buffer[addr] = l;
                         pandecode_log("mov w%02x, #0x%"PRIx64"\n", addr, value);
                         break;
                 case 4: {
@@ -1308,6 +1326,8 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
                         else
                                 pandecode_log("idvs w%02x, w%02x, mode %i index %i\n",
                                               arg1, arg2, mode, index);
+                        //pandecode_csf_indexed_vertex(buffer, buffer_unk, gpu_id, si);
+                        pandecode_csf_dump_state(buffer_unk);
                         break;
                 }
                 case 7: {
