@@ -282,9 +282,12 @@ pan_prepare_crc(const struct pan_fb_info *fb, int rt_crc,
         ext->crc_render_target = rt_crc;
 
         if (fb->rts[rt_crc].clear) {
+#if PAN_ARCH < 10
+                // todo v10
                 uint32_t clear_val = fb->rts[rt_crc].clear_value[0];
                 ext->crc_clear_color = clear_val | 0xc000000000000000 |
                                        (((uint64_t)clear_val & 0xffff) << 32);
+#endif
         }
 #endif
 }
@@ -991,8 +994,7 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
         }
 #endif
 
-        pan_command_stream s = {0};
-        pan_section_pack_cs_v10(out, &s, FRAGMENT_JOB, PAYLOAD, payload) {
+        pan_section_pack_cs_v10(out, fb->cs_fragment, FRAGMENT_JOB, PAYLOAD, payload) {
                 payload.bound_min_x = fb->extent.minx >> MALI_TILE_SHIFT;
                 payload.bound_min_y = fb->extent.miny >> MALI_TILE_SHIFT;
                 payload.bound_max_x = fb->extent.maxx >> MALI_TILE_SHIFT;
@@ -1011,8 +1013,8 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
 #endif
         }
 
-        /* TODO: Do this here? */
 #if PAN_ARCH >= 10
-        pan_pack_ins(out, FRAGMENT_LAUNCH, launch);
+        /* TODO: Do this here? */
+        pan_pack_ins(fb->cs_fragment, FRAGMENT_LAUNCH, launch);
 #endif
 }

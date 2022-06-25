@@ -489,7 +489,7 @@ panfrost_batch_get_shared_memory(struct panfrost_batch *batch,
 }
 
 static void
-panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
+panfrost_batch_to_fb_info(struct panfrost_batch *batch,
                           struct pan_fb_info *fb,
                           struct pan_image_view *rts,
                           struct pan_image_view *zs,
@@ -511,6 +511,7 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
         fb->rt_count = batch->key.nr_cbufs;
         fb->sprite_coord_origin = pan_tristate_get(batch->sprite_coord_origin);
         fb->first_provoking_vertex = pan_tristate_get(batch->first_provoking_vertex);
+        fb->cs_fragment = &batch->cs_fragment;
 
         static const unsigned char id_swz[] = {
                 PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y, PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W,
@@ -629,6 +630,12 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
         }
 }
 
+static void
+pandecode_cs_bo(struct panfrost_bo *bo, unsigned gpu_id)
+{
+        pandecode_cs(bo->ptr.gpu, bo->size, gpu_id);
+}
+
 static int
 panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                             mali_ptr first_job_desc,
@@ -722,6 +729,8 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                 ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_SUBMIT, &submit);
         free(bo_handles);
 
+        printf("submit job %i\n", ret);
+
         if (ret)
                 return errno;
 
@@ -731,8 +740,17 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                 drmSyncobjWait(dev->fd, &out_sync, 1,
                                INT64_MAX, 0, NULL);
 
-                if (dev->debug & PAN_DBG_TRACE)
-                        pandecode_jc(submit.jc, dev->gpu_id);
+                if (dev->debug & PAN_DBG_TRACE) {
+                        if (dev->arch < 10) {
+                                pandecode_jc(submit.jc, dev->gpu_id);
+                        } else if (reqs & PANFROST_JD_REQ_FS) {
+                                pandecode_cs_bo(batch->cs_fragment_bo,
+                                                dev->gpu_id);
+                        } else {
+                                pandecode_cs_bo(batch->cs_vertex_bo,
+                                                dev->gpu_id);
+                        }
+                }
 
                 if (dev->debug & PAN_DBG_DUMP)
                         pandecode_dump_mappings();
@@ -763,8 +781,9 @@ panfrost_batch_submit_jobs(struct panfrost_batch *batch,
         struct pipe_screen *pscreen = batch->ctx->base.screen;
         struct panfrost_screen *screen = pan_screen(pscreen);
         struct panfrost_device *dev = pan_device(pscreen);
-        bool has_draws = batch->scoreboard.first_job;
-        bool has_tiler = batch->scoreboard.first_tiler;
+        // todo v10
+        bool has_draws = batch->scoreboard.first_job || true;
+        bool has_tiler = batch->scoreboard.first_tiler || true;
         bool has_frag = panfrost_has_fragment_job(batch);
         int ret = 0;
 

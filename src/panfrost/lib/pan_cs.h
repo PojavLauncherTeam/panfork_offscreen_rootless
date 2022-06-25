@@ -121,6 +121,8 @@ struct pan_fb_info {
         /* Only used on Valhall */
         bool sprite_coord_origin;
         bool first_provoking_vertex;
+
+        pan_command_stream *cs_fragment;
 };
 
 static inline unsigned

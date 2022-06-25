@@ -98,6 +98,8 @@ void pandecode_abort_on_fault_v6(mali_ptr jc_gpu_va);
 void pandecode_abort_on_fault_v7(mali_ptr jc_gpu_va);
 void pandecode_abort_on_fault_v9(mali_ptr jc_gpu_va);
 
+void pandecode_cs_v10(mali_ptr cs_gpu_va, unsigned cs_size, unsigned gpu_id);
+
 static inline void
 pan_hexdump(FILE *fp, const uint8_t *hex, size_t cnt, bool with_strings)
 {

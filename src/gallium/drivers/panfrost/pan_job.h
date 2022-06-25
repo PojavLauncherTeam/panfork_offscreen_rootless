@@ -196,6 +196,10 @@ struct panfrost_batch {
         struct set *resources;
 
         /* Command stream pointers for CSF Valhall */
+        // TODO: Is using a separate BO required?
+        struct panfrost_bo *cs_vertex_bo;
+        struct panfrost_bo *cs_fragment_bo;
+
         pan_command_stream cs_vertex;
         pan_command_stream cs_fragment;
 };

@@ -4783,9 +4783,20 @@ init_batch(struct panfrost_batch *batch)
 #endif
 
 #if PAN_ARCH >= 10
+        batch->cs_vertex_bo =
+                panfrost_batch_create_bo(batch, 65536, 0, PIPE_SHADER_VERTEX,
+                                         "Vertex batch command stream");
+        batch->cs_fragment_bo =
+                panfrost_batch_create_bo(batch, 65536, 0, PIPE_SHADER_FRAGMENT,
+                                         "Fragment batch command stream");
+
+        // TODO: Is there a better way to handle this?
+        memset(batch->cs_vertex_bo->ptr.cpu, 0, batch->cs_vertex_bo->size);
+        memset(batch->cs_fragment_bo->ptr.cpu, 0, batch->cs_fragment_bo->size);
+
         // TODO v10
-        batch->cs_vertex.ptr = malloc(65536);
-        batch->cs_fragment.ptr = malloc(65536);
+        batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
+        batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
 #endif
 }
 

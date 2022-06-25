@@ -55,6 +55,8 @@ void pandecode_inject_free(uint64_t gpu_va, unsigned sz);
 
 void pandecode_jc(uint64_t jc_gpu_va, unsigned gpu_id);
 
+void pandecode_cs(uint64_t cs_gpu_va, unsigned cs_size, unsigned gpu_id);
+
 void
 pandecode_abort_on_fault(uint64_t jc_gpu_va, unsigned gpu_id);
 
