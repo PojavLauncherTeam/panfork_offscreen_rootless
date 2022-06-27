@@ -729,8 +729,6 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                 ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_SUBMIT, &submit);
         free(bo_handles);
 
-        printf("submit job %i\n", ret);
-
         if (ret)
                 return errno;
 
