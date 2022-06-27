@@ -225,12 +225,9 @@ no_cs = "".join([f"""
 
 #define pan_section_pack_cs_v10(dst, _, A, S, name) pan_section_pack(dst, A, S, name)
 
-//#define pan_pack_cs(dst, T, name)                       \\//
-//   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\//
-//        *_loop_terminate = (void *) (dst);                  \\//
-//        __builtin_expect(_loop_terminate != NULL, 1);       \\//
-//        ({ PREFIX2(T, pack)(dst->cpu, &name);  \\//
-//           _loop_terminate = NULL; }))
+#define pan_unpack_cs_v10(dst, _, __, T, name) pan_unpack(dst, T, name)
+
+#define pan_section_unpack_cs_v10(src, _, __, A, S, name) pan_section_unpack(src, A, S, name)
 """
 
 with_cs = """
@@ -263,6 +260,12 @@ with_cs = """
 #define pan_unpack_cs(buf, buf_unk, T, name) \\
         struct PREFIX1(T) name; \\
         PREFIX2(T, unpack)(buf, buf_unk, &name)
+
+#define pan_unpack_cs_v10(_, buf, buf_unk, T, name) pan_unpack_cs(buf, buf_unk, T, name)
+
+#define pan_section_unpack_cs_v10(_, buf, buf_unk, A, S, name) \\
+        PREFIX4(A, SECTION, S, TYPE) name;                             \\
+        PREFIX4(A, SECTION, S, unpack)(buf, buf_unk, &name)
 
 static inline void
 __gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
