@@ -71,6 +71,29 @@ bifrost_compiler = executable(
   build_by_default : with_tools.contains('panfrost')
 )
 
+csf_test = executable(
+  'csf_test',
+  ['csf_test/test.c'],
+  include_directories : [
+    inc_mapi,
+    inc_mesa,
+    inc_gallium,
+    inc_gallium_aux,
+    inc_include,
+    inc_src,
+    inc_panfrost,
+    inc_panfrost_hw,
+  ],
+  dependencies : [
+    idep_nir,
+    idep_mesautil,
+    idep_bi_opcodes_h,
+    dep_libdrm,
+    libpanfrost_dep,
+  ],
+  build_by_default : true
+)
+
 if with_panfrost_vk
   subdir('vulkan')
 endif
