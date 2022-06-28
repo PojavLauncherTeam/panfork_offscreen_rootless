@@ -1388,9 +1388,11 @@ pandecode_cs_command(uint64_t command,
                 if (arg1)
                         pandecode_log("add x%02x, (unk %x), x%02x, #0x%x\n",
                                       addr, arg1, arg2, l);
-                else
+                else if (l)
                         pandecode_log("add x%02x, x%02x, #0x%x\n",
                                       addr, arg2, l);
+                else
+                        pandecode_log("mov x%02x, x%02x\n", addr, arg2);
 
                 break;
         }
@@ -1422,6 +1424,11 @@ pandecode_cs_command(uint64_t command,
                 pandecode_indent++;
                 pandecode_cs_buffer(t, ~0, buffer, buffer_unk, gpu_id);
                 pandecode_indent--;
+                break;
+        }
+        case 0x25: {
+                pandecode_log("str(unk) (unk %02x), w%02x, [x%02x, unk %x]\n",
+                              addr, arg1, arg2, l);
                 break;
         }
         case 0x26: {
