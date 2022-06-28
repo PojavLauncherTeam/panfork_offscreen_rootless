@@ -779,9 +779,8 @@ panfrost_batch_submit_jobs(struct panfrost_batch *batch,
         struct pipe_screen *pscreen = batch->ctx->base.screen;
         struct panfrost_screen *screen = pan_screen(pscreen);
         struct panfrost_device *dev = pan_device(pscreen);
-        // todo v10
-        bool has_draws = batch->scoreboard.first_job || true;
-        bool has_tiler = batch->scoreboard.first_tiler || true;
+        bool has_draws = batch->scoreboard.first_job;
+        bool has_tiler = batch->scoreboard.first_tiler;
         bool has_frag = panfrost_has_fragment_job(batch);
         int ret = 0;
 

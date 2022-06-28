@@ -234,30 +234,28 @@ pandecode_fbd(uint64_t gpu_va, bool is_fragment, unsigned gpu_id)
 #if PAN_ARCH >= 6
         pandecode_sample_locations(fb);
 
-#if PAN_ARCH < 10
-        unsigned dcd_size = pan_size(DRAW);
+        unsigned dcd_size = pan_size(DRAW_NO_CS);
 
         if (params.pre_frame_0 != MALI_PRE_POST_FRAME_SHADER_MODE_NEVER) {
                 const void *PANDECODE_PTR_VAR(dcd, params.frame_shader_dcds + (0 * dcd_size));
-                pan_unpack(dcd, DRAW, draw);
+                pan_unpack(dcd, DRAW_NO_CS, draw);
                 pandecode_log("Pre frame 0:\n");
                 pandecode_dcd(&draw, MALI_JOB_TYPE_FRAGMENT, gpu_id);
         }
 
         if (params.pre_frame_1 != MALI_PRE_POST_FRAME_SHADER_MODE_NEVER) {
                 const void *PANDECODE_PTR_VAR(dcd, params.frame_shader_dcds + (1 * dcd_size));
-                pan_unpack(dcd, DRAW, draw);
+                pan_unpack(dcd, DRAW_NO_CS, draw);
                 pandecode_log("Pre frame 1:\n");
                 pandecode_dcd(&draw, MALI_JOB_TYPE_FRAGMENT, gpu_id);
         }
 
         if (params.post_frame != MALI_PRE_POST_FRAME_SHADER_MODE_NEVER) {
                 const void *PANDECODE_PTR_VAR(dcd, params.frame_shader_dcds + (2 * dcd_size));
-                pan_unpack(dcd, DRAW, draw);
+                pan_unpack(dcd, DRAW_NO_CS, draw);
                 pandecode_log("Post frame:\n");
                 pandecode_dcd(&draw, MALI_JOB_TYPE_FRAGMENT, gpu_id);
         }
-#endif
 #else /* PAN_ARCH < 6 */
         DUMP_SECTION(FRAMEBUFFER, LOCAL_STORAGE, fb, "Local Storage:\n");
 

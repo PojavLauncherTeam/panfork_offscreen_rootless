@@ -3633,6 +3633,7 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;
         }
+        batch->scoreboard.first_job = 1;
 #else
         enum mali_job_type job_type = MALI_JOB_TYPE_COMPUTE;
 #if PAN_ARCH <= 5
@@ -3689,28 +3690,17 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 
         UNUSED struct panfrost_ptr tiler, vertex;
 
-        // TODO: Clean up this tree of ifdefs
         if (idvs) {
-#if PAN_ARCH >= 10
-                // TODO: This should point to the command stream pointer
-                tiler = pan_pool_alloc_aligned(&batch->pool.base, 65536, 64);
-#elif PAN_ARCH == 9
-                tiler = pan_pool_alloc_desc(&batch->pool.base, MALLOC_VERTEX_JOB);
+#if PAN_ARCH >= 9
+                tiler = pan_pool_alloc_desc_cs_v10(&batch->pool.base, MALLOC_VERTEX_JOB);
 #elif PAN_ARCH >= 6
                 tiler = pan_pool_alloc_desc(&batch->pool.base, INDEXED_VERTEX_JOB);
-#else
+#else /* PAN_ARCH < 6 */
                 unreachable("IDVS is unsupported on Midgard");
-#endif
+#endif /* PAN_ARCH */
         } else {
-#if PAN_ARCH >= 10
-                // TODO: These be the command stream pointer
-                // In this case they must be the same! (i.e. alias)
-                vertex = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
-                tiler = (struct panfrost_ptr) {.cpu = NULL, .gpu = 0};
-#else
-                vertex = pan_pool_alloc_desc(&batch->pool.base, COMPUTE_JOB);
-                tiler = pan_pool_alloc_desc(&batch->pool.base, TILER_JOB);
-#endif
+                vertex = pan_pool_alloc_desc_cs_v10(&batch->pool.base, COMPUTE_JOB);
+                tiler = pan_pool_alloc_desc_cs_v10(&batch->pool.base, TILER_JOB);
         }
 
         unsigned vertex_count = ctx->vertex_count;
@@ -3779,7 +3769,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 
         mali_ptr attribs, attrib_bufs;
         attribs = panfrost_emit_vertex_data(batch, &attrib_bufs);
-#endif
+#endif /* PAN_ARCH <= 7 */
 
         panfrost_update_state_3d(batch);
         panfrost_update_shader_state(batch, PIPE_SHADER_VERTEX);
@@ -3805,23 +3795,24 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 #if PAN_ARCH >= 9
         assert(idvs && "Memory allocated IDVS required on Valhall");
 
-#if PAN_ARCH >= 10
         panfrost_emit_malloc_vertex(batch, info, draw, indices,
-                                    secondary_shader, NULL);
+                                    secondary_shader, tiler.cpu);
 
+#if PAN_ARCH >= 10
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, cfg) {
                 cfg.draw_mode = pan_draw_mode(info->mode);
                 cfg.index_type = panfrost_translate_index_size(info->index_size);
         }
-#else
-        panfrost_emit_malloc_vertex(batch, info, draw, indices,
-                                    secondary_shader, tiler.cpu);
+        batch->scoreboard.first_job = 1;
+        batch->scoreboard.first_tiler = NULL + 1;
 
+#else /* PAN_ARCH < 10 */
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
                          MALI_JOB_TYPE_MALLOC_VERTEX, false, false, 0,
                          0, &tiler, false);
 #endif
-#else
+#else /* PAN_ARCH < 9 */
+
         /* Fire off the draw itself */
         panfrost_draw_emit_tiler(batch, info, draw, &invocation, indices,
                                  fs_vary, varyings, pos, psiz, secondary_shader,
@@ -3836,7 +3827,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
                 panfrost_add_job(&batch->pool.base, &batch->scoreboard,
                                  MALI_JOB_TYPE_INDEXED_VERTEX, false, false,
                                  0, 0, &tiler, false);
-#endif
+#endif /* PAN_ARCH < 6 */
         } else {
                 panfrost_draw_emit_vertex(batch, info, &invocation,
                                           vs_vary, varyings, attribs, attrib_bufs, vertex.cpu);
@@ -4259,11 +4250,11 @@ panfrost_launch_grid(struct pipe_context *pipe,
 #endif
 
 #if PAN_ARCH >= 10
-        // TODO NULL
-        pan_pack_ins(NULL, COMPUTE_LAUNCH, cfg) {
+        pan_pack_ins(&batch->cs_vertex, COMPUTE_LAUNCH, cfg) {
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;
         }
+        batch->scoreboard.first_job = 1;
 #else
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
                          MALI_JOB_TYPE_COMPUTE, true, false,

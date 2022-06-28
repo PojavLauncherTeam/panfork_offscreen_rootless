@@ -1232,11 +1232,7 @@ pan_preload_fb_alloc_pre_post_dcds(struct pan_pool *desc_pool,
                 return;
 
         fb->bifrost.pre_post.dcds =
-#if PAN_ARCH < 10
-                pan_pool_alloc_desc_array(desc_pool, 3, DRAW);
-#else
-        (struct panfrost_ptr) { 0 }; // TODO v10!
-#endif
+                pan_pool_alloc_desc_array(desc_pool, 3, DRAW_NO_CS);
 }
 
 static void
@@ -1248,11 +1244,7 @@ pan_preload_emit_pre_frame_dcd(struct pan_pool *desc_pool,
         pan_preload_fb_alloc_pre_post_dcds(desc_pool, fb);
         assert(fb->bifrost.pre_post.dcds.cpu);
         void *dcd = fb->bifrost.pre_post.dcds.cpu +
-#if PAN_ARCH < 10
-                    (dcd_idx * pan_size(DRAW));
-#else
-        0; // TODO v10
-#endif
+                    (dcd_idx * pan_size(DRAW_NO_CS));
 
         /* We only use crc_rt to determine whether to force writes for updating
          * the CRCs, so use a conservative tile size (16x16).
