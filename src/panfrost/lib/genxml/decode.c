@@ -1391,6 +1391,16 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
+        case 0x11: {
+                if (arg1)
+                        pandecode_log("add x%02x, (unk %x), x%02x, #0x%x\n",
+                                      addr, arg1, arg2, l);
+                else
+                        pandecode_log("add x%02x, x%02x, #0x%x\n",
+                                      addr, arg2, l);
+
+                break;
+        }
         case 0x20: {
                 const char *name;
                 /* TODO: This appears to be wrong... */
