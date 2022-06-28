@@ -1144,9 +1144,8 @@ pandecode_malloc_vertex_job(mali_ptr job, uint32_t *cs_buf, uint32_t *cs_buf_unk
 #endif
 }
 
-#if PAN_ARCH < 10 /* todo v10 */
 static void
-pandecode_compute_job(mali_ptr job, uint32_t *buf, uint32_t *buf_unk,
+pandecode_compute_job(mali_ptr job, uint32_t *cs_buf, uint32_t *cs_buf_unk,
                       unsigned gpu_id)
 {
 #if PAN_ARCH < 10
@@ -1157,14 +1156,16 @@ pandecode_compute_job(mali_ptr job, uint32_t *buf, uint32_t *buf_unk,
 	pandecode_shader(payload.compute.shader, "Shader", gpu_id);
 	if (payload.compute.thread_storage)
 		pandecode_local_storage(payload.compute.thread_storage);
+#if PAN_ARCH < 10
+        // TODO v10 (does FAU even work the same way?
 	if (payload.compute.fau)
 		dump_fau(payload.compute.fau, payload.compute.fau_count, "FAU");
+#endif
 	if (payload.compute.resources)
 		pandecode_resource_tables(payload.compute.resources, "Resources");
 
 	DUMP_UNPACKED(COMPUTE_PAYLOAD, payload, "Compute:\n");
 }
-#endif /* PAN_ARCH < 10 */
 #endif /* PAN_ARCH >= 9 */
 
 #if PAN_ARCH < 10
@@ -1330,14 +1331,25 @@ pandecode_cs_command(uint64_t command,
                 break;
         case 4: {
                 uint32_t masked = l & 0xffff0000;
-                unsigned job_div = l & 0x3fff;
-                unsigned job_div_scale = (l >> 14) & 3;
-                unsigned div = job_div << job_div_scale;
+                unsigned task_increment = l & 0x3fff;
+                unsigned task_axis = (l >> 14) & 3;
                 if (h != 0xff00 || addr || masked)
                         pandecode_log("compute (unk %02x), (unk %04x), "
-                                      "(unk %x), div %i\n", addr, h, masked, div);
+                                      "(unk %x), inc %i, axis %i\n\n", addr, h, masked, task_increment, task_axis);
                 else
-                        pandecode_log("compute div %i\n", div);
+                        pandecode_log("compute inc %i, axis %i\n\n", task_increment, task_axis);
+
+                pandecode_indent++;
+
+                pandecode_compute_job(NULL, 0, buffer, buffer_unk, gpu_id);
+
+                /* The gallium driver emits this even for compute jobs */
+                pan_unpack_cs(buffer, buffer_unk, SCISSOR, unused_scissor);
+
+                pandecode_csf_dump_state(buffer_unk);
+                pandecode_log("\n");
+                pandecode_indent--;
+
                 break;
         }
         case 6: {
@@ -1355,10 +1367,11 @@ pandecode_cs_command(uint64_t command,
                 pandecode_indent++;
 
                 pandecode_malloc_vertex_job(0, buffer, buffer_unk, gpu_id);
+
                 pandecode_csf_dump_state(buffer_unk);
                 pandecode_log("\n");
-
                 pandecode_indent--;
+
                 break;
         }
         case 7: {
@@ -1371,9 +1384,9 @@ pandecode_cs_command(uint64_t command,
                 pandecode_indent++;
 
                 pandecode_fragment_job(0, buffer, buffer_unk, gpu_id);
+
                 pandecode_csf_dump_state(buffer_unk);
                 pandecode_log("\n");
-
                 pandecode_indent--;
 
                 break;
@@ -1447,5 +1460,8 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
         pandecode_cs_buffer(commands, size, buffer, buffer_unk, gpu_id);
 
         pandecode_log("\n");
+
+        fflush(pandecode_dump_stream);
+        pandecode_map_read_write();
 }
 #endif

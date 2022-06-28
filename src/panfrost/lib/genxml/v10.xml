@@ -1260,7 +1260,6 @@
   <struct name="Fragment launch" layout="ins" op="7"/>
 
   <struct name="Shader Environment" size="16" align="64">
-    <!-- TODO: Are 48-bit items correct? -->
     <field name="Attribute offset" start="0:0" size="32" type="uint"/>
     <field name="FAU count" start="1:0" size="8" type="uint"/>
     <field name="Resources" start="8:0" size="48" type="address"/>
@@ -1269,6 +1268,14 @@
     <field name="FAU" start="14:0" size="64" type="address"/>
   </struct>
 
+  <struct name="Compute Shader Environment" layout="cs" unpacked="Shader Environment">
+    <field name="Attribute offset" start="0:0" size="32" type="uint"/>
+    <field name="Resources" start="0x06:0" size="48" type="address"/>
+    <field name="Shader" start="0x16:0" size="48" type="address"/>
+    <field name="Thread storage" start="0x1e:0" size="48" type="address"/>
+    <field name="FAU" start="0x0e:0" size="48" type="address"/>
+    <field name="FAU count" start="0x0e:56" size="8" type="uint"/>
+  </struct>
 
   <struct name="Compute Payload" layout="cs">
     <field name="Workgroup size X" start="0x21:0" size="10" type="uint" modifier="minus(1)"/>
@@ -1281,12 +1288,13 @@
     <field name="Offset X" start="5:0" size="32" type="uint"/>
     <field name="Offset Y" start="6:0" size="32" type="uint"/>
     <field name="Offset Z" start="7:0" size="32" type="uint"/>
-    <field name="Compute" start="8:0" size="512" type="Shader Environment"/>
+    <field name="Compute" start="0x00:0" size="512" type="Compute Shader Environment"/>
   </struct>
 
   <struct name="Compute Launch" layout="ins" op="4">
     <field name="Task increment" start="0" size="14" type="uint" default="1"/>
     <field name="Task axis" start="14" size="2" type="Task Axis"/>
+    <field name="Unk" start="40" size="8" type="hex" default="255"/>
   </struct>
 
   <!-- Compute job also covers vertex and geometry operations -->

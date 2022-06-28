@@ -3592,21 +3592,24 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
                 cfg.workgroup_count_y = info->instance_count;
                 cfg.workgroup_count_z = 1;
 
-#if PAN_ARCH < 10
                 panfrost_emit_shader(batch, &cfg.compute, PIPE_SHADER_VERTEX,
                                      batch->rsd[PIPE_SHADER_VERTEX],
-                                     batch->tls.gpu); // TODO v10
-#endif
+                                     batch->tls.gpu);
 
-                /* TODO: Indexing. Also, this is a legacy feature... */
 #if PAN_ARCH < 10
-                cfg.compute.attribute_offset = batch->ctx->offset_start; // TODO v10
+                /* TODO: Indexing. Also, this is a legacy feature... */
+                cfg.compute.attribute_offset = batch->ctx->offset_start;
+#else
+                if (batch->ctx->offset_start)
+                        mesa_logw_once("offset_start field is unknown");
 #endif
 
                 /* Transform feedback shaders do not use barriers or shared
                  * memory, so we may merge workgroups.
                  */
                 cfg.allow_merging_workgroups = true;
+
+                /* These are set later for v10 */
 #if PAN_ARCH < 10
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;

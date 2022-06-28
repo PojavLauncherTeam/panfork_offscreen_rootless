@@ -814,12 +814,14 @@ class Parser(object):
             self.group.align = int(attrs["align"]) if "align" in attrs else None
             self.group.op = int(attrs["op"]) if "op" in attrs else None
             self.structs[attrs["name"]] = self.group
+            self.unpacked_alias = self.gen_prefix(safe_name(attrs["unpacked"].upper())) if "unpacked" in attrs else None
         elif name == "field":
-            if self.layout == "cs" and not attrs["start"].startswith("0x"):
+            self.values = []
+            self.skip_field = self.layout == "cs" and not attrs["start"].startswith("0x")
+            if self.skip_field:
                 #print(f"#warning Skipping non-CS field {attrs['name']}")
                 return
             self.group.fields.append(Field(self, attrs))
-            self.values = []
         elif name == "enum":
             self.values = []
             self.enum = safe_name(attrs["name"])
@@ -846,7 +848,8 @@ class Parser(object):
             self.struct = None
             self.group = None
         elif name  == "field":
-            self.group.fields[-1].values = self.values
+            if not self.skip_field:
+                self.group.fields[-1].values = self.values
         elif name  == "enum":
             self.emit_enum()
             self.enum = None
@@ -876,9 +879,13 @@ class Parser(object):
         print('')
 
     def emit_template_struct(self, name, group):
-        print("struct %s {" % name)
-        group.emit_template_struct("")
-        print("};\n")
+        if self.unpacked_alias:
+            # TODO: Check the fields match
+            print("#define %s %s" % (name, self.unpacked_alias))
+        else:
+            print("struct %s {" % name)
+            group.emit_template_struct("")
+            print("};\n")
 
     def emit_aggregate(self):
         aggregate = self.aggregate
