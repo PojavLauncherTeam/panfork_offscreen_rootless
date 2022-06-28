@@ -1096,10 +1096,7 @@ pandecode_dcd(const struct MALI_DRAW *p, enum mali_job_type job_type,
                 }
         }
 
-        // TODO v10
-#if PAN_ARCH < 10
         pandecode_shader_environment(&p->shader, gpu_id);
-#endif
         DUMP_UNPACKED(DRAW, *p, "Draw:\n");
 }
 
@@ -1136,12 +1133,10 @@ pandecode_malloc_vertex_job(mali_ptr job, uint32_t *cs_buf, uint32_t *cs_buf_unk
 
         pandecode_dcd(&dcd, 0, gpu_id);
 
-#if PAN_ARCH < 10 /* todo v10 */
         pan_section_unpack_cs_v10(p, cs_buf, cs_buf_unk, MALLOC_VERTEX_JOB, POSITION, position);
         pan_section_unpack_cs_v10(p, cs_buf, cs_buf_unk, MALLOC_VERTEX_JOB, VARYING, varying);
         pandecode_shader_environment(&position, gpu_id);
         pandecode_shader_environment(&varying, gpu_id);
-#endif
 }
 
 static void

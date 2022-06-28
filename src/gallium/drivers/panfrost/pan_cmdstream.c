@@ -3363,11 +3363,9 @@ panfrost_emit_draw(void *out,
                         cfg.overdraw_alpha0 = panfrost_overdraw_alpha(ctx, 0);
                         cfg.overdraw_alpha1 = panfrost_overdraw_alpha(ctx, 1);
 
-#if PAN_ARCH < 10
                         panfrost_emit_shader(batch, &cfg.shader, PIPE_SHADER_FRAGMENT,
                                              batch->rsd[PIPE_SHADER_FRAGMENT],
-                                             batch->tls.gpu); // TODO v10
-#endif
+                                             batch->tls.gpu);
                 } else {
                         /* These operations need to be FORCE to benefit from the
                          * depth-only pass optimizations.
@@ -3423,7 +3421,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                             void *job)
 {
         struct panfrost_context *ctx = batch->ctx;
-        struct panfrost_compiled_shader *vs = ctx->prog[PIPE_SHADER_VERTEX];
+        UNUSED struct panfrost_compiled_shader *vs = ctx->prog[PIPE_SHADER_VERTEX];
         struct panfrost_compiled_shader *fs = ctx->prog[PIPE_SHADER_FRAGMENT];
 
         bool fs_required = panfrost_fs_required(fs, ctx->blend,
@@ -3483,7 +3481,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
         panfrost_emit_draw(pan_section_ptr(job, MALLOC_VERTEX_JOB, DRAW),
                            batch, fs_required, u_reduced_prim(info->mode), 0, 0, 0);
 
-        pan_section_pack(job, MALLOC_VERTEX_JOB, POSITION, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, POSITION, cfg) {
                 /* IDVS/points vertex shader */
                 mali_ptr vs_ptr = batch->rsd[PIPE_SHADER_VERTEX];
 
@@ -3495,7 +3493,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                                      batch->tls.gpu);
         }
 
-        pan_section_pack(job, MALLOC_VERTEX_JOB, VARYING, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, VARYING, cfg) {
                 /* If a varying shader is used, we configure it with the same
                  * state as the position shader for backwards compatible
                  * behaviour with Bifrost. This could be optimized.
@@ -3553,8 +3551,8 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
 {
         struct panfrost_context *ctx = batch->ctx;
 
-        struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, COMPUTE_JOB);
+        UNUSED struct panfrost_ptr t =
+                pan_pool_alloc_desc_cs_v10(&batch->pool.base, COMPUTE_JOB);
 
         /* Nothing to do */
         if (batch->ctx->streamout.num_targets == 0)
@@ -4167,8 +4165,8 @@ panfrost_launch_grid(struct pipe_context *pipe,
 
         ctx->compute_grid = info;
 
-        struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, COMPUTE_JOB);
+        UNUSED struct panfrost_ptr t =
+                pan_pool_alloc_desc_cs_v10(&batch->pool.base, COMPUTE_JOB);
 
         /* Invoke according to the grid info */
 

@@ -1268,6 +1268,35 @@
     <field name="FAU" start="14:0" size="64" type="address"/>
   </struct>
 
+  <struct name="Position Shader Environment" layout="cs" unpacked="Shader Environment">
+    <field name="Attribute offset" start="0:0" size="32" type="uint"/>
+    <field name="Resources" start="0x00:0" size="48" type="address"/>
+    <field name="Shader" start="0x10:0" size="48" type="address"/>
+    <!-- Thread storage may be swapped with fragment shaders -->
+    <field name="Thread storage" start="0x18:0" size="48" type="address"/>
+    <field name="FAU" start="0x08:0" size="48" type="address"/>
+    <field name="FAU count" start="0x08:56" size="8" type="uint"/>
+  </struct>
+
+  <struct name="Varying Shader Environment" layout="cs" unpacked="Shader Environment">
+    <field name="Attribute offset" start="0:0" size="32" type="uint"/>
+    <field name="Resources" start="0x00:0" size="48" type="address"/>
+    <field name="Shader" start="0x12:0" size="48" type="address"/>
+    <!-- These field alias with position shaders -->
+    <field name="Thread storage" start="0x18:0" size="48" type="address"/>
+    <field name="FAU" start="0x08:0" size="48" type="address"/>
+    <field name="FAU count" start="0x08:56" size="8" type="uint"/>
+  </struct>
+
+  <struct name="Fragment Shader Environment" layout="cs" unpacked="Shader Environment">
+    <field name="Attribute offset" start="0:0" size="32" type="uint"/>
+    <field name="Resources" start="0x04:0" size="48" type="address"/>
+    <field name="Shader" start="0x14:0" size="48" type="address"/>
+    <field name="Thread storage" start="0x1e:0" size="48" type="address"/>
+    <field name="FAU" start="0x0c:0" size="48" type="address"/>
+    <field name="FAU count" start="0x0c:56" size="8" type="uint"/>
+  </struct>
+
   <struct name="Compute Shader Environment" layout="cs" unpacked="Shader Environment">
     <field name="Attribute offset" start="0:0" size="32" type="uint"/>
     <field name="Resources" start="0x06:0" size="48" type="address"/>
@@ -1378,7 +1407,7 @@
     <field name="Blend count" start="12:0" size="4" type="uint"/>
     <field name="Blend" start="12:4" size="60" type="address" modifier="shr(4)"/>
     <field name="Occlusion" size="64" start="14:0" type="address"/>
-    <field name="Shader" start="16:0" size="512" type="Shader Environment"/>
+    <field name="Shader" start="0" size="512" type="Shader Environment"/>
   </struct>
 
   <struct name="Draw" layout="cs">
@@ -1414,8 +1443,7 @@
     <field name="Blend count" start="0x32:0" size="4" type="uint"/>
     <field name="Blend" start="0x32:4" size="44" type="address" modifier="shr(4)"/>
     <field name="Occlusion" size="48" start="0x2e:0" type="address"/>
-    <!-- TODO: Shader stuff -->
-    <field name="Shader" start="16:0" size="512" type="Shader Environment"/>
+    <field name="Shader" start="0x0:0" size="512" type="Fragment Shader Environment"/>
   </struct>
 
   <struct name="Count" layout="cs">
@@ -1451,8 +1479,8 @@
     <section name="Primitive Size" offset="112" type="Primitive Size"/>
     <section name="Indices" offset="120" type="Indices"/>
     <section name="Draw" offset="128" type="Draw"/>
-    <section name="Position" offset="256" type="Shader Environment"/>
-    <section name="Varying" offset="320" type="Shader Environment"/>
+    <section name="Position" offset="256" type="Position Shader Environment"/>
+    <section name="Varying" offset="320" type="Varying Shader Environment"/>
   </aggregate>
 
   <aggregate name="Tiler Job" layout="cs">
