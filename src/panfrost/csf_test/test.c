@@ -42,8 +42,10 @@
 struct state;
 struct test;
 
-// todo; swop args?
 typedef bool (* section)(struct state *s, struct test *t);
+
+#define CS_QUEUE_COUNT 4 /* compute / vertex / fragment / other */
+#define CS_QUEUE_SIZE 65536
 
 struct state {
         int page_size;
@@ -65,6 +67,8 @@ struct state {
 
         uint8_t csg_handle;
         uint32_t csg_uid;
+
+        void *cs_mem[CS_QUEUE_COUNT];
 };
 
 struct test {
@@ -470,8 +474,7 @@ cs_group_create(struct state *s, struct test *t)
                         .fragment_mask = ~0ULL,
                         .compute_mask = ~0ULL,
 
-                        /* compute / vertex / fragment / other */
-                        .cs_min = 4,
+                        .cs_min = CS_QUEUE_COUNT,
 
                         .priority = 1,
                         .tiler_max = 1,
@@ -518,6 +521,40 @@ cs_group_term(struct state *s, struct test *t)
         return true;
 }
 
+static void*
+alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
+{
+        uint64_t va_pages = a->in.va_pages;
+        unsigned flags = a->in.flags;
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_ALLOC, a);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
+                return NULL;
+        }
+
+        if ((flags & BASE_MEM_SAME_VA)
+            && (!(a->out.flags & BASE_MEM_SAME_VA) ||
+                a->out.gpu_va != 0x41000)) {
+
+                fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
+                        (uint64_t) a->out.flags, (uint64_t) a->out.gpu_va);
+                return NULL;
+        }
+
+        void *ptr = mmap(NULL, s->page_size * va_pages,
+                         PROT_READ | PROT_WRITE, MAP_SHARED,
+                         s->mali_fd, a->out.gpu_va);
+
+        if (ptr == MAP_FAILED) {
+                perror("mmap(GPU BO)");
+                return NULL;
+        }
+
+        return ptr;
+}
+
 static bool
 alloc(struct state *s, struct test *t)
 {
@@ -533,29 +570,7 @@ alloc(struct state *s, struct test *t)
                 }
         };
 
-        int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_ALLOC, &a);
-
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
-                return false;
-        }
-
-        if ((flags & BASE_MEM_SAME_VA)
-            && (!(a.out.flags & BASE_MEM_SAME_VA) ||
-                a.out.gpu_va != 0x41000)) {
-
-                fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
-                        (uint64_t) a.out.flags, (uint64_t) a.out.gpu_va);
-                return false;
-        }
-
-        *ptr = mmap(NULL, s->page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
-                    s->mali_fd, a.out.gpu_va);
-
-        if (*ptr == MAP_FAILED) {
-                perror("mmap(GPU BO)");
-                return false;
-        }
+        *ptr = alloc_ioctl(s, &a);
 
         int *p = (int *)*ptr;
         *p = 0x12345;
@@ -573,9 +588,49 @@ dealloc(struct state *s, struct test *t)
 {
         void **ptr = DEREF_STATE(s, t->offset);
 
-        if (*ptr && *ptr != MAP_FAILED)
+        if (*ptr)
                 return munmap(*ptr, s->page_size) == 0;
         return true;
+}
+
+static bool
+cs_queue_create(struct state *s, struct test *t)
+{
+        unsigned pages = CS_QUEUE_SIZE / s->page_size;
+
+        printf("%i pages: ", pages);
+
+        for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
+
+                union kbase_ioctl_mem_alloc a = {
+                        .in = {
+                                .va_pages = pages,
+                                .commit_pages = pages,
+                                .extension = 0,
+                                /* Read/write from CPU/GPU, nothing special
+                                 * like coherency */
+                                .flags = 0x200f,
+                        }
+                };
+
+                s->cs_mem[i] = alloc_ioctl(s, &a);
+
+                if (!s->cs_mem[i])
+                        return false;
+        }
+
+        return true;
+}
+
+static bool
+cs_queue_free(struct state *s, struct test *t)
+{
+        bool pass = true;
+        for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
+                if (s->cs_mem[i] && munmap(s->cs_mem[i], CS_QUEUE_SIZE))
+                        pass = false;
+        }
+        return pass;
 }
 
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
@@ -607,6 +662,7 @@ struct test kbase_main[] = {
         ALLOC_TEST("Allocate coherent memory", coherent, 0x280f),
         ALLOC_TEST("Allocate cached memory", cached, 0x380f),
 
+        { cs_queue_create, cs_queue_free, "Create command stream queues" },
 };
 
 static void
