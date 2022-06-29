@@ -39,6 +39,19 @@
 #include "mali_base_kernel.h"
 #include "mali_base_csf_kernel.h"
 
+/* Assume a cache line size of 64 bytes */
+static void
+cache_clean(void *addr)
+{
+        __asm volatile ("dc cvac, %0" :: "r" (addr) : "memory");
+}
+
+static void
+cache_invalid(void *addr)
+{
+        __asm volatile ("dc civac, %0" :: "r" (addr) : "memory");
+}
+
 struct state;
 struct test;
 
@@ -69,6 +82,7 @@ struct state {
         uint32_t csg_uid;
 
         void *cs_mem[CS_QUEUE_COUNT];
+        void *cs_user_pages[CS_QUEUE_COUNT];
 };
 
 struct test {
@@ -176,6 +190,7 @@ mmap_tracking(struct state *s, struct test *t)
 
         if (s->tracking_region == MAP_FAILED) {
                 perror("mmap(BASE_MEM_MAP_TRACKING_HANDLE)");
+                s->tracking_region = NULL;
                 return false;
         }
         return true;
@@ -184,7 +199,7 @@ mmap_tracking(struct state *s, struct test *t)
 static bool
 munmap_tracking(struct state *s, struct test *t)
 {
-        if (s->tracking_region && s->tracking_region != MAP_FAILED)
+        if (s->tracking_region)
                 return munmap(s->tracking_region, s->page_size) == 0;
         return true;
 }
@@ -348,6 +363,7 @@ mmap_user_reg(struct state *s, struct test *t)
 
         if (s->csf_user_reg == MAP_FAILED) {
                 perror("mmap(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE)");
+                s->csf_user_reg = NULL;
                 return false;
         }
         return true;
@@ -356,7 +372,7 @@ mmap_user_reg(struct state *s, struct test *t)
 static bool
 munmap_user_reg(struct state *s, struct test *t)
 {
-        if (s->csf_user_reg && s->csf_user_reg != MAP_FAILED)
+        if (s->csf_user_reg)
                 return munmap(s->csf_user_reg, s->page_size) == 0;
         return true;
 }
@@ -521,11 +537,11 @@ cs_group_term(struct state *s, struct test *t)
         return true;
 }
 
-static void*
+static void *
 alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
 {
         uint64_t va_pages = a->in.va_pages;
-        unsigned flags = a->in.flags;
+        uint64_t flags = a->in.flags;
 
         int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_ALLOC, a);
 
@@ -534,8 +550,8 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
                 return NULL;
         }
 
-        if ((flags & BASE_MEM_SAME_VA)
-            && (!(a->out.flags & BASE_MEM_SAME_VA) ||
+        if ((flags & BASE_MEM_SAME_VA) &&
+            (!(a->out.flags & BASE_MEM_SAME_VA) ||
                 a->out.gpu_va != 0x41000)) {
 
                 fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
@@ -555,22 +571,29 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
         return ptr;
 }
 
-static bool
-alloc(struct state *s, struct test *t)
+static void *
+alloc_mem(struct state *s, uint64_t size, uint64_t flags)
 {
-        void **ptr = DEREF_STATE(s, t->offset);
-        unsigned flags = t->flags;
+        unsigned pages = size / s->page_size;
 
         union kbase_ioctl_mem_alloc a = {
                 .in = {
-                        .va_pages = 1,
-                        .commit_pages = 1,
+                        .va_pages = pages,
+                        .commit_pages = pages,
                         .extension = 0,
                         .flags = flags,
                 }
         };
 
-        *ptr = alloc_ioctl(s, &a);
+        return alloc_ioctl(s, &a);
+}
+
+static bool
+alloc(struct state *s, struct test *t)
+{
+        void **ptr = DEREF_STATE(s, t->offset);
+
+        *ptr = alloc_mem(s, s->page_size, t->flags);
 
         int *p = (int *)*ptr;
         *p = 0x12345;
@@ -579,6 +602,7 @@ alloc(struct state *s, struct test *t)
                 return false;
         }
         *p = 0;
+        cache_clean(p);
 
         return true;
 }
@@ -596,24 +620,11 @@ dealloc(struct state *s, struct test *t)
 static bool
 cs_queue_create(struct state *s, struct test *t)
 {
-        unsigned pages = CS_QUEUE_SIZE / s->page_size;
-
-        printf("%i pages: ", pages);
-
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
 
-                union kbase_ioctl_mem_alloc a = {
-                        .in = {
-                                .va_pages = pages,
-                                .commit_pages = pages,
-                                .extension = 0,
-                                /* Read/write from CPU/GPU, nothing special
-                                 * like coherency */
-                                .flags = 0x200f,
-                        }
-                };
-
-                s->cs_mem[i] = alloc_ioctl(s, &a);
+                /* Read/write from CPU/GPU, nothing special
+                 * like coherency */
+                s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
 
                 if (!s->cs_mem[i])
                         return false;
@@ -628,6 +639,76 @@ cs_queue_free(struct state *s, struct test *t)
         bool pass = true;
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 if (s->cs_mem[i] && munmap(s->cs_mem[i], CS_QUEUE_SIZE))
+                        pass = false;
+        }
+        return pass;
+}
+
+static bool
+cs_queue_register(struct state *s, struct test *t)
+{
+        for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
+                struct kbase_ioctl_cs_queue_register reg = {
+                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i],
+                        .buffer_size = CS_QUEUE_SIZE,
+                        .priority = 1,
+                };
+
+                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_REGISTER, &reg);
+
+                if (ret == -1) {
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER)");
+                        return false;
+                }
+
+                union kbase_ioctl_cs_queue_bind bind = {
+                        .in = {
+                                .buffer_gpu_addr = (uintptr_t) s->cs_mem[i],
+                                .group_handle = s->csg_handle,
+                                .csi_index = i,
+                        }
+                };
+
+                ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_BIND, &bind);
+
+                if (ret == -1) {
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_BIND)");
+                }
+
+                s->cs_user_pages[i] =
+                        mmap(NULL,
+                             s->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES,
+                             PROT_READ | PROT_WRITE, MAP_SHARED,
+                             s->mali_fd, bind.out.mmap_handle);
+
+                if (s->cs_user_pages[i] == MAP_FAILED) {
+                        perror("mmap(CS USER PAGES)");
+                        s->cs_user_pages[i] = NULL;
+                        return false;
+                }
+        }
+        return true;
+}
+
+static bool
+cs_queue_term(struct state *s, struct test *t)
+{
+        bool pass = true;
+
+        for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
+                if (s->cs_user_pages[i] &&
+                    munmap(s->cs_user_pages[i],
+                           s->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES))
+                        pass = false;
+
+                struct kbase_ioctl_cs_queue_terminate term = {
+                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i]
+                };
+
+                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_TERMINATE,
+                                &term);
+
+                if (ret == -1)
                         pass = false;
         }
         return pass;
@@ -663,6 +744,7 @@ struct test kbase_main[] = {
         ALLOC_TEST("Allocate cached memory", cached, 0x380f),
 
         { cs_queue_create, cs_queue_free, "Create command stream queues" },
+        { cs_queue_register, cs_queue_term, "Register command stream queues" },
 };
 
 static void
