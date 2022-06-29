@@ -57,8 +57,11 @@ struct state {
         unsigned gpuprops_size;
 
         struct {
-                void *normal;
+                void *normal, *exec, *coherent, *cached;
         } allocations;
+
+        uint64_t tiler_heap_va;
+        uint64_t tiler_heap_header;
 };
 
 struct test {
@@ -345,7 +348,7 @@ munmap_user_reg(struct state *s, struct test *t)
 }
 
 static bool
-init_exec_va(struct state *s, struct test *t)
+init_mem_exec(struct state *s, struct test *t)
 {
         struct kbase_ioctl_mem_exec_init init = {
                 .va_pages = 0x100000,
@@ -355,6 +358,24 @@ init_exec_va(struct state *s, struct test *t)
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_MEM_EXEC_INIT)");
+                return false;
+        }
+        return true;
+}
+
+static bool
+init_mem_jit(struct state *s, struct test *t)
+{
+        struct kbase_ioctl_mem_jit_init init = {
+                .va_pages = 1 << 25,
+                .max_allocations = 255,
+                .phys_pages = 1 << 25,
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_JIT_INIT, &init);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_JIT_INIT)");
                 return false;
         }
         return true;
@@ -382,6 +403,50 @@ stream_destroy(struct state *s, struct test *t)
 {
         if (s->tl_fd > 0)
                 return close(s->tl_fd) == 0;
+        return true;
+}
+
+static bool
+tiler_heap_create(struct state *s, struct test *t)
+{
+        union kbase_ioctl_cs_tiler_heap_init init = {
+                .in = {
+                        .chunk_size = 1 << 21,
+                        .initial_chunks = 5,
+                        .max_chunks = 200,
+                        .target_in_flight = 65535,
+                }
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_TILER_HEAP_INIT, &init);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_INIT)");
+                return false;
+        }
+
+        s->tiler_heap_va = init.out.gpu_heap_va;
+        s->tiler_heap_header = init.out.first_chunk_va;
+
+        return true;
+}
+
+static bool
+tiler_heap_term(struct state *s, struct test *t)
+{
+        if (!s->tiler_heap_va)
+                return true;
+
+        struct kbase_ioctl_cs_tiler_heap_term term = {
+                .gpu_heap_va = s->tiler_heap_va
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_TILER_HEAP_TERM, &term);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_TERM)");
+                return false;
+        }
         return true;
 }
 
@@ -462,15 +527,17 @@ struct test kbase_main[] = {
         { get_coherency_mode, NULL, "Coherency mode" },
         { get_csf_caps, NULL, "CSF caps" },
         { mmap_user_reg, munmap_user_reg, "Map user register page" },
-        { init_exec_va, NULL, "Initialise EXEC_VA zone" },
-        /* We won't use JIT memory, no need to set that up */
+        { init_mem_exec, NULL, "Initialise EXEC_VA zone" },
+        { init_mem_jit, NULL, "Initialise JIT allocator" },
         { stream_create, stream_destroy, "Create synchronisation stream" },
+        { tiler_heap_create, tiler_heap_term, "Create chunked tiler heap" },
 
         /* Flags are named in mali_base_csf_kernel.h, omitted for brevity */
         ALLOC_TEST("Allocate normal memory", normal, 0x200f),
-        ALLOC_TEST("Allocate exectuable memory", normal, 0x2017),
-        ALLOC_TEST("Allocate coherent memory", normal, 0x280f),
-        ALLOC_TEST("Allocate cached memory", normal, 0x380f),
+        ALLOC_TEST("Allocate exectuable memory", exec, 0x2017),
+        ALLOC_TEST("Allocate coherent memory", coherent, 0x280f),
+        ALLOC_TEST("Allocate cached memory", cached, 0x380f),
+
 };
 
 static void
