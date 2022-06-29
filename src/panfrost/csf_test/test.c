@@ -22,9 +22,11 @@
  */
 
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -33,6 +35,7 @@
 
 #include "mali_kbase_csf_ioctl.h"
 #include "mali_kbase_ioctl.h"
+#include "mali_base_csf_kernel.h"
 
 struct state;
 struct test;
@@ -55,6 +58,31 @@ struct test {
         section cleanup;
         const char *label;
 };
+
+static uint64_t
+pan_get_gpuprop(struct state *s, int name)
+{
+   int i = 0;
+   uint64_t x = 0;
+   while (i < s->gpuprops_size) {
+      x = 0;
+      memcpy(&x, s->gpuprops + i, 4);
+      i += 4;
+
+      int size = 1 << (x & 3);
+      int this_name = x >> 2;
+
+      x = 0;
+      memcpy(&x, s->gpuprops + i, size);
+      i += size;
+
+      if (this_name == name)
+         return x;
+   }
+
+   fprintf(stderr, "Unknown prop %i\n", name);
+   return 0;
+}
 
 static bool
 open_kbase(struct state *s, struct test *t)
@@ -165,12 +193,129 @@ free_gpuprops(struct state *s, struct test *t)
         return true;
 }
 
+static bool
+get_gpu_id(struct state *s, struct test *t)
+{
+        uint64_t gpu_id = pan_get_gpuprop(s, KBASE_GPUPROP_PRODUCT_ID);
+        if (!gpu_id)
+                return false;
+        uint16_t maj = gpu_id >> 12;
+        uint16_t min = (gpu_id >> 8) & 0xf;
+        uint16_t rev = (gpu_id >> 4) & 0xf;
+        uint16_t product = gpu_id & 0xf;
+
+        const char *names[] = {
+                [0] = "G610",
+                [8] = "G710",
+                [10] = "G510",
+                [12] = "G310",
+        };
+        const char *name = (min < ARRAY_SIZE(names)) ? names[min] : NULL;
+        if (!name)
+                name = "unknown";
+
+        printf("v%i.%i r%ip%i (Mali-%s): ", maj, min, rev, product, name);
+
+        if (maj < 10) {
+                printf("not v10 or later: ");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+get_coherency_mode(struct state *s, struct test *t)
+{
+        uint64_t mode = pan_get_gpuprop(s, KBASE_GPUPROP_RAW_COHERENCY_MODE);
+
+        const char *modes[] = {
+                [0] = "ACE-Lite",
+                [1] = "ACE",
+                [31] = "None",
+        };
+        const char *name = (mode < ARRAY_SIZE(modes)) ? modes[mode] : NULL;
+        if (!name)
+                name = "Unknown";
+
+        printf("0x%"PRIx64" (%s): ", mode, name);
+        return true;
+}
+
+static bool
+get_csf_caps(struct state *s, struct test *t)
+{
+        union kbase_ioctl_cs_get_glb_iface iface = { 0 };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_GET_GLB_IFACE, &iface);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_GET_GLB_IFACE(0))");
+                return false;
+        }
+
+        printf("v%i: feature mask 0x%x, %i groups, %i total: ",
+               iface.out.glb_version, iface.out.features,
+               iface.out.group_num, iface.out.total_stream_num);
+
+        unsigned group_num = iface.out.group_num;
+        unsigned stream_num = iface.out.total_stream_num;
+
+        struct basep_cs_group_control *group_data =
+                calloc(group_num, sizeof(*group_data));
+
+        struct basep_cs_stream_control *stream_data =
+                calloc(stream_num, sizeof(*stream_data));
+
+        iface = (union kbase_ioctl_cs_get_glb_iface) {
+                .in = {
+                        .max_group_num = group_num,
+                        .max_total_stream_num = stream_num,
+                        .groups_ptr = (uintptr_t) group_data,
+                        .streams_ptr = (uintptr_t) stream_data,
+                }
+        };
+
+        ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_GET_GLB_IFACE, &iface);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_GET_GLB_IFACE(size))");
+
+                free(group_data);
+                free(stream_data);
+
+                return false;
+        }
+
+        for (unsigned i = 0; i < group_num; ++i) {
+                if (i && !memcmp(group_data + i, group_data + i - 1, sizeof(*group_data)))
+                        continue;
+
+                fprintf(stderr, "Group %i-: feature mask 0x%x, %i streams\n",
+                        i, group_data[i].features, group_data[i].stream_num);
+        }
+
+        for (unsigned i = 0; i < stream_num; ++i) {
+                if (i && !memcmp(stream_data + i, stream_data + i - 1, sizeof(*stream_data)))
+                        continue;
+
+                fprintf(stderr, "Stream %i-: feature mask 0x%x\n",
+                        i, stream_data[i].features);
+        }
+
+        free(group_data);
+        free(stream_data);
+
+        return true;
+}
+
 struct test kbase_main[] = {
         { open_kbase, close_kbase, "Open kbase device" },
         { get_version, NULL, "Check version" },
         { set_flags, NULL, "Set flags" },
         { mmap_tracking, munmap_tracking, "Map tracking handle" },
         { get_gpuprops, free_gpuprops, "Get GPU properties" },
+        { get_gpu_id, NULL, "GPU ID" },
+        { get_coherency_mode, NULL, "Coherency mode" },
+        { get_csf_caps, NULL, "CSF caps" },
 };
 
 int main()
