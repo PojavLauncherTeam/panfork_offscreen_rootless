@@ -35,6 +35,7 @@
 
 #include "mali_kbase_csf_ioctl.h"
 #include "mali_kbase_ioctl.h"
+#include "mali_base_kernel.h"
 #include "mali_base_csf_kernel.h"
 
 struct state;
@@ -48,6 +49,7 @@ struct state {
 
         int mali_fd;
         void *tracking_region;
+        void *csf_user_reg;
 
         uint8_t *gpuprops;
         unsigned gpuprops_size;
@@ -62,26 +64,26 @@ struct test {
 static uint64_t
 pan_get_gpuprop(struct state *s, int name)
 {
-   int i = 0;
-   uint64_t x = 0;
-   while (i < s->gpuprops_size) {
-      x = 0;
-      memcpy(&x, s->gpuprops + i, 4);
-      i += 4;
+        int i = 0;
+        uint64_t x = 0;
+        while (i < s->gpuprops_size) {
+                x = 0;
+                memcpy(&x, s->gpuprops + i, 4);
+                i += 4;
 
-      int size = 1 << (x & 3);
-      int this_name = x >> 2;
+                int size = 1 << (x & 3);
+                int this_name = x >> 2;
 
-      x = 0;
-      memcpy(&x, s->gpuprops + i, size);
-      i += size;
+                x = 0;
+                memcpy(&x, s->gpuprops + i, size);
+                i += size;
 
-      if (this_name == name)
-         return x;
-   }
+                if (this_name == name)
+                        return x;
+        }
 
-   fprintf(stderr, "Unknown prop %i\n", name);
-   return 0;
+        fprintf(stderr, "Unknown prop %i\n", name);
+        return 0;
 }
 
 static bool
@@ -140,7 +142,8 @@ static bool
 mmap_tracking(struct state *s, struct test *t)
 {
         s->tracking_region = mmap(NULL, s->page_size, PROT_NONE,
-                                  MAP_SHARED, s->mali_fd, 0x3000);
+                                  MAP_SHARED, s->mali_fd,
+                                  BASE_MEM_MAP_TRACKING_HANDLE);
 
         if (s->tracking_region == MAP_FAILED) {
                 perror("mmap(BASE_MEM_MAP_TRACKING_HANDLE)");
@@ -307,6 +310,28 @@ get_csf_caps(struct state *s, struct test *t)
         return true;
 }
 
+static bool
+mmap_user_reg(struct state *s, struct test *t)
+{
+        s->csf_user_reg = mmap(NULL, s->page_size, PROT_NONE,
+                               MAP_SHARED, s->mali_fd,
+                               BASEP_MEM_CSF_USER_REG_PAGE_HANDLE);
+
+        if (s->csf_user_reg == MAP_FAILED) {
+                perror("mmap(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE)");
+                return false;
+        }
+        return true;
+}
+
+static bool
+munmap_user_reg(struct state *s, struct test *t)
+{
+        if (s->csf_user_reg && s->csf_user_reg != MAP_FAILED)
+                return munmap(s->csf_user_reg, s->page_size) == 0;
+        return true;
+}
+
 struct test kbase_main[] = {
         { open_kbase, close_kbase, "Open kbase device" },
         { get_version, NULL, "Check version" },
@@ -316,6 +341,7 @@ struct test kbase_main[] = {
         { get_gpu_id, NULL, "GPU ID" },
         { get_coherency_mode, NULL, "Coherency mode" },
         { get_csf_caps, NULL, "CSF caps" },
+        { mmap_user_reg, munmap_user_reg, "Map user register page" },
 };
 
 int main()
