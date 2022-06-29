@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,18 +49,30 @@ struct state {
         int page_size;
 
         int mali_fd;
+        int tl_fd;
         void *tracking_region;
         void *csf_user_reg;
 
         uint8_t *gpuprops;
         unsigned gpuprops_size;
+
+        struct {
+                void *normal;
+        } allocations;
 };
 
 struct test {
         section part;
         section cleanup;
         const char *label;
+        struct test *subtests;
+        unsigned sub_length;
+
+        unsigned offset;
+        unsigned flags;
 };
+
+#define DEREF_STATE(s, offset) ((void*)s + offset)
 
 static uint64_t
 pan_get_gpuprop(struct state *s, int name)
@@ -128,7 +141,6 @@ set_flags(struct state *s, struct test *t)
                 .create_flags = 0
         };
 
-        // todo: macro for error-checked ioctls
         int ret = ioctl(s->mali_fd, KBASE_IOCTL_SET_FLAGS, &flags);
 
         if (ret == -1) {
@@ -313,7 +325,7 @@ get_csf_caps(struct state *s, struct test *t)
 static bool
 mmap_user_reg(struct state *s, struct test *t)
 {
-        s->csf_user_reg = mmap(NULL, s->page_size, PROT_NONE,
+        s->csf_user_reg = mmap(NULL, s->page_size, PROT_READ,
                                MAP_SHARED, s->mali_fd,
                                BASEP_MEM_CSF_USER_REG_PAGE_HANDLE);
 
@@ -332,6 +344,114 @@ munmap_user_reg(struct state *s, struct test *t)
         return true;
 }
 
+static bool
+init_exec_va(struct state *s, struct test *t)
+{
+        struct kbase_ioctl_mem_exec_init init = {
+                .va_pages = 0x100000,
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_EXEC_INIT, &init);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_EXEC_INIT)");
+                return false;
+        }
+        return true;
+}
+
+static bool
+stream_create(struct state *s, struct test *t)
+{
+        struct kbase_ioctl_stream_create stream = {
+                .name = "stream"
+        };
+
+        s->tl_fd = ioctl(s->mali_fd, KBASE_IOCTL_STREAM_CREATE, &stream);
+
+        if (s->tl_fd == -1) {
+                perror("ioctl(KBASE_IOCTL_STREAM_CREATE)");
+                return false;
+        }
+        return true;
+
+}
+
+static bool
+stream_destroy(struct state *s, struct test *t)
+{
+        if (s->tl_fd > 0)
+                return close(s->tl_fd) == 0;
+        return true;
+}
+
+static bool
+alloc(struct state *s, struct test *t)
+{
+        void **ptr = DEREF_STATE(s, t->offset);
+        unsigned flags = t->flags;
+
+        union kbase_ioctl_mem_alloc a = {
+                .in = {
+                        .va_pages = 1,
+                        .commit_pages = 1,
+                        .extension = 0,
+                        .flags = flags,
+                }
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_MEM_ALLOC, &a);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
+                return false;
+        }
+
+        if ((flags & BASE_MEM_SAME_VA)
+            && (!(a.out.flags & BASE_MEM_SAME_VA) ||
+                a.out.gpu_va != 0x41000)) {
+
+                fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
+                        (uint64_t) a.out.flags, (uint64_t) a.out.gpu_va);
+                return false;
+        }
+
+        *ptr = mmap(NULL, s->page_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    s->mali_fd, a.out.gpu_va);
+
+        if (*ptr == MAP_FAILED) {
+                perror("mmap(GPU BO)");
+                return false;
+        }
+
+        int *p = (int *)*ptr;
+        *p = 0x12345;
+        if (*p != 0x12345) {
+                printf("Error reading from allocated memory at %p\n", p);
+                return false;
+        }
+        *p = 0;
+
+        return true;
+}
+
+static bool
+dealloc(struct state *s, struct test *t)
+{
+        void **ptr = DEREF_STATE(s, t->offset);
+
+        if (*ptr && *ptr != MAP_FAILED)
+                return munmap(*ptr, s->page_size) == 0;
+        return true;
+}
+
+#define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
+
+#define STATE(item) .offset = offsetof(struct state, item)
+
+#define ALLOC(item) .offset = offsetof(struct state, allocations.item)
+#define ALLOC_TEST(label, item, f) { alloc, dealloc, label, ALLOC(item), .flags = f }
+
 struct test kbase_main[] = {
         { open_kbase, close_kbase, "Open kbase device" },
         { get_version, NULL, "Check version" },
@@ -342,34 +462,75 @@ struct test kbase_main[] = {
         { get_coherency_mode, NULL, "Coherency mode" },
         { get_csf_caps, NULL, "CSF caps" },
         { mmap_user_reg, munmap_user_reg, "Map user register page" },
+        { init_exec_va, NULL, "Initialise EXEC_VA zone" },
+        /* We won't use JIT memory, no need to set that up */
+        { stream_create, stream_destroy, "Create synchronisation stream" },
+
+        /* Flags are named in mali_base_csf_kernel.h, omitted for brevity */
+        ALLOC_TEST("Allocate normal memory", normal, 0x200f),
+        ALLOC_TEST("Allocate exectuable memory", normal, 0x2017),
+        ALLOC_TEST("Allocate coherent memory", normal, 0x280f),
+        ALLOC_TEST("Allocate cached memory", normal, 0x380f),
 };
 
-int main()
+static void
+do_test_list(struct state *s, struct test *tests, unsigned length);
+
+static void
+cleanup_test_list(struct state *s, struct test *tests, unsigned length)
+{
+        for (unsigned i = length; i > 0; --i) {
+                unsigned n = i - 1;
+
+                struct test *t = &tests[n];
+                if (!t->cleanup)
+                        continue;
+
+                printf("[CLEANUP %i] %s: ", n, t->label);
+                if (t->cleanup(s, t)) {
+                        printf("PASS\n");
+                } else {
+                        printf("FAIL\n");
+                }
+        }
+}
+
+static unsigned
+interpret_test_list(struct state *s, struct test *tests, unsigned length)
+{
+        for (unsigned i = 0; i < length; ++i) {
+                struct test *t = &tests[i];
+
+                printf("[TEST %i] %s: ", i, t->label);
+                if (t->part) {
+                        if (t->part(s, t)) {
+                                printf("PASS\n");
+                                continue;
+                        } else {
+                                printf("FAIL\n");
+                                return i + 1;
+                        }
+                }
+                if (t->subtests)
+                        do_test_list(s, t->subtests, t->sub_length);
+        }
+
+        return length;
+}
+
+static void
+do_test_list(struct state *s, struct test *tests, unsigned length)
+{
+        unsigned ran = interpret_test_list(s, tests, length);
+        cleanup_test_list(s, tests, ran);
+}
+
+int
+main(void)
 {
         struct state s = {
                 .page_size = sysconf(_SC_PAGE_SIZE),
         };
 
-        for (int i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
-                struct test *t = &kbase_main[i];
-                printf("[TEST %i] %s: ", i, t->label);
-                if (t->part(&s, t)) {
-                        printf("PASS\n");
-                } else {
-                        printf("FAIL\n");
-                }
-        }
-
-        for (int i = ARRAY_SIZE(kbase_main) -1; i >= 0; --i) {
-                struct test *t = &kbase_main[i];
-                if (!t->cleanup)
-                        continue;
-
-                printf("[CLEANUP %i] %s: ", i, t->label);
-                if (t->cleanup(&s, t)) {
-                        printf("PASS\n");
-                } else {
-                        printf("FAIL\n");
-                }
-        }
+        do_test_list(&s, kbase_main, ARRAY_SIZE(kbase_main));
 }
