@@ -62,6 +62,9 @@ struct state {
 
         uint64_t tiler_heap_va;
         uint64_t tiler_heap_header;
+
+        uint8_t csg_handle;
+        uint32_t csg_uid;
 };
 
 struct test {
@@ -116,6 +119,13 @@ open_kbase(struct state *s, struct test *t)
 static bool
 close_kbase(struct state *s, struct test *t)
 {
+        int pid = getpid();
+        char cmd_buffer[64] = {0};
+        sprintf(cmd_buffer, "grep /dev/mali /proc/%i/maps", pid);
+        system(cmd_buffer);
+        sprintf(cmd_buffer, "ls -l /proc/%i/fd", pid);
+        system(cmd_buffer);
+
         if (s->mali_fd > 0)
                 return close(s->mali_fd) == 0;
         return true;
@@ -451,6 +461,64 @@ tiler_heap_term(struct state *s, struct test *t)
 }
 
 static bool
+cs_group_create(struct state *s, struct test *t)
+{
+        union kbase_ioctl_cs_queue_group_create_1_6 create = {
+                .in = {
+                        /* Mali *still* only supports a single tiler unit */
+                        .tiler_mask = 1,
+                        .fragment_mask = ~0ULL,
+                        .compute_mask = ~0ULL,
+
+                        /* compute / vertex / fragment / other */
+                        .cs_min = 4,
+
+                        .priority = 1,
+                        .tiler_max = 1,
+                        .fragment_max = 64,
+                        .compute_max = 64,
+                }
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6, &create);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6)");
+                return false;
+        }
+
+        s->csg_handle = create.out.group_handle;
+        s->csg_uid = create.out.group_uid;
+
+        printf("CSG handle: %i UID: %i: ", s->csg_handle, s->csg_uid);
+
+        /* Should be at least 1 */
+        if (!s->csg_uid)
+                abort();
+
+        return true;
+}
+
+static bool
+cs_group_term(struct state *s, struct test *t)
+{
+        if (!s->csg_uid)
+                return true;
+
+        struct kbase_ioctl_cs_queue_group_term term = {
+                .group_handle = s->csg_handle
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE, &term);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE)");
+                return false;
+        }
+        return true;
+}
+
+static bool
 alloc(struct state *s, struct test *t)
 {
         void **ptr = DEREF_STATE(s, t->offset);
@@ -531,6 +599,7 @@ struct test kbase_main[] = {
         { init_mem_jit, NULL, "Initialise JIT allocator" },
         { stream_create, stream_destroy, "Create synchronisation stream" },
         { tiler_heap_create, tiler_heap_term, "Create chunked tiler heap" },
+        { cs_group_create, cs_group_term, "Create command stream group" },
 
         /* Flags are named in mali_base_csf_kernel.h, omitted for brevity */
         ALLOC_TEST("Allocate normal memory", normal, 0x200f),
