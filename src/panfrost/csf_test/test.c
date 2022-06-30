@@ -44,15 +44,15 @@
 #define PAN_ARCH 10
 #include "genxml/gen_macros.h"
 
-/* Assume a cache line size of 64 bytes */
+/* Code using this assumes a cache line size of 64 bytes */
 static void
-cache_clean(void *addr)
+cache_clean(volatile void *addr)
 {
         __asm__ volatile ("dc cvac, %0" :: "r" (addr) : "memory");
 }
 
 static void
-cache_invalidate(void *addr)
+cache_invalidate(volatile void *addr)
 {
         __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
 }
@@ -88,6 +88,7 @@ struct state {
 
         void *cs_mem[CS_QUEUE_COUNT];
         void *cs_user_io[CS_QUEUE_COUNT];
+        unsigned cs_last_submit[CS_QUEUE_COUNT];
         struct pan_command_stream cs[CS_QUEUE_COUNT];
 };
 
@@ -95,15 +96,19 @@ struct test {
         section part;
         section cleanup;
         const char *label;
+
         struct test *subtests;
         unsigned sub_length;
 
+        /* for allocation tests */
         unsigned offset;
         unsigned flags;
 
+        /* for cs_store */
         bool add;
 };
 
+/* See STATE and ALLOC macros below */
 #define DEREF_STATE(s, offset) ((void*) s + offset)
 
 static uint64_t
@@ -603,7 +608,7 @@ alloc(struct state *s, struct test *t)
 
         *ptr = alloc_mem(s, s->page_size, t->flags);
 
-        int *p = (int *) *ptr;
+        volatile int *p = (volatile int *) *ptr;
         *p = 0x12345;
         if (*p != 0x12345) {
                 printf("Error reading from allocated memory at %p\n", p);
@@ -740,6 +745,10 @@ submit_cs(struct state *s, unsigned i)
 
         unsigned insert_offset = p + pad - (uintptr_t) s->cs_mem[i];
         insert_offset %= CS_QUEUE_SIZE;
+
+        for (unsigned o = s->cs_last_submit[i]; o != insert_offset;
+             o = (o + 64) % CS_QUEUE_SIZE)
+                cache_clean(s->cs_mem[i] + o);
 
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
         s->cs[i].ptr = s->cs_mem[i] + insert_offset;
@@ -938,6 +947,38 @@ cs_store(struct state *s, struct test *t)
         return true;
 }
 
+static bool
+cs_sub(struct state *s, struct test *t)
+{
+        pan_command_stream *c = s->cs;
+        pan_command_stream _i = { .ptr = s->allocations.cached }, *i = &_i;
+
+        uint32_t *dest = s->allocations.normal;
+        uint32_t value = 4321;
+
+        *dest = 0;
+        cache_clean(dest);
+
+        unsigned addr_reg = 0x48;
+        unsigned value_reg = 0x4a;
+
+        void *start = i->ptr;
+
+        pan_pack_ins(i, CS_UNK_STATE, cfg) { cfg.state = 8; };
+        pan_emit_cs_48(i, addr_reg, (uintptr_t) dest);
+        pan_emit_cs_32(i, value_reg, value);
+        pan_pack_ins(c, CS_STR_32, cfg) {
+                cfg.addr = addr_reg;
+                cfg.value = value_reg;
+        };
+
+        unsigned cs_len = (void *) i->ptr - start;
+
+        // TODO: execute the sublist
+
+        return false;
+}
+
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
 
 #define STATE(item) .offset = offsetof(struct state, item)
@@ -975,6 +1016,7 @@ struct test kbase_main[] = {
         { cs_simple, NULL, "Execute MOV command" },
         { cs_store, NULL, "Execute STR command" },
         { cs_store, NULL, "Execute ADD command", .add = true },
+        { cs_sub, NULL, "Execute STR on iterator" },
 };
 
 static void
