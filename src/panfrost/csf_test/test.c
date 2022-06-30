@@ -52,7 +52,7 @@ cache_clean(void *addr)
 }
 
 static void
-cache_invalid(void *addr)
+cache_invalidate(void *addr)
 {
         __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
 }
@@ -100,6 +100,8 @@ struct test {
 
         unsigned offset;
         unsigned flags;
+
+        bool add;
 };
 
 #define DEREF_STATE(s, offset) ((void*) s + offset)
@@ -845,7 +847,7 @@ wait_cs(struct state *s, unsigned i)
                         if (e != extract_offset) {
                                 fprintf(stderr, "CS_EXTRACT (%i) != %i\n",
                                         e, extract_offset);
-                                return true;// TODO false
+                                return false;
                         }
                 }
         }
@@ -858,8 +860,8 @@ cs_init(struct state *s, struct test *t)
 {
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 CS_WRITE_REGISTER(s, i, CS_INSERT, 0);
-                pan_pack_ins(s->cs + i, UNK_0X22, _);
-                pan_pack_ins(s->cs + i, UNK_0X17, _);
+                pan_pack_ins(s->cs + i, CS_UNK_0X22, _);
+                pan_pack_ins(s->cs + i, CS_UNK_0X17, _);
                 submit_cs(s, i);
 
                 struct kbase_ioctl_cs_queue_kick kick = {
@@ -885,6 +887,55 @@ cs_simple(struct state *s, struct test *t)
         pan_emit_cs_32(c, 0x48, 0x1234);
         submit_cs(s, 0);
         return wait_cs(s, 0);
+}
+
+static bool
+cs_store(struct state *s, struct test *t)
+{
+        pan_command_stream *c = s->cs;
+
+        uint32_t *dest = s->allocations.cached + 240;
+        uint32_t value = 1234;
+        uint32_t add = 4320000;
+
+        *dest = 0;
+        cache_clean(dest);
+
+        unsigned addr_reg = 0x48;
+        unsigned value_reg = 0x4a;
+
+        pan_pack_ins(c, CS_UNK_STATE, cfg) {
+                cfg.state = 2;
+        };
+        pan_emit_cs_48(c, addr_reg, (uintptr_t) dest);
+        pan_emit_cs_32(c, value_reg, value);
+
+        if (t->add) {
+                pan_pack_ins(c, CS_ADD_IMM, cfg) {
+                        cfg.value = add;
+                        cfg.src = value_reg;
+                        cfg.dest = value_reg;
+                }
+                value += add;
+        }
+
+        pan_pack_ins(c, CS_STR_32, cfg) {
+                cfg.addr = addr_reg;
+                cfg.value = value_reg;
+        };
+
+        submit_cs(s, 0);
+        wait_cs(s, 0);
+
+        cache_invalidate(dest);
+        uint32_t result = *dest;
+
+        if (result != value) {
+                printf("Got %i, expected %i: ", result, value);
+                return false;
+        }
+
+        return true;
 }
 
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
@@ -922,6 +973,8 @@ struct test kbase_main[] = {
         { cs_init, NULL, "Initialise and start command stream queues" },
 
         { cs_simple, NULL, "Execute MOV command" },
+        { cs_store, NULL, "Execute STR command" },
+        { cs_store, NULL, "Execute ADD command", .add = true },
 };
 
 static void
@@ -956,10 +1009,10 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
                 if (t->part) {
                         if (t->part(s, t)) {
                                 printf("PASS\n");
-                                continue;
                         } else {
                                 printf("FAIL\n");
-                                return i + 1;
+                                // TODO FIXME
+                                //return i + 1;
                         }
                 }
                 if (t->subtests)
