@@ -1499,9 +1499,17 @@
     <field name="State" start="16" size="8" type="hex"/>
   </struct>
 
+  <struct name="CS Add Imm" layout="ins" op="17">
+    <!-- TODO: Is this actually 40 bits? -->
+    <field name="Value" start="0" size="32" type="uint"/>
+    <field name="Src" start="40" size="8" type="register"/>
+    <field name="Dest" start="48" size="8" type="register"/>
+  </struct>
+
   <struct name="CS Str 32" layout="ins" op="37">
     <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
     <field name="Unk 2" start="16" size="16" type="hex" default="4"/>
+    <!-- TODO: Separate types for 32-bit and 64-bit registers -->
     <field name="Addr" start="32" size="8" type="register"/>
     <field name="Value" start="40" size="8" type="register"/>
     <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
