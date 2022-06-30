@@ -43,13 +43,13 @@
 static void
 cache_clean(void *addr)
 {
-        __asm volatile ("dc cvac, %0" :: "r" (addr) : "memory");
+        __asm__ volatile ("dc cvac, %0" :: "r" (addr) : "memory");
 }
 
 static void
 cache_invalid(void *addr)
 {
-        __asm volatile ("dc civac, %0" :: "r" (addr) : "memory");
+        __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
 }
 
 struct state;
@@ -82,7 +82,7 @@ struct state {
         uint32_t csg_uid;
 
         void *cs_mem[CS_QUEUE_COUNT];
-        void *cs_user_pages[CS_QUEUE_COUNT];
+        void *cs_user_io[CS_QUEUE_COUNT];
 };
 
 struct test {
@@ -675,14 +675,14 @@ cs_queue_register(struct state *s, struct test *t)
                         perror("ioctl(KBASE_IOCTL_CS_QUEUE_BIND)");
                 }
 
-                s->cs_user_pages[i] =
+                s->cs_user_io[i] =
                         mmap(NULL,
                              s->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES,
                              PROT_READ | PROT_WRITE, MAP_SHARED,
                              s->mali_fd, bind.out.mmap_handle);
 
-                if (s->cs_user_pages[i] == MAP_FAILED) {
-                        perror("mmap(CS USER PAGES)");
+                if (s->cs_user_io[i] == MAP_FAILED) {
+                        perror("mmap(CS USER IO)");
                         s->cs_user_pages[i] = NULL;
                         return false;
                 }
