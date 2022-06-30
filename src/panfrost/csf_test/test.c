@@ -23,6 +23,7 @@
 
 #include <fcntl.h>
 #include <inttypes.h>
+#include <poll.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -38,6 +39,10 @@
 #include "mali_kbase_ioctl.h"
 #include "mali_base_kernel.h"
 #include "mali_base_csf_kernel.h"
+#include "mali_gpu_csf_registers.h"
+
+#define PAN_ARCH 10
+#include "genxml/gen_macros.h"
 
 /* Assume a cache line size of 64 bytes */
 static void
@@ -83,6 +88,7 @@ struct state {
 
         void *cs_mem[CS_QUEUE_COUNT];
         void *cs_user_io[CS_QUEUE_COUNT];
+        struct pan_command_stream cs[CS_QUEUE_COUNT];
 };
 
 struct test {
@@ -96,7 +102,7 @@ struct test {
         unsigned flags;
 };
 
-#define DEREF_STATE(s, offset) ((void*)s + offset)
+#define DEREF_STATE(s, offset) ((void*) s + offset)
 
 static uint64_t
 pan_get_gpuprop(struct state *s, int name)
@@ -595,7 +601,7 @@ alloc(struct state *s, struct test *t)
 
         *ptr = alloc_mem(s, s->page_size, t->flags);
 
-        int *p = (int *)*ptr;
+        int *p = (int *) *ptr;
         *p = 0x12345;
         if (*p != 0x12345) {
                 printf("Error reading from allocated memory at %p\n", p);
@@ -624,7 +630,7 @@ cs_queue_create(struct state *s, struct test *t)
 
                 /* Read/write from CPU/GPU, nothing special
                  * like coherency */
-                s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
+                s->cs[i].ptr = s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
 
                 if (!s->cs_mem[i])
                         return false;
@@ -683,7 +689,7 @@ cs_queue_register(struct state *s, struct test *t)
 
                 if (s->cs_user_io[i] == MAP_FAILED) {
                         perror("mmap(CS USER IO)");
-                        s->cs_user_pages[i] = NULL;
+                        s->cs_user_io[i] = NULL;
                         return false;
                 }
         }
@@ -696,8 +702,8 @@ cs_queue_term(struct state *s, struct test *t)
         bool pass = true;
 
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
-                if (s->cs_user_pages[i] &&
-                    munmap(s->cs_user_pages[i],
+                if (s->cs_user_io[i] &&
+                    munmap(s->cs_user_io[i],
                            s->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES))
                         pass = false;
 
@@ -712,6 +718,173 @@ cs_queue_term(struct state *s, struct test *t)
                         pass = false;
         }
         return pass;
+}
+
+#define CS_RING_DOORBELL(s, i) \
+        *((uint32_t *)(s->cs_user_io[i])) = 1
+
+#define CS_READ_REGISTER(s, i, r) \
+        *((uint64_t *)(s->cs_user_io[i] + s->page_size * 2 + r))
+
+#define CS_WRITE_REGISTER(s, i, r, v) \
+        *((uint64_t *)(s->cs_user_io[i] + s->page_size + r)) = v
+
+static void
+submit_cs(struct state *s, unsigned i)
+{
+        uintptr_t p = (uintptr_t) s->cs[i].ptr;
+        unsigned pad = (-p) & 63;
+        memset(s->cs[i].ptr, 0, pad);
+
+        unsigned insert_offset = p + pad - (uintptr_t) s->cs_mem[i];
+        insert_offset %= CS_QUEUE_SIZE;
+
+        CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
+        s->cs[i].ptr = s->cs_mem[i] + insert_offset;
+
+        CS_RING_DOORBELL(s, i);
+}
+
+/* Returns true if there was a timeout */
+static bool
+wait_event(struct state *s, unsigned timeout_ms)
+{
+        struct pollfd fd = {
+                .fd = s->mali_fd,
+                .events = POLLIN,
+        };
+
+        int ret = poll(&fd, 1, timeout_ms);
+
+        if (ret == -1) {
+                perror("poll(mali_fd)");
+                return true;
+        }
+
+        /* Timeout */
+        if (ret == 0)
+                return true;
+
+        struct base_csf_notification event;
+        ret = read(s->mali_fd, &event, sizeof(event));
+
+        if (ret == -1) {
+                perror("read(mali_fd)");
+                return true;
+        }
+
+        if (ret != sizeof(event)) {
+                fprintf(stderr, "read(mali_fd) returned %i, expected %i!\n",
+                        ret, (int) sizeof(event));
+                return false;
+        }
+
+        switch (event.type) {
+        case BASE_CSF_NOTIFICATION_EVENT:
+                /* Not interesting */
+                return false;
+
+        case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
+                break;
+
+        case BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP:
+                fprintf(stderr, "No event from mali_fd!\n");
+                return false;
+
+        default:
+                fprintf(stderr, "Unknown event type!\n");
+                return false;
+        }
+
+        struct base_gpu_queue_group_error e = event.payload.csg_error.error;
+
+        switch (e.error_type) {
+        case BASE_GPU_QUEUE_GROUP_ERROR_FATAL: {
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue group error: status 0x%x "
+                        "sideband 0x%"PRIx64"\n",
+                        e.payload.fatal_group.status,
+                        (uint64_t) e.payload.fatal_group.sideband);
+                break;
+        }
+        case BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL: {
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue %i error: status 0x%x "
+                        "sideband 0x%"PRIx64"\n",
+                        e.payload.fatal_queue.csi_index,
+                        e.payload.fatal_queue.status,
+                        (uint64_t) e.payload.fatal_queue.sideband);
+                break;
+        }
+
+        case BASE_GPU_QUEUE_GROUP_ERROR_TIMEOUT:
+                fprintf(stderr, "Command stream timeout!\n");
+                break;
+        case BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM:
+                fprintf(stderr, "Command stream OOM!\n");
+                break;
+        default:
+                fprintf(stderr, "Unknown error type!\n");
+        }
+
+        return false;
+}
+
+static bool
+wait_cs(struct state *s, unsigned i)
+{
+        unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i];
+
+        unsigned timeout_ms = 100;
+
+        while (CS_READ_REGISTER(s, i, CS_EXTRACT) != extract_offset) {
+                if (wait_event(s, timeout_ms)) {
+                        fprintf(stderr, "Event wait timeout!\n");
+
+                        unsigned e = CS_READ_REGISTER(s, i, CS_EXTRACT);
+                        if (e != extract_offset) {
+                                fprintf(stderr, "CS_EXTRACT (%i) != %i\n",
+                                        e, extract_offset);
+                                return true;// TODO false
+                        }
+                }
+        }
+
+        return true;
+}
+
+static bool
+cs_init(struct state *s, struct test *t)
+{
+        for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
+                CS_WRITE_REGISTER(s, i, CS_INSERT, 0);
+                pan_pack_ins(s->cs + i, UNK_0X22, _);
+                pan_pack_ins(s->cs + i, UNK_0X17, _);
+                submit_cs(s, i);
+
+                struct kbase_ioctl_cs_queue_kick kick = {
+                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i]
+                };
+
+                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+
+                if (ret == -1) {
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                        return false;
+                }
+        }
+
+        return true;
+}
+
+static bool
+cs_simple(struct state *s, struct test *t)
+{
+        pan_command_stream *c = s->cs;
+
+        pan_emit_cs_32(c, 0x48, 0x1234);
+        submit_cs(s, 0);
+        return wait_cs(s, 0);
 }
 
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
@@ -743,8 +916,12 @@ struct test kbase_main[] = {
         ALLOC_TEST("Allocate coherent memory", coherent, 0x280f),
         ALLOC_TEST("Allocate cached memory", cached, 0x380f),
 
+        /* These three tests are run for every queue, but later ones are not */
         { cs_queue_create, cs_queue_free, "Create command stream queues" },
         { cs_queue_register, cs_queue_term, "Register command stream queues" },
+        { cs_init, NULL, "Initialise and start command stream queues" },
+
+        { cs_simple, NULL, "Execute MOV command" },
 };
 
 static void
