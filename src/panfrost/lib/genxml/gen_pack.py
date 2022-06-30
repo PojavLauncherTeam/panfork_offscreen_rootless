@@ -268,22 +268,22 @@ with_cs = """
         PREFIX4(A, SECTION, S, unpack)(buf, buf_unk, &name)
 
 static inline void
-__gen_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
+pan_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
 {
   instr |= ((uint64_t)op << 56);
   *((s->ptr)++) = instr;
 }
 
 static inline void
-__gen_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
+pan_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
 {
-  __gen_emit_cs_ins(s, 2, ((uint64_t) index << 48) | value);
+  pan_emit_cs_ins(s, 2, ((uint64_t) index << 48) | value);
 }
 
 static inline void
-__gen_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
+pan_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
 {
-  __gen_emit_cs_ins(s, 1, ((uint64_t) index << 48) | value);
+  pan_emit_cs_ins(s, 1, ((uint64_t) index << 48) | value);
 }
 """
 
@@ -576,7 +576,7 @@ class Group(object):
             # Handle MBZ words
             if not index in words:
                 if ins:
-                    print("   __gen_emit_cs_ins(s, 0x%02x, 0);" % self.op)
+                    print("   pan_emit_cs_ins(s, 0x%02x, 0);" % self.op)
                 elif not csf:
                     print("   cl[%2d] = 0;" % index)
                 continue
@@ -597,11 +597,11 @@ class Group(object):
 
             v = None
             if ins:
-                prefix = "   __gen_emit_cs_ins(s, 0x%02x," % self.op
+                prefix = "   pan_emit_cs_ins(s, 0x%02x," % self.op
             elif size == 48:
-                prefix = "   __gen_emit_cs_48(s, 0x%02x," % index
+                prefix = "   pan_emit_cs_48(s, 0x%02x," % index
             elif csf:
-                prefix = "   __gen_emit_cs_32(s, 0x%02x," % index
+                prefix = "   pan_emit_cs_32(s, 0x%02x," % index
             else:
                 prefix = "   cl[%2d] = (" % index
 
