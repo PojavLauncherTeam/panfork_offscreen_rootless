@@ -1495,4 +1495,11 @@
     <section name="Draw" offset="128" type="Draw"/>
   </aggregate>
 
+  <struct name="Unk 0x22" layout="ins" op="34">
+    <field name="Unk" start="0" size="56" type="hex" default="1"/>
+  </struct>
+
+  <struct name="Unk 0x17" layout="ins" op="23">
+    <field name="Unk" start="0" size="56" type="hex" default="2"/>
+  </struct>
 </panxml>
