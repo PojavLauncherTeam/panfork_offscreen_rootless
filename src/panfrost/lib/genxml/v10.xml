@@ -1495,11 +1495,23 @@
     <section name="Draw" offset="128" type="Draw"/>
   </aggregate>
 
-  <struct name="Unk 0x22" layout="ins" op="34">
+  <struct name="CS Unk State" layout="ins" op="3">
+    <field name="State" start="16" size="8" type="hex"/>
+  </struct>
+
+  <struct name="CS Str 32" layout="ins" op="37">
+    <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
+    <field name="Unk 2" start="16" size="16" type="hex" default="4"/>
+    <field name="Addr" start="32" size="8" type="register"/>
+    <field name="Value" start="40" size="8" type="register"/>
+    <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
+  </struct>
+
+  <struct name="CS Unk 0x22" layout="ins" op="34">
     <field name="Unk" start="0" size="56" type="hex" default="1"/>
   </struct>
 
-  <struct name="Unk 0x17" layout="ins" op="23">
+  <struct name="CS Unk 0x17" layout="ins" op="23">
     <field name="Unk" start="0" size="56" type="hex" default="2"/>
   </struct>
 </panxml>
