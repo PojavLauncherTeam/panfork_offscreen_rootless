@@ -1309,18 +1309,22 @@ pandecode_cs_command(uint64_t command,
         case 0:
                 if (addr || value)
                         pandecode_log("nop %02x, #0x%"PRIx64"\n", addr, value);
-                else
-                        pandecode_log("nop\n");
                 break;
         case 1:
-                buffer[addr] = l;
-                //buffer_unk[addr] = buffer[addr] = l;
-                //buffer_unk[addr + 1] = buffer[addr + 1] = h;
+                buffer_unk[addr] = buffer[addr] = l;
+                buffer_unk[addr + 1] = buffer[addr + 1] = h;
                 pandecode_log("mov x%02x, #0x%"PRIx64"\n", addr, value);
                 break;
         case 2:
                 buffer_unk[addr] = buffer[addr] = l;
                 pandecode_log("mov w%02x, #0x%"PRIx64"\n", addr, value);
+                break;
+        case 3:
+                if (l & 0xffff || h || addr)
+                        pandecode_log("state (unk %02x), (unk %04x), "
+                                      "%i, (unk %04x)\n", addr, h, l >> 16, l);
+                else
+                        pandecode_log("state %i\n", l >> 16);
                 break;
         case 4: {
                 uint32_t masked = l & 0xffff0000;
@@ -1384,7 +1388,7 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
-        case 0x11: {
+        case 17: {
                 if (arg1)
                         pandecode_log("add x%02x, (unk %x), x%02x, #0x%x\n",
                                       addr, arg1, arg2, l);
@@ -1396,34 +1400,44 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
-        case 0x20: {
-                const char *name;
-                /* TODO: This appears to be wrong... */
-                switch (buffer[arg1]) {
-                case 0xc8:
-                        name = "vertex";
-                        break;
-                case 0xf8:
-                        name = "fragment";
-                        break;
-                case 0x108:
-                        name = "compute";
-                        break;
-                default:
-                        name = "unk";
-                }
+        case 23: {
+                if (value >> 8 || addr)
+                        pandecode_log("select (unk %02x), (unk %"PRIx64"), "
+                                      "%i\n", addr, value >> 8, l & 0xff);
+                else
+                        pandecode_log("select %i\n", l & 0xff);
+                break;
+        }
+        case 32: {
+                unsigned length = buffer[arg1];
+                uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
+
+                // TODO: Assert no remainder?
+                unsigned instrs = length / 8;
 
                 if (addr || l)
-                        pandecode_log("job (unk %02x), w%02x (%s), x%02x, (unk %x)\n",
-                                      addr, arg1, name, arg2, l);
+                        pandecode_log("job (unk %02x), w%02x (%i instructions), x%02x (0x%"PRIx64"), (unk %x)\n",
+                                      addr, arg1, instrs, arg2, target, l);
                 else
-                        pandecode_log("job w%02x (%s), x%02x\n", arg1, name, arg2);
+                        pandecode_log("job w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
+                                      arg1, instrs, arg2, target);
 
-                uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
-                uint64_t *t = pandecode_fetch_gpu_mem(target, 1);
+                uint64_t *t = pandecode_fetch_gpu_mem(target, length);
                 pandecode_indent++;
-                pandecode_cs_buffer(t, ~0, buffer, buffer_unk, gpu_id);
+                pandecode_cs_buffer(t, length, buffer, buffer_unk, gpu_id);
                 pandecode_indent--;
+                break;
+        }
+        case 34: {
+                const char *name;
+                switch (l) {
+                case 1: name = "other"; break;
+                case 2: name = "fragment"; break;
+                case 3: name = "compute"; break;
+                case 13: name = "vertex"; break;
+                default: name = "unk";
+                }
+                pandecode_log("iter %s\n", name);
                 break;
         }
         case 0x25: {
@@ -1447,8 +1461,9 @@ pandecode_cs_buffer(uint64_t *commands, unsigned size,
                     uint32_t *buffer, uint32_t *buffer_unk,
                     unsigned gpu_id)
 {
-        // TODO: loop condition
-        for (uint64_t c = *commands; c; c = *(++commands)) {
+        uint64_t *end = (uint64_t *)((uint8_t *) commands + size);
+
+        for (uint64_t c = *commands; commands < end; c = *(++commands)) {
                 pandecode_cs_command(c, buffer, buffer_unk, gpu_id);
         }
 }
@@ -1465,11 +1480,9 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
 
         uint64_t *commands = pandecode_fetch_gpu_mem(cs_gpu_va, 1);
 
-        pan_hexdump(stdout, (uint8_t *)commands, size, false);
+        pandecode_log("\n");
 
         pandecode_cs_buffer(commands, size, buffer, buffer_unk, gpu_id);
-
-        pandecode_log("\n");
 
         fflush(pandecode_dump_stream);
         pandecode_map_read_write();
