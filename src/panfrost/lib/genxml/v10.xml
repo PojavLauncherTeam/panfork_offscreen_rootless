@@ -1495,7 +1495,8 @@
     <section name="Draw" offset="128" type="Draw"/>
   </aggregate>
 
-  <struct name="CS Unk State" layout="ins" op="3">
+  <!-- What values mean is unknown -->
+  <struct name="CS State" layout="ins" op="3">
     <field name="State" start="16" size="8" type="hex"/>
   </struct>
 
@@ -1506,7 +1507,7 @@
     <field name="Dest" start="48" size="8" type="register"/>
   </struct>
 
-  <struct name="CS Str 32" layout="ins" op="37">
+  <struct name="CS Str 32" layout="ins" op="38">
     <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
     <field name="Unk 2" start="16" size="16" type="hex" default="4"/>
     <!-- TODO: Separate types for 32-bit and 64-bit registers -->
@@ -1515,11 +1516,24 @@
     <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
   </struct>
 
-  <struct name="CS Unk 0x22" layout="ins" op="34">
-    <field name="Unk" start="0" size="56" type="hex" default="1"/>
+  <enum name="CS Iterator">
+    <value name="Unk" value="1"/>
+    <value name="Fragment" value="2"/>
+    <value name="Compute" value="3"/>
+    <value name="Vertex" value="13"/>
+  </enum>
+
+  <!-- This is just a guess -->
+  <struct name="CS Select Buffer" layout="ins" op="23">
+    <field name="Index" start="0" size="8" type="hex"/>
   </struct>
 
-  <struct name="CS Unk 0x17" layout="ins" op="23">
-    <field name="Unk" start="0" size="56" type="hex" default="2"/>
+  <struct name="CS Set Iterator" layout="ins" op="34">
+    <field name="Iterator" start="0" size="56" type="CS Iterator"/>
+  </struct>
+
+  <struct name="CS Call" layout="ins" op="32">
+    <field name="Length" start="32" size="8" type="register"/>
+    <field name="Address" start="40" size="8" type="register"/>
   </struct>
 </panxml>
