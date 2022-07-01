@@ -62,7 +62,6 @@ dump_end(FILE *f)
         fprintf(f, "\x1b[39m");
 }
 
-/* Code using this assumes a cache line size of 64 bytes */
 static void
 cache_clean(volatile void *addr)
 {
@@ -73,6 +72,31 @@ static void
 cache_invalidate(volatile void *addr)
 {
         __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
+}
+
+typedef void (*cacheline_op)(volatile void *addr);
+
+#define CACHELINE_SIZE 64
+
+static void
+cacheline_op_range(volatile void *start, unsigned length, cacheline_op op)
+{
+        volatile void *ptr = (volatile void *)((uintptr_t) start & ~((uintptr_t) CACHELINE_SIZE - 1));
+        volatile void *end = (volatile void *) ALIGN_POT((uintptr_t) start + length, CACHELINE_SIZE);
+        for (; ptr < end; ptr += CACHELINE_SIZE)
+                op(ptr);
+}
+
+static void
+cache_clean_range(volatile void *start, unsigned length)
+{
+        cacheline_op_range(start, length, cache_clean);
+}
+
+static void
+cache_invalidate_range(volatile void *start, unsigned length)
+{
+        cacheline_op_range(start, length, cache_invalidate);
 }
 
 struct state;
@@ -109,6 +133,9 @@ struct state {
         void *cs_user_io[CS_QUEUE_COUNT];
         unsigned cs_last_submit[CS_QUEUE_COUNT];
         struct pan_command_stream cs[CS_QUEUE_COUNT];
+
+        unsigned shader_alloc_offset;
+        mali_ptr compute_shader;
 };
 
 struct test {
@@ -1015,6 +1042,8 @@ cs_store(struct state *s, struct test *t)
 static void
 emit_cs_call(pan_command_stream *c, mali_ptr va, void *start, void *end)
 {
+        cache_clean_range(start, end - start);
+
         pan_emit_cs_48(c, 0x48, va);
         pan_emit_cs_32(c, 0x4a, end - start);
         pan_pack_ins(c, CS_CALL, cfg) {
@@ -1068,6 +1097,23 @@ cs_sub(struct state *s, struct test *t)
         return true;
 }
 
+static mali_ptr
+upload_shader(struct state *s, struct util_dynarray binary)
+{
+        assert(s->shader_alloc_offset + binary.size < s->page_size);
+
+        mali_ptr va = s->allocations.exec.gpu + s->shader_alloc_offset;
+
+        memcpy(s->allocations.exec.cpu, binary.data, binary.size);
+
+        /* Shouldn't be needed, but just in case... */
+        cache_clean_range(s->allocations.exec.cpu, binary.size);
+
+        s->shader_alloc_offset += binary.size;
+
+        return va;
+}
+
 static bool
 compute_compile(struct state *s, struct test *t)
 {
@@ -1097,8 +1143,89 @@ compute_compile(struct state *s, struct test *t)
         disassemble_valhall(stderr, binary.data, binary.size, true);
         dump_end(stderr);
 
+        s->compute_shader = upload_shader(s, binary);
+
         util_dynarray_fini(&binary);
         ralloc_free(b->shader);
+
+        return true;
+}
+
+static struct panfrost_ptr
+mem_offset(struct panfrost_ptr ptr, unsigned offset)
+{
+        ptr.cpu += offset;
+        ptr.gpu += offset;
+        return ptr;
+}
+
+static bool
+compute_execute(struct state *s, struct test *t)
+{
+        pan_command_stream *c = s->cs;
+        pan_command_stream _i = { .ptr = s->allocations.cached.cpu }, *i = &_i;
+        mali_ptr cs_va = s->allocations.cached.gpu;
+
+        struct panfrost_ptr dest = s->allocations.normal;
+        uint32_t value = 123;
+
+        *(uint32_t *) dest.cpu = 0;
+        cache_clean(dest.cpu);
+
+        struct panfrost_ptr fau = mem_offset(dest, 64);
+        *(uint64_t *) fau.cpu = dest.gpu;
+        cache_clean(fau.cpu);
+
+        struct panfrost_ptr local_storage = mem_offset(dest, 128);
+        pan_pack(local_storage.cpu, LOCAL_STORAGE, _);
+        cache_clean(local_storage.cpu);
+
+        struct panfrost_ptr shader_program = mem_offset(dest, 192);
+        pan_pack(shader_program.cpu, SHADER_PROGRAM, cfg) {
+                cfg.stage = MALI_SHADER_STAGE_COMPUTE;
+                cfg.primary_shader = true;
+                cfg.register_allocation =
+                        MALI_SHADER_REGISTER_ALLOCATION_32_PER_THREAD;
+                cfg.binary = s->compute_shader;
+        }
+        cache_clean(shader_program.cpu);
+
+        void *start = i->ptr;
+
+        pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
+        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+
+        pan_pack_cs(i, COMPUTE_PAYLOAD, cfg) {
+                cfg.workgroup_size_x = 1;
+                cfg.workgroup_size_y = 1;
+                cfg.workgroup_size_z = 1;
+
+                cfg.workgroup_count_x = 1;
+                cfg.workgroup_count_y = 1;
+                cfg.workgroup_count_z = 1;
+
+                cfg.compute.shader = shader_program.gpu;
+                cfg.compute.thread_storage = local_storage.gpu;
+
+                cfg.compute.fau = fau.gpu;
+                cfg.compute.fau_count = 1;
+        }
+
+        pan_pack_ins(i, COMPUTE_LAUNCH, _);
+
+        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
+        emit_cs_call(c, cs_va, start, i->ptr);
+
+        submit_cs(s, 0);
+        wait_cs(s, 0);
+
+        cache_invalidate(dest.cpu);
+        uint32_t result = *(uint32_t *)dest.cpu;
+
+        if (result != value) {
+                printf("Got %i, expected %i: ", result, value);
+                return false;
+        }
 
         return true;
 }
@@ -1144,6 +1271,7 @@ struct test kbase_main[] = {
         { cs_sub, NULL, "Execute STR on iterator" },
 
         { compute_compile, NULL, "Compile a compute shader" },
+        { compute_execute, NULL, "Execute a compute shader" },
 };
 
 static void
@@ -1180,8 +1308,8 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
                                 printf("PASS\n");
                         } else {
                                 printf("FAIL\n");
-                                // TODO FIXME
-                                //return i + 1;
+                                if (!getenv("TEST_KEEP_GOING"))
+                                        return i + 1;
                         }
                 }
                 if (t->subtests)
