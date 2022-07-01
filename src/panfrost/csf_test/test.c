@@ -44,6 +44,24 @@
 #define PAN_ARCH 10
 #include "genxml/gen_macros.h"
 
+#include "wrap.h"
+
+#include "pan_shader.h"
+#include "compiler/nir/nir_builder.h"
+#include "bifrost/valhall/disassemble.h"
+
+static void
+dump_start(FILE *f)
+{
+        fprintf(f, "\x1b[90m");
+}
+
+static void
+dump_end(FILE *f)
+{
+        fprintf(f, "\x1b[39m");
+}
+
 /* Code using this assumes a cache line size of 64 bytes */
 static void
 cache_clean(volatile void *addr)
@@ -75,9 +93,10 @@ struct state {
 
         uint8_t *gpuprops;
         unsigned gpuprops_size;
+        uint32_t gpu_id;
 
         struct {
-                void *normal, *exec, *coherent, *cached;
+                struct panfrost_ptr normal, exec, coherent, cached;
         } allocations;
 
         uint64_t tiler_heap_va;
@@ -86,7 +105,7 @@ struct state {
         uint8_t csg_handle;
         uint32_t csg_uid;
 
-        void *cs_mem[CS_QUEUE_COUNT];
+        struct panfrost_ptr cs_mem[CS_QUEUE_COUNT];
         void *cs_user_io[CS_QUEUE_COUNT];
         unsigned cs_last_submit[CS_QUEUE_COUNT];
         struct pan_command_stream cs[CS_QUEUE_COUNT];
@@ -259,6 +278,8 @@ get_gpu_id(struct state *s, struct test *t)
         uint64_t gpu_id = pan_get_gpuprop(s, KBASE_GPUPROP_PRODUCT_ID);
         if (!gpu_id)
                 return false;
+        s->gpu_id = gpu_id;
+
         uint16_t maj = gpu_id >> 12;
         uint16_t min = (gpu_id >> 8) & 0xf;
         uint16_t rev = (gpu_id >> 4) & 0xf;
@@ -550,9 +571,25 @@ cs_group_term(struct state *s, struct test *t)
         return true;
 }
 
-static void *
+static bool
+decode_init(struct state *s, struct test *t)
+{
+        pandecode_initialize(true);
+        return true;
+}
+
+static bool
+decode_close(struct state *s, struct test *t)
+{
+        pandecode_close();
+        return true;
+}
+
+static struct panfrost_ptr
 alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
 {
+        struct panfrost_ptr p = {0};
+
         uint64_t va_pages = a->in.va_pages;
         uint64_t flags = a->in.flags;
 
@@ -560,7 +597,7 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
-                return NULL;
+                return p;
         }
 
         if ((flags & BASE_MEM_SAME_VA) &&
@@ -569,7 +606,7 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
 
                 fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
                         (uint64_t) a->out.flags, (uint64_t) a->out.gpu_va);
-                return NULL;
+                return p;
         }
 
         void *ptr = mmap(NULL, s->page_size * va_pages,
@@ -578,13 +615,21 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
 
         if (ptr == MAP_FAILED) {
                 perror("mmap(GPU BO)");
-                return NULL;
+                return p;
         }
 
-        return ptr;
+        uint64_t gpu_va = (a->out.flags & BASE_MEM_SAME_VA) ?
+                (uint64_t) ptr : a->out.gpu_va;
+
+        pandecode_inject_mmap(gpu_va, ptr, s->page_size * va_pages, NULL);
+
+        p.cpu = ptr;
+        p.gpu = gpu_va;
+
+        return p;
 }
 
-static void *
+static struct panfrost_ptr
 alloc_mem(struct state *s, uint64_t size, uint64_t flags)
 {
         unsigned pages = size / s->page_size;
@@ -604,11 +649,11 @@ alloc_mem(struct state *s, uint64_t size, uint64_t flags)
 static bool
 alloc(struct state *s, struct test *t)
 {
-        void **ptr = DEREF_STATE(s, t->offset);
+        struct panfrost_ptr *ptr = DEREF_STATE(s, t->offset);
 
         *ptr = alloc_mem(s, s->page_size, t->flags);
 
-        volatile int *p = (volatile int *) *ptr;
+        volatile int *p = (volatile int *) ptr->cpu;
         *p = 0x12345;
         if (*p != 0x12345) {
                 printf("Error reading from allocated memory at %p\n", p);
@@ -623,10 +668,10 @@ alloc(struct state *s, struct test *t)
 static bool
 dealloc(struct state *s, struct test *t)
 {
-        void **ptr = DEREF_STATE(s, t->offset);
+        struct panfrost_ptr *ptr = DEREF_STATE(s, t->offset);
 
-        if (*ptr)
-                return munmap(*ptr, s->page_size) == 0;
+        if (ptr->cpu)
+                return munmap(ptr->cpu, s->page_size) == 0;
         return true;
 }
 
@@ -637,9 +682,10 @@ cs_queue_create(struct state *s, struct test *t)
 
                 /* Read/write from CPU/GPU, nothing special
                  * like coherency */
-                s->cs[i].ptr = s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
+                s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
+                s->cs[i].ptr = s->cs_mem[i].cpu;
 
-                if (!s->cs_mem[i])
+                if (!s->cs_mem[i].cpu)
                         return false;
         }
 
@@ -651,7 +697,7 @@ cs_queue_free(struct state *s, struct test *t)
 {
         bool pass = true;
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
-                if (s->cs_mem[i] && munmap(s->cs_mem[i], CS_QUEUE_SIZE))
+                if (s->cs_mem[i].cpu && munmap(s->cs_mem[i].cpu, CS_QUEUE_SIZE))
                         pass = false;
         }
         return pass;
@@ -662,7 +708,7 @@ cs_queue_register(struct state *s, struct test *t)
 {
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 struct kbase_ioctl_cs_queue_register reg = {
-                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i],
+                        .buffer_gpu_addr = s->cs_mem[i].gpu,
                         .buffer_size = CS_QUEUE_SIZE,
                         .priority = 1,
                 };
@@ -676,7 +722,7 @@ cs_queue_register(struct state *s, struct test *t)
 
                 union kbase_ioctl_cs_queue_bind bind = {
                         .in = {
-                                .buffer_gpu_addr = (uintptr_t) s->cs_mem[i],
+                                .buffer_gpu_addr = s->cs_mem[i].gpu,
                                 .group_handle = s->csg_handle,
                                 .csi_index = i,
                         }
@@ -715,7 +761,7 @@ cs_queue_term(struct state *s, struct test *t)
                         pass = false;
 
                 struct kbase_ioctl_cs_queue_terminate term = {
-                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i]
+                        .buffer_gpu_addr = s->cs_mem[i].gpu,
                 };
 
                 int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_TERMINATE,
@@ -743,17 +789,28 @@ submit_cs(struct state *s, unsigned i)
         unsigned pad = (-p) & 63;
         memset(s->cs[i].ptr, 0, pad);
 
-        unsigned insert_offset = p + pad - (uintptr_t) s->cs_mem[i];
+        unsigned last_offset = s->cs_last_submit[i];
+
+        unsigned insert_offset = p + pad - (uintptr_t) s->cs_mem[i].cpu;
         insert_offset %= CS_QUEUE_SIZE;
 
-        for (unsigned o = s->cs_last_submit[i]; o != insert_offset;
+        for (unsigned o = last_offset; o != insert_offset;
              o = (o + 64) % CS_QUEUE_SIZE)
-                cache_clean(s->cs_mem[i] + o);
+                cache_clean(s->cs_mem[i].cpu + o);
+
+        // TODO: Handle wraparound
+        // TODO: Provide a persistent buffer for pandecode to use?
+        dump_start(stderr);
+        pandecode_cs(s->cs_mem[i].gpu + last_offset,
+                     insert_offset - last_offset, s->gpu_id);
+        dump_end(stderr);
 
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
-        s->cs[i].ptr = s->cs_mem[i] + insert_offset;
+        s->cs[i].ptr = s->cs_mem[i].cpu + insert_offset;
 
         CS_RING_DOORBELL(s, i);
+
+        s->cs_last_submit[i] = insert_offset;
 }
 
 /* Returns true if there was a timeout */
@@ -844,7 +901,7 @@ wait_event(struct state *s, unsigned timeout_ms)
 static bool
 wait_cs(struct state *s, unsigned i)
 {
-        unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i];
+        unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i].cpu;
 
         unsigned timeout_ms = 100;
 
@@ -869,12 +926,21 @@ cs_init(struct state *s, struct test *t)
 {
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 CS_WRITE_REGISTER(s, i, CS_INSERT, 0);
-                pan_pack_ins(s->cs + i, CS_UNK_0X22, _);
-                pan_pack_ins(s->cs + i, CS_UNK_0X17, _);
+                pan_pack_ins(s->cs + i, CS_SET_ITERATOR, cfg) {
+                        switch (i) {
+                        case 0: cfg.iterator = MALI_CS_ITERATOR_COMPUTE; break;
+                        case 1: cfg.iterator = MALI_CS_ITERATOR_UNK; break;
+                        case 2: cfg.iterator = MALI_CS_ITERATOR_VERTEX; break;
+                        case 3: cfg.iterator = MALI_CS_ITERATOR_FRAGMENT; break;
+                        }
+                }
+                pan_pack_ins(s->cs + i, CS_SELECT_BUFFER, cfg) {
+                        cfg.index = 2;
+                }
                 submit_cs(s, i);
 
                 struct kbase_ioctl_cs_queue_kick kick = {
-                        .buffer_gpu_addr = (uintptr_t) s->cs_mem[i]
+                        .buffer_gpu_addr = s->cs_mem[i].gpu
                 };
 
                 int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
@@ -903,7 +969,8 @@ cs_store(struct state *s, struct test *t)
 {
         pan_command_stream *c = s->cs;
 
-        uint32_t *dest = s->allocations.cached + 240;
+        uint32_t *dest = s->allocations.cached.cpu + 240;
+        mali_ptr dest_va = s->allocations.cached.gpu + 240;
         uint32_t value = 1234;
         uint32_t add = 4320000;
 
@@ -913,10 +980,8 @@ cs_store(struct state *s, struct test *t)
         unsigned addr_reg = 0x48;
         unsigned value_reg = 0x4a;
 
-        pan_pack_ins(c, CS_UNK_STATE, cfg) {
-                cfg.state = 2;
-        };
-        pan_emit_cs_48(c, addr_reg, (uintptr_t) dest);
+        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 2; }
+        pan_emit_cs_48(c, addr_reg, dest_va);
         pan_emit_cs_32(c, value_reg, value);
 
         if (t->add) {
@@ -931,7 +996,63 @@ cs_store(struct state *s, struct test *t)
         pan_pack_ins(c, CS_STR_32, cfg) {
                 cfg.addr = addr_reg;
                 cfg.value = value_reg;
-        };
+        }
+
+        submit_cs(s, 0);
+        wait_cs(s, 0);
+
+        cache_invalidate(dest);
+        uint32_t result = *dest;
+
+        if (result != value) {
+                printf("Got %i, expected %i: ", result, value);
+                return false;
+        }
+
+        return true;
+}
+
+static void
+emit_cs_call(pan_command_stream *c, mali_ptr va, void *start, void *end)
+{
+        pan_emit_cs_48(c, 0x48, va);
+        pan_emit_cs_32(c, 0x4a, end - start);
+        pan_pack_ins(c, CS_CALL, cfg) {
+                cfg.address = 0x48;
+                cfg.length = 0x4a;
+        }
+}
+
+static bool
+cs_sub(struct state *s, struct test *t)
+{
+        pan_command_stream *c = s->cs;
+        pan_command_stream _i = { .ptr = s->allocations.cached.cpu }, *i = &_i;
+        mali_ptr cs_va = s->allocations.cached.gpu;
+
+        uint32_t *dest = s->allocations.normal.cpu;
+        mali_ptr dest_va = s->allocations.normal.gpu;
+        uint32_t value = 4321;
+
+        *dest = 0;
+        cache_clean(dest);
+
+        unsigned addr_reg = 0x48;
+        unsigned value_reg = 0x4a;
+
+        void *start = i->ptr;
+
+        pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
+        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+
+        pan_emit_cs_48(i, addr_reg, dest_va);
+        pan_emit_cs_32(i, value_reg, value);
+        pan_pack_ins(i, CS_STR_32, cfg) {
+                cfg.addr = addr_reg;
+                cfg.value = value_reg;
+        }
+
+        emit_cs_call(c, cs_va, start, i->ptr);
 
         submit_cs(s, 0);
         wait_cs(s, 0);
@@ -948,35 +1069,38 @@ cs_store(struct state *s, struct test *t)
 }
 
 static bool
-cs_sub(struct state *s, struct test *t)
+compute_compile(struct state *s, struct test *t)
 {
-        pan_command_stream *c = s->cs;
-        pan_command_stream _i = { .ptr = s->allocations.cached }, *i = &_i;
+        nir_builder _b =
+                nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
+                                               GENX(pan_shader_get_compiler_options)(),
+                                               "mem_store"), *b = &_b;
 
-        uint32_t *dest = s->allocations.normal;
-        uint32_t value = 4321;
+        nir_ssa_def *ptr =
+                nir_load_push_constant(b, 1, 64, nir_imm_int(b, 0));
 
-        *dest = 0;
-        cache_clean(dest);
+        nir_ssa_def *value = nir_imm_int(b, 123);
 
-        unsigned addr_reg = 0x48;
-        unsigned value_reg = 0x4a;
+        nir_store_global(b, ptr, 8, value, 1);
 
-        void *start = i->ptr;
-
-        pan_pack_ins(i, CS_UNK_STATE, cfg) { cfg.state = 8; };
-        pan_emit_cs_48(i, addr_reg, (uintptr_t) dest);
-        pan_emit_cs_32(i, value_reg, value);
-        pan_pack_ins(c, CS_STR_32, cfg) {
-                cfg.addr = addr_reg;
-                cfg.value = value_reg;
+        struct panfrost_compile_inputs inputs = {
+                .gpu_id = s->gpu_id,
+                .no_ubo_to_push = true,
         };
 
-        unsigned cs_len = (void *) i->ptr - start;
+        struct util_dynarray binary = {0};
+        struct pan_shader_info shader_info = {0};
 
-        // TODO: execute the sublist
+        GENX(pan_shader_compile)(b->shader, &inputs, &binary, &shader_info);
 
-        return false;
+        dump_start(stderr);
+        disassemble_valhall(stderr, binary.data, binary.size, true);
+        dump_end(stderr);
+
+        util_dynarray_fini(&binary);
+        ralloc_free(b->shader);
+
+        return true;
 }
 
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
@@ -1001,6 +1125,7 @@ struct test kbase_main[] = {
         { stream_create, stream_destroy, "Create synchronisation stream" },
         { tiler_heap_create, tiler_heap_term, "Create chunked tiler heap" },
         { cs_group_create, cs_group_term, "Create command stream group" },
+        { decode_init, decode_close, "Initialize pandecode" },
 
         /* Flags are named in mali_base_csf_kernel.h, omitted for brevity */
         ALLOC_TEST("Allocate normal memory", normal, 0x200f),
@@ -1017,6 +1142,8 @@ struct test kbase_main[] = {
         { cs_store, NULL, "Execute STR command" },
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
+
+        { compute_compile, NULL, "Compile a compute shader" },
 };
 
 static void
