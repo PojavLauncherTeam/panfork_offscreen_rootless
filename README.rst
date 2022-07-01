@@ -3,13 +3,17 @@ Valhall CSF Tests
 
 The ``csf`` branch contains a test program for v10 Valhall GPUs (G710
 etc.) which uses the Arm ``kbase`` kernel driver, which is generally
-present on vendor kernels but is not upstream.
+present on vendor kernels but is not in the upstream Linux kernel.
 
 However, the kernel driver source can also be downloaded `from Arm
 <https://developer.arm.com/downloads/-/mali-drivers/valhall-kernel>`_,
 of which the newer releases should work well enough with a mainline
 kernel (though some work may be needed to integrate the vendor
-platform.
+platform).
+
+The ``libmali`` blob drivers should be confirmed to work before trying
+this program, otherwise you will be trying to debug userspace and
+kernel bugs at the same time.
 
 Compiling
 ---------
