@@ -1,59 +1,46 @@
-`Mesa <https://mesa3d.org>`_ - The 3D Graphics Library
-======================================================
+Valhall CSF Tests
+=================
 
+The ``csf`` branch contains a test program for v10 Valhall GPUs (G710
+etc.) which uses the Arm ``kbase`` kernel driver, which is generally
+present on vendor kernels but is not upstream.
 
-Source
-------
+However, the kernel driver source can also be downloaded `from Arm
+<https://developer.arm.com/downloads/-/mali-drivers/valhall-kernel>`_,
+of which the newer releases should work well enough with a mainline
+kernel (though some work may be needed to integrate the vendor
+platform.
 
-This repository lives at https://gitlab.freedesktop.org/mesa/mesa.
-Other repositories are likely forks, and code found there is not supported.
-
-
-Build & install
----------------
-
-You can find more information in our documentation (`docs/install.rst
-<https://mesa3d.org/install.html>`_), but the recommended way is to use
-Meson (`docs/meson.rst <https://mesa3d.org/meson.html>`_):
+Compiling
+---------
 
 .. code-block:: sh
 
   $ mkdir build
   $ cd build
-  $ meson ..
-  $ sudo ninja install
+  $ meson --buildtype=debug -Dgallium-drivers=panfrost -Dvulkan-drivers=
+  $ ninja src/panfrost/csf_test
 
-
-Support
+Running
 -------
 
-Many Mesa devs hang on IRC; if you're not sure which channel is
-appropriate, you should ask your question on `OFTC's #dri-devel
-<irc://irc.oftc.net/dri-devel>`_, someone will redirect you if
-necessary.
-Remember that not everyone is in the same timezone as you, so it might
-take a while before someone qualified sees your question.
-To figure out who you're talking to, or which nick to ping for your
-question, check out `Who's Who on IRC
-<https://dri.freedesktop.org/wiki/WhosWho/>`_.
+.. code-block:: sh
 
-The next best option is to ask your question in an email to the
-mailing lists: `mesa-dev\@lists.freedesktop.org
-<https://lists.freedesktop.org/mailman/listinfo/mesa-dev>`_
+  $ src/panfrost/csf_test
 
+will run the tests.
 
-Bug reports
------------
+Normally it will start running cleanup steps as soon as one test
+fails, though setting the environment variable ``TEST_KEEP_GOING=1``
+will change this behaviour.
 
-If you think something isn't working properly, please file a bug report
-(`docs/bugs.rst <https://mesa3d.org/bugs.html>`_).
+Test failures
+-------------
 
+Gitlab issues can be created against `my repo
+<https://gitlab.freedesktop.org/icecream95/mesa/-/issues>`_, though
+some problems should be easy to fix (wrong permissions on
+``/dev/mali0``?).
 
-Contributing
-------------
-
-Contributions are welcome, and step-by-step instructions can be found in our
-documentation (`docs/submittingpatches.rst
-<https://mesa3d.org/submittingpatches.html>`_).
-
-Note that Mesa uses gitlab for patches submission, review and discussions.
+Include all output from running the test program. Including logs from
+``strace`` might also help.
