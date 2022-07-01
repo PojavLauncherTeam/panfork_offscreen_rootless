@@ -11,9 +11,14 @@ of which the newer releases should work well enough with a mainline
 kernel (though some work may be needed to integrate the vendor
 platform).
 
-The ``libmali`` blob drivers should be confirmed to work before trying
-this program, otherwise you will be trying to debug userspace and
-kernel bugs at the same time.
+Making sure that the ``libmali`` blob drivers work before trying this
+program is recommended, otherwise you will be trying to debug
+userspace and kernel bugs at the same time.
+
+Note that firmware is required for these GPUs, for RK3588 try
+downloading the file from the Rockchip `libmali
+<https://github.com/JeffyCN/rockchip_mirrors/tree/libmali/firmware/g610>`_
+repo, and placing it in ``/lib/firmware/``.
 
 Compiling
 ---------
