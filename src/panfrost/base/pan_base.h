@@ -30,14 +30,17 @@ struct util_dynarray;
 
 struct kbase_syncobj;
 
-typedef struct kbase_context {
-        /* Set these before calling kbase_open */
-        struct {
-        } params;
-        struct {
-                unsigned gpu_id;
-                unsigned arch;
-        } info;
+// todo: have a private context struct as well?
+typedef struct {
+   /* Set these before calling kbase_open */
+   struct {
+   } params;
+   struct {
+      unsigned gpu_id;
+      unsigned arch;
+   } info;
+
+   int fd;
 } *kbase;
 
 bool kbase_open(kbase k);
@@ -55,9 +58,11 @@ void kbase_cache_clean(void *ptr, size_t size);
 void kbase_cache_invalidate(void *ptr, size_t size);
 
 /* <= v9 GPUs */
+#if 0
 bool kbase_submit(kbase k, uint64_t va, unsigned req,
                   struct kbase_syncobj *o,
                   struct util_dynarray *ext_res);
+#endif
 
 /* >= v10 GPUs */
 bool kbase_cs_submit(kbase k, unsigned cs, unsigned insert_offset,
