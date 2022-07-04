@@ -57,9 +57,15 @@ typedef struct {
         void *csf_user_reg;
         base_va tiler_heap_va;
         base_va tiler_heap_header;
+
         uint8_t csg_handle;
         uint32_t csg_uid;
+        unsigned num_csi;
 } *kbase;
+
+struct kbase_cs {
+        void *user_io;
+};
 
 bool kbase_open(kbase k);
 void kbase_close(kbase k);
@@ -83,9 +89,13 @@ bool kbase_submit(kbase k, uint64_t va, unsigned req,
 #endif
 
 /* >= v10 GPUs */
-bool kbase_cs_submit(kbase k, unsigned cs, unsigned insert_offset,
+// TODO: Pass in a priority?
+struct kbase_cs kbase_cs_bind(kbase k, base_va va, unsigned size);
+void kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va);
+
+bool kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
                      struct kbase_syncobj *o);
-bool kbase_cs_wait(kbase k, unsigned cs, unsigned extract_offset);
+bool kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset);
 
 /* syncobj functions */
 

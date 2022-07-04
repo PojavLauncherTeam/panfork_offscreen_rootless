@@ -19,7 +19,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
  */
 
 #include <fcntl.h>
@@ -389,4 +388,65 @@ kbase_close(kbase k)
                 kbase_main[i].cleanup(k);
                 --k->setup_state;
         }
+}
+
+struct kbase_cs
+kbase_cs_bind(kbase k, base_va va, unsigned size)
+{
+        struct kbase_cs cs = {0};
+
+        struct kbase_ioctl_cs_queue_register reg = {
+                .buffer_gpu_addr = va,
+                .buffer_size = size,
+                .priority = 1,
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_REGISTER, &reg);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER)");
+                return cs;
+        }
+
+        union kbase_ioctl_cs_queue_bind bind = {
+                .in = {
+                        .buffer_gpu_addr = va,
+                        .group_handle = k->csg_handle,
+                        .csi_index = k->num_csi++,
+                }
+        };
+
+        ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_BIND, &bind);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_BIND)");
+        }
+
+        cs.user_io =
+                mmap(NULL,
+                     k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES,
+                     PROT_READ | PROT_WRITE, MAP_SHARED,
+                     k->fd, bind.out.mmap_handle);
+
+        if (cs.user_io == MAP_FAILED) {
+                perror("mmap(CS USER IO)");
+                cs.user_io = NULL;
+        }
+
+        return cs;
+}
+
+/* TODO: Free up the CSI to be reused by another CS? */
+void
+kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
+{
+        if (cs->user_io)
+            munmap(cs->user_io,
+                   k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES);
+
+        struct kbase_ioctl_cs_queue_terminate term = {
+                .buffer_gpu_addr = va,
+        };
+
+        ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
 }
