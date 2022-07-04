@@ -105,6 +105,9 @@ kbase_alloc_gem_handle(kbase k, base_va va, int fd)
 void
 kbase_free_gem_handle(kbase k, int handle)
 {
+        // TODO
+        return;
+
         pthread_mutex_lock(&k->handle_lock);
 
         unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);

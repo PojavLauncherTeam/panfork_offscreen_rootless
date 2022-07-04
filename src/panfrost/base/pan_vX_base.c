@@ -582,6 +582,9 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 static void
 kbase_free(kbase k, base_va va)
 {
+        // TODO
+        return;
+
         struct kbase_ioctl_mem_free f = {
                 .gpu_addr = va
         };
