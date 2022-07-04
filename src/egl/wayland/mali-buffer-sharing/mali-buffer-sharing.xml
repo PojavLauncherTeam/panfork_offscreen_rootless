@@ -28,11 +28,11 @@
 
   <interface name="mali_buffer_sharing" version="4">
     <enum name="format">
-      <entry name="rgba4444" value="0x10ba60a"/>
-      <entry name="rgba5551" value="0x104160a"/>
+      <entry name="argb4444" value="0x10ba60a"/>
+      <entry name="argb5551" value="0x104160a"/>
       <entry name="rgb565" value="0x1040a0a"/>
-      <entry name="rgb888" value="0x10bba0a"/>
-      <entry name="rgba8888" value="0x10bb60a"/>
+      <entry name="xrgb8888" value="0x10bba0a"/>
+      <entry name="argb8888" value="0x10bb60a"/>
     </enum>
 
     <event name="alloc_device">

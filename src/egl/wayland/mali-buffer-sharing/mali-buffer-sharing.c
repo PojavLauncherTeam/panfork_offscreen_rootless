@@ -110,19 +110,13 @@ mali_create_buffer(struct wl_client *client,
         enum wl_drm_format drm_format;
 
         switch (format) {
-        case MALI_BUFFER_SHARING_FORMAT_RGBA4444:
-                drm_format = WL_DRM_FORMAT_RGBA4444;
-                break;
-        case MALI_BUFFER_SHARING_FORMAT_RGBA5551:
-                drm_format = WL_DRM_FORMAT_RGBA5551;
-                break;
         case MALI_BUFFER_SHARING_FORMAT_RGB565:
                 drm_format = WL_DRM_FORMAT_RGB565;
                 break;
-        case MALI_BUFFER_SHARING_FORMAT_RGB888:
+        case MALI_BUFFER_SHARING_FORMAT_XRGB8888:
                 drm_format = WL_DRM_FORMAT_XRGB8888;
                 break;
-        case MALI_BUFFER_SHARING_FORMAT_RGBA8888:
+        case MALI_BUFFER_SHARING_FORMAT_ARGB8888:
         default:
                 drm_format = WL_DRM_FORMAT_ARGB8888;
         }
