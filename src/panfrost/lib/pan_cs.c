@@ -423,7 +423,8 @@ pan_rt_init_format(const struct pan_image_view *rt,
         cfg->swizzle = panfrost_translate_swizzle_4(swizzle);
 }
 
-#if PAN_ARCH >= 9
+/* Don't define for later gens as this is not a GENX function */
+#if PAN_ARCH == 9
 enum mali_afbc_compression_mode
 pan_afbc_compression_mode(enum pipe_format format)
 {
