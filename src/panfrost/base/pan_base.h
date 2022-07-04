@@ -42,10 +42,14 @@ struct kbase_cs {
 struct kbase;
 typedef struct kbase *kbase;
 
+#define KBASE_SLOT_COUNT 2
+
 typedef struct {
         base_va va;
         int fd;
         uint8_t use_count;
+        /* For emulating implicit sync */
+        uint8_t last_access[KBASE_SLOT_COUNT];
 } kbase_handle;
 
 struct kbase {

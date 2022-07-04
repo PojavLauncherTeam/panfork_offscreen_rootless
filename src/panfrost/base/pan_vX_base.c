@@ -718,6 +718,17 @@ kbase_handle_events(kbase k)
 }
 #endif
 
+static uint8_t
+kbase_latest_slot(uint8_t a, uint8_t b, uint8_t newest)
+{
+        /* If a == 4 and newest == 5, a will become 255 */
+        a -= newest;
+        b -= newest;
+        a = MAX2(a, b);
+        a += newest;
+        return a;
+}
+
 #if PAN_BASE_API < 2
 static int
 kbase_submit(kbase k, uint64_t va, unsigned req,
@@ -732,12 +743,18 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
 
         pthread_mutex_lock(&k->handle_lock);
 
+        unsigned slot = (req & PANFROST_JD_REQ_FS) ? 0 : 1;
+        unsigned dep_slots[KBASE_SLOT_COUNT];
+
         uint8_t nr = k->atom_number++;
 
         struct base_jd_atom_v2 atom = {
                 .jc = va,
                 .atom_number = nr,
         };
+
+        for (unsigned i = 0; i < KBASE_SLOT_COUNT; ++i)
+                dep_slots[i] = nr;
 
         /* Make sure that we haven't taken an atom that's already in use. */
         assert(!k->atom_bos[nr].data);
@@ -754,6 +771,15 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
                 int32_t h = handles[i];
                 assert(h < handle_buf_size);
                 assert(handle_buf[h].use_count < 255);
+
+                /* Implicit sync */
+                for (unsigned s = 0; s < KBASE_SLOT_COUNT; ++s)
+                        dep_slots[s] =
+                                kbase_latest_slot(dep_slots[s],
+                                                  handle_buf[h].last_access[s],
+                                                  nr);
+
+                handle_buf[h].last_access[slot] = nr;
                 ++handle_buf[h].use_count;
 
                 if (handle_buf[h].fd != -1)
@@ -761,6 +787,17 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         }
 
         pthread_mutex_unlock(&k->handle_lock);
+
+        assert(KBASE_SLOT_COUNT == 2);
+        if (dep_slots[0] != nr) {
+                atom.pre_dep[0].atom_id = dep_slots[0];
+                /* TODO: Use data dependencies?  */
+                atom.pre_dep[0].dependency_type = BASE_JD_DEP_TYPE_ORDER;
+        }
+        if (dep_slots[1] != nr) {
+                atom.pre_dep[1].atom_id = dep_slots[1];
+                atom.pre_dep[1].dependency_type = BASE_JD_DEP_TYPE_ORDER;
+        }
 
         if (extres.size) {
                 atom.core_req |= BASE_JD_REQ_EXTERNAL_RESOURCES;
