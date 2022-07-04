@@ -100,16 +100,27 @@ panfrost_get_model(uint32_t gpu_id)
 
 static __u64
 panfrost_query_raw(
-                int fd,
+                struct panfrost_device *dev,
                 enum drm_panfrost_param param,
                 bool required,
                 unsigned default_value)
 {
+        if (dev->kbase) {
+                uint64_t value;
+                bool ret = dev->mali.get_pan_gpuprop(&dev->mali, param, &value);
+                if (ret) {
+                        return value;
+                } else {
+                        assert(!required);
+                        return default_value;
+                }
+        }
+
         struct drm_panfrost_get_param get_param = {0,};
         ASSERTED int ret;
 
         get_param.param = param;
-        ret = drmIoctl(fd, DRM_IOCTL_PANFROST_GET_PARAM, &get_param);
+        ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_GET_PARAM, &get_param);
 
         if (ret) {
                 assert(!required);
@@ -120,23 +131,23 @@ panfrost_query_raw(
 }
 
 static unsigned
-panfrost_query_gpu_version(int fd)
+panfrost_query_gpu_version(struct panfrost_device *dev)
 {
-        return panfrost_query_raw(fd, DRM_PANFROST_PARAM_GPU_PROD_ID, true, 0);
+        return panfrost_query_raw(dev, DRM_PANFROST_PARAM_GPU_PROD_ID, true, 0);
 }
 
 static unsigned
-panfrost_query_gpu_revision(int fd)
+panfrost_query_gpu_revision(struct panfrost_device *dev)
 {
-        return panfrost_query_raw(fd, DRM_PANFROST_PARAM_GPU_REVISION, true, 0);
+        return panfrost_query_raw(dev, DRM_PANFROST_PARAM_GPU_REVISION, true, 0);
 }
 
 unsigned
-panfrost_query_l2_slices(const struct panfrost_device *dev)
+panfrost_query_l2_slices(struct panfrost_device *dev)
 {
         /* Query MEM_FEATURES register */
         uint32_t mem_features =
-                panfrost_query_raw(dev->fd, DRM_PANFROST_PARAM_MEM_FEATURES,
+                panfrost_query_raw(dev, DRM_PANFROST_PARAM_MEM_FEATURES,
                                    true, 0);
 
         /* L2_SLICES is MEM_FEATURES[11:8] minus(1) */
@@ -144,10 +155,10 @@ panfrost_query_l2_slices(const struct panfrost_device *dev)
 }
 
 static struct panfrost_tiler_features
-panfrost_query_tiler_features(int fd)
+panfrost_query_tiler_features(struct panfrost_device *dev)
 {
         /* Default value (2^9 bytes and 8 levels) to match old behaviour */
-        uint32_t raw = panfrost_query_raw(fd, DRM_PANFROST_PARAM_TILER_FEATURES,
+        uint32_t raw = panfrost_query_raw(dev, DRM_PANFROST_PARAM_TILER_FEATURES,
                         false, 0x809);
 
         /* Bin size is log2 in the first byte, max levels in the second byte */
@@ -158,11 +169,11 @@ panfrost_query_tiler_features(int fd)
 }
 
 static unsigned
-panfrost_query_core_count(int fd, unsigned *core_id_range)
+panfrost_query_core_count(struct panfrost_device *dev, unsigned *core_id_range)
 {
         /* On older kernels, worst-case to 16 cores */
 
-        unsigned mask = panfrost_query_raw(fd,
+        unsigned mask = panfrost_query_raw(dev,
                         DRM_PANFROST_PARAM_SHADER_PRESENT, false, 0xffff);
 
         /* Some cores might be absent. In some cases, we care
@@ -203,16 +214,16 @@ panfrost_max_thread_count(unsigned arch)
 }
 
 static unsigned
-panfrost_query_thread_tls_alloc(int fd, unsigned major)
+panfrost_query_thread_tls_alloc(struct panfrost_device *dev, unsigned major)
 {
-        unsigned tls = panfrost_query_raw(fd,
+        unsigned tls = panfrost_query_raw(dev,
                         DRM_PANFROST_PARAM_THREAD_TLS_ALLOC, false, 0);
 
         return (tls > 0) ? tls : panfrost_max_thread_count(major);
 }
 
 static uint32_t
-panfrost_query_compressed_formats(int fd)
+panfrost_query_compressed_formats(struct panfrost_device *dev)
 {
         /* If unspecified, assume ASTC/ETC only. Factory default for Juno, and
          * should exist on any Mali configuration. All hardware should report
@@ -231,7 +242,7 @@ panfrost_query_compressed_formats(int fd)
                 (1 << MALI_ASTC_2D_LDR) |
                 (1 << MALI_ASTC_2D_HDR);
 
-        return panfrost_query_raw(fd, DRM_PANFROST_PARAM_TEXTURE_FEATURES0,
+        return panfrost_query_raw(dev, DRM_PANFROST_PARAM_TEXTURE_FEATURES0,
                         false, default_set);
 }
 
@@ -254,9 +265,9 @@ panfrost_supports_compressed_format(struct panfrost_device *dev, unsigned fmt)
  * may omit it, signaled as a nonzero value in the AFBC_FEATURES property. */
 
 static bool
-panfrost_query_afbc(int fd, unsigned arch)
+panfrost_query_afbc(struct panfrost_device *dev, unsigned arch)
 {
-        unsigned reg = panfrost_query_raw(fd,
+        unsigned reg = panfrost_query_raw(dev,
                                           DRM_PANFROST_PARAM_AFBC_FEATURES,
                                           false, 0);
 
@@ -290,22 +301,22 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
 
         dev->fd = fd;
         dev->memctx = memctx;
-        dev->gpu_id = panfrost_query_gpu_version(fd);
+        dev->gpu_id = panfrost_query_gpu_version(dev);
         dev->arch = pan_arch(dev->gpu_id);
         dev->kernel_version = drmGetVersion(fd);
-        dev->revision = panfrost_query_gpu_revision(fd);
+        dev->revision = panfrost_query_gpu_revision(dev);
         dev->model = panfrost_get_model(dev->gpu_id);
 
         /* If we don't recognize the model, bail early */
         if (!dev->model)
                 return;
 
-        dev->core_count = panfrost_query_core_count(fd, &dev->core_id_range);
-        dev->thread_tls_alloc = panfrost_query_thread_tls_alloc(fd, dev->arch);
+        dev->core_count = panfrost_query_core_count(dev, &dev->core_id_range);
+        dev->thread_tls_alloc = panfrost_query_thread_tls_alloc(dev, dev->arch);
         dev->optimal_tib_size = panfrost_query_optimal_tib_size(dev);
-        dev->compressed_formats = panfrost_query_compressed_formats(fd);
-        dev->tiler_features = panfrost_query_tiler_features(fd);
-        dev->has_afbc = panfrost_query_afbc(fd, dev->arch);
+        dev->compressed_formats = panfrost_query_compressed_formats(dev);
+        dev->tiler_features = panfrost_query_tiler_features(dev);
+        dev->has_afbc = panfrost_query_afbc(dev, dev->arch);
 
         if (dev->arch <= 6)
                 dev->formats = panfrost_pipe_format_v6;

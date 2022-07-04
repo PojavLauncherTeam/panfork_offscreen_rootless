@@ -36,6 +36,8 @@
 #include "util/macros.h"
 #include "pan_base.h"
 
+#include "drm-uapi/panfrost_drm.h"
+
 #if PAN_BASE_API >= 2
 #define MALI_USE_CSF 1
 #endif
@@ -93,8 +95,8 @@ kbase_ioctl(int fd, unsigned long request, ...)
 #include "mali_kbase_gpuprops.h"
 
 #if PAN_BASE_API >= 1
-static uint64_t
-pan_get_gpuprop(kbase k, int name)
+static bool
+kbase_get_mali_gpuprop(kbase k, unsigned name, uint64_t *value)
 {
         int i = 0;
         uint64_t x = 0;
@@ -110,25 +112,38 @@ pan_get_gpuprop(kbase k, int name)
                 memcpy(&x, k->gpuprops + i, size);
                 i += size;
 
-                if (this_name == name)
-                        return x;
+                if (this_name == name) {
+                        *value = x;
+                        return true;
+                }
         }
 
-        fprintf(stderr, "Unknown prop %i\n", name);
-        return 0;
+        return false;
 }
 #else
-static uint64_t
-pan_get_gpuprop(kbase k, int name)
+static bool
+kbase_get_mali_gpuprop(kbase k, unsigned name, uint64_t *value)
 {
         struct kbase_ioctl_gpu_props_reg_dump *props = k->gpuprops;
 
         switch (name) {
         case KBASE_GPUPROP_PRODUCT_ID:
-                return props->core.product_id;
+                *value = props->core.product_id;
+                return true;
+        case KBASE_GPUPROP_RAW_SHADER_PRESENT:
+                *value = props->raw.shader_present;
+                return true;
+        case KBASE_GPUPROP_RAW_TEXTURE_FEATURES_0:
+                *value = props->raw.texture_features[0];
+                return true;
+        case KBASE_GPUPROP_RAW_TILER_FEATURES:
+                *value = props->raw.tiler_features;
+                return true;
+        case KBASE_GPUPROP_RAW_GPU_ID:
+                *value = props->raw.gpu_id;
+                return true;
         default:
-                fprintf(stderr, "Unknown prop %i\n", name);
-                return 0;
+                return false;
         }
 }
 #endif
@@ -222,17 +237,6 @@ free_gpuprops(kbase k)
 {
         free(k->gpuprops);
         return true;
-}
-
-static bool
-get_gpu_id(kbase k)
-{
-        uint64_t gpu_id = pan_get_gpuprop(k, KBASE_GPUPROP_PRODUCT_ID);
-        if (!gpu_id)
-                return false;
-
-        uint16_t maj = gpu_id >> 12;
-        return maj >= 10;
 }
 
 #if PAN_BASE_API >= 2
@@ -415,7 +419,6 @@ static struct kbase_op kbase_main[] = {
         { set_flags, NULL, "Set flags" },
 #endif
         { get_gpuprops, free_gpuprops, "Get GPU properties" },
-        { get_gpu_id, NULL, "GPU ID" },
 #if PAN_BASE_API >= 2
         { mmap_user_reg, munmap_user_reg, "Map user register page" },
 #endif
@@ -437,6 +440,35 @@ kbase_close(kbase k)
                 if (kbase_main[i].cleanup)
                         kbase_main[i].cleanup(k);
                 --k->setup_state;
+        }
+}
+
+static bool
+kbase_get_pan_gpuprop(kbase k, unsigned name, uint64_t *value)
+{
+        unsigned conv[] = {
+                [DRM_PANFROST_PARAM_GPU_PROD_ID] = KBASE_GPUPROP_PRODUCT_ID,
+                [DRM_PANFROST_PARAM_SHADER_PRESENT] = KBASE_GPUPROP_RAW_SHADER_PRESENT,
+                [DRM_PANFROST_PARAM_TEXTURE_FEATURES0] = KBASE_GPUPROP_RAW_TEXTURE_FEATURES_0,
+                [DRM_PANFROST_PARAM_THREAD_TLS_ALLOC] = KBASE_GPUPROP_TLS_ALLOC,
+                [DRM_PANFROST_PARAM_TILER_FEATURES] = KBASE_GPUPROP_RAW_TILER_FEATURES,
+        };
+
+        if (name < ARRAY_SIZE(conv) && conv[name])
+                return kbase_get_mali_gpuprop(k, conv[name], value);
+
+        switch (name) {
+        case DRM_PANFROST_PARAM_AFBC_FEATURES:
+                *value = 0;
+                return true;
+        case DRM_PANFROST_PARAM_GPU_REVISION: {
+                if (!kbase_get_mali_gpuprop(k, KBASE_GPUPROP_RAW_GPU_ID, value))
+                        return false;
+                *value &= 0xffff;
+                return true;
+        }
+        default:
+                return false;
         }
 }
 
@@ -520,6 +552,9 @@ kbase_open_csf
 #endif
 
         k->close = kbase_close;
+
+        k->get_pan_gpuprop = kbase_get_pan_gpuprop;
+        k->get_mali_gpuprop = kbase_get_mali_gpuprop;
 
 #if PAN_BASE_API >= 2
         k->cs_bind = kbase_cs_bind;

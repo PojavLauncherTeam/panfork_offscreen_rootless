@@ -64,8 +64,8 @@ struct kbase {
 
         void (*close)(kbase k);
 
-        uint64_t (*get_pan_gpuprop)(kbase k, unsigned name);
-        uint64_t (*get_mali_gpuprop)(kbase k, unsigned name);
+        bool (*get_pan_gpuprop)(kbase k, unsigned name, uint64_t *value);
+        bool (*get_mali_gpuprop)(kbase k, unsigned name, uint64_t *value);
 
         struct panfrost_ptr (*alloc)(kbase k, size_t size,
                                      unsigned pan_flags,
