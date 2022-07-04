@@ -604,6 +604,9 @@ kbase_import_dmabuf(kbase k, int fd)
         for (unsigned i = 0; i < size; ++i) {
                 kbase_handle h = handles[i];
 
+                if (h.fd == -1)
+                        continue;
+
                 if (os_same_file_description(h.fd, fd)) {
                         pthread_mutex_unlock(&k->handle_lock);
                         return i;
