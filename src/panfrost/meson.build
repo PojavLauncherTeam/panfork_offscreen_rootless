@@ -20,7 +20,7 @@
 # SOFTWARE.
 
 inc_panfrost_hw = include_directories([
-   'include'
+   'include', 'base'
 ])
 
 inc_panfrost = include_directories([

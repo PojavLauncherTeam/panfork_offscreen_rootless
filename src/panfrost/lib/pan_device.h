@@ -40,6 +40,7 @@
 #include "panfrost/util/pan_ir.h"
 #include "pan_pool.h"
 #include "pan_util.h"
+#include "pan_base.h"
 
 #include <genxml/gen_macros.h>
 
@@ -263,6 +264,8 @@ struct panfrost_device {
          * unconditionally on Bifrost, and useful for sharing with Midgard */
 
         struct panfrost_bo *sample_positions;
+
+        struct kbase kbase;
 };
 
 void

@@ -36,19 +36,12 @@ struct util_dynarray;
 struct kbase_syncobj;
 
 // todo: have a private context struct as well?
-typedef struct {
-        /* Set these before calling kbase_open */
-        struct {
-                unsigned cs_queue_count;
-        } params;
-        struct {
-                unsigned gpu_id;
-        } info;
-
+typedef struct kbase {
         unsigned setup_state;
 
         int fd;
         unsigned page_size;
+        unsigned cs_queue_count;
 
         unsigned gpuprops_size;
         void *gpuprops;
@@ -67,7 +60,7 @@ struct kbase_cs {
         void *user_io;
 };
 
-bool kbase_open(kbase k);
+bool kbase_open(kbase k, int fd, unsigned cs_queue_count);
 void kbase_close(kbase k);
 
 uint64_t kbase_get_pan_gpuprop(kbase k, unsigned name);
