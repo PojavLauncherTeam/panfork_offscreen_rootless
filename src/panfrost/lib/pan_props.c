@@ -303,7 +303,15 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
         dev->memctx = memctx;
         dev->gpu_id = panfrost_query_gpu_version(dev);
         dev->arch = pan_arch(dev->gpu_id);
-        dev->kernel_version = drmGetVersion(fd);
+        if (dev->kbase) {
+                dev->kernel_version = calloc(1, sizeof(drmVersion));
+                *dev->kernel_version = (drmVersion) {
+                        .version_major = 1,
+                        .version_minor = 999,
+                };
+        } else {
+                dev->kernel_version = drmGetVersion(fd);
+        }
         dev->revision = panfrost_query_gpu_revision(dev);
         dev->model = panfrost_get_model(dev->gpu_id);
 
@@ -364,7 +372,10 @@ panfrost_close_device(struct panfrost_device *dev)
                 util_sparse_array_finish(&dev->bo_map);
         }
 
-        drmFreeVersion(dev->kernel_version);
+        if (dev->kbase)
+                free(dev->kernel_version);
+        else
+                drmFreeVersion(dev->kernel_version);
         if (dev->kbase)
                 dev->mali.close(&dev->mali);
         close(dev->fd);
