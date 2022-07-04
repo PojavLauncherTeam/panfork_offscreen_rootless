@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include "util/macros.h"
+#include "util/u_atomic.h"
 #include "pan_base.h"
 
 #include "drm-uapi/panfrost_drm.h"
@@ -586,7 +587,46 @@ kbase_free(kbase k, base_va va)
                 perror("ioctl(KBASE_IOCTL_MEM_FREE)");
 }
 
-#if PAN_BASE_API >= 2
+#if PAN_BASE_API < 2
+static bool
+kbase_submit(kbase k, uint64_t va, unsigned req,
+             struct kbase_syncobj *o,
+             struct util_dynarray ext_res)
+{
+        struct base_jd_atom_v2 atom = {
+                .jc = va,
+                .atom_number = p_atomic_add_return(&k->atom_number, 1),
+        };
+
+        atom.nr_extres = util_dynarray_num_elements(&ext_res, base_va);
+
+        if (atom.nr_extres) {
+                atom.core_req |= BASE_JD_REQ_EXTERNAL_RESOURCES;
+                atom.extres_list = (uintptr_t) util_dynarray_begin(&ext_res);
+        }
+
+        if (req & PANFROST_JD_REQ_FS)
+                atom.core_req |= BASE_JD_REQ_FS;
+        else
+                atom.core_req |= BASE_JD_REQ_CS | BASE_JD_REQ_T;
+
+        struct kbase_ioctl_job_submit submit = {
+                .nr_atoms = 1,
+                .stride = sizeof(atom),
+                .addr = (uintptr_t) &atom,
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_JOB_SUBMIT, &submit);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_JOB_SUBMIT)");
+                return false;
+        }
+
+        return true;
+}
+
+#else
 static struct kbase_cs
 kbase_cs_bind(kbase k, base_va va, unsigned size)
 {
@@ -673,7 +713,9 @@ kbase_open_csf
         k->alloc = kbase_alloc;
         k->free = kbase_free;
 
-#if PAN_BASE_API >= 2
+#if PAN_BASE_API < 2
+        k->submit = kbase_submit;
+#else
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
 #endif

@@ -95,7 +95,7 @@ enum kbase_ioctl_coherency_mode {
  * Mali Atom priority
  *
  * Only certain priority levels are actually implemented, as specified by the
- * MALI_JD_PRIO_<...> definitions below. It is undefined to use a priority
+ * BASE_JD_PRIO_<...> definitions below. It is undefined to use a priority
  * level that is not one of those defined below.
  *
  * Priority levels only affect scheduling between atoms of the same type within
@@ -120,9 +120,9 @@ enum kbase_ioctl_coherency_mode {
  *   atoms of the same priority.
  */
 typedef u8 mali_jd_prio;
-#define MALI_JD_PRIO_MEDIUM  ((mali_jd_prio)0)
-#define MALI_JD_PRIO_HIGH    ((mali_jd_prio)1)
-#define MALI_JD_PRIO_LOW     ((mali_jd_prio)2)
+#define BASE_JD_PRIO_MEDIUM  ((mali_jd_prio)0)
+#define BASE_JD_PRIO_HIGH    ((mali_jd_prio)1)
+#define BASE_JD_PRIO_LOW     ((mali_jd_prio)2)
 
 /**
  * @brief Job dependency type.
@@ -135,9 +135,9 @@ typedef u8 mali_jd_prio;
  * propagated.
  */
 typedef u8 mali_jd_dep_type;
-#define MALI_JD_DEP_TYPE_INVALID  (0)       /**< Invalid dependency */
-#define MALI_JD_DEP_TYPE_DATA     (1U << 0) /**< Data dependency */
-#define MALI_JD_DEP_TYPE_ORDER    (1U << 1) /**< Order dependency */
+#define BASE_JD_DEP_TYPE_INVALID  (0)       /**< Invalid dependency */
+#define BASE_JD_DEP_TYPE_DATA     (1U << 0) /**< Data dependency */
+#define BASE_JD_DEP_TYPE_ORDER    (1U << 1) /**< Order dependency */
 
 /**
  * @brief Job chain hardware requirements.
@@ -146,7 +146,7 @@ typedef u8 mali_jd_dep_type;
  * driver to schedule the job correctly.  By not specifying the
  * correct settings can/will cause an early job termination.  Multiple
  * values can be ORed together to specify multiple requirements.
- * Special case is ::MALI_JD_REQ_DEP, which is used to express complex
+ * Special case is ::BASE_JD_REQ_DEP, which is used to express complex
  * dependencies, and that doesn't execute anything on the hardware.
  */
 typedef u32 mali_jd_core_req;
@@ -156,12 +156,12 @@ typedef u32 mali_jd_core_req;
 /**
  * No requirement, dependency only
  */
-#define MALI_JD_REQ_DEP ((mali_jd_core_req)0)
+#define BASE_JD_REQ_DEP ((mali_jd_core_req)0)
 
 /**
  * Requires fragment shaders
  */
-#define MALI_JD_REQ_FS  ((mali_jd_core_req)1 << 0)
+#define BASE_JD_REQ_FS  ((mali_jd_core_req)1 << 0)
 
 /**
  * Requires compute shaders
@@ -170,20 +170,20 @@ typedef u32 mali_jd_core_req;
  * - Geometry Shader Job
  * - An actual Compute Shader Job
  *
- * Compare this with @ref MALI_JD_REQ_ONLY_COMPUTE, which specifies that the
+ * Compare this with @ref BASE_JD_REQ_ONLY_COMPUTE, which specifies that the
  * job is specifically just the "Compute Shader" job type, and not the "Vertex
  * Shader" nor the "Geometry Shader" job type.
  */
-#define MALI_JD_REQ_CS  ((mali_jd_core_req)1 << 1)
-#define MALI_JD_REQ_T   ((mali_jd_core_req)1 << 2)   /**< Requires tiling */
-#define MALI_JD_REQ_CF  ((mali_jd_core_req)1 << 3)   /**< Requires cache flushes */
-#define MALI_JD_REQ_V   ((mali_jd_core_req)1 << 4)   /**< Requires value writeback */
+#define BASE_JD_REQ_CS  ((mali_jd_core_req)1 << 1)
+#define BASE_JD_REQ_T   ((mali_jd_core_req)1 << 2)   /**< Requires tiling */
+#define BASE_JD_REQ_CF  ((mali_jd_core_req)1 << 3)   /**< Requires cache flushes */
+#define BASE_JD_REQ_V   ((mali_jd_core_req)1 << 4)   /**< Requires value writeback */
 
 /* SW-only requirements - the HW does not expose these as part of the job slot
  * capabilities */
 
 /* Requires fragment job with AFBC encoding */
-#define MALI_JD_REQ_FS_AFBC  ((mali_jd_core_req)1 << 13)
+#define BASE_JD_REQ_FS_AFBC  ((mali_jd_core_req)1 << 13)
 
 /**
  * SW-only requirement: coalesce completion events.
@@ -191,22 +191,22 @@ typedef u32 mali_jd_core_req;
  * be sent to userspace, whether successful or not; completion events will be
  * deferred until an atom completes which does not have this bit set.
  *
- * This bit may not be used in combination with MALI_JD_REQ_EXTERNAL_RESOURCES.
+ * This bit may not be used in combination with BASE_JD_REQ_EXTERNAL_RESOURCES.
  */
-#define MALI_JD_REQ_EVENT_COALESCE ((mali_jd_core_req)1 << 5)
+#define BASE_JD_REQ_EVENT_COALESCE ((mali_jd_core_req)1 << 5)
 
 /**
  * SW Only requirement: the job chain requires a coherent core group. We don't
  * mind which coherent core group is used.
  */
-#define MALI_JD_REQ_COHERENT_GROUP  ((mali_jd_core_req)1 << 6)
+#define BASE_JD_REQ_COHERENT_GROUP  ((mali_jd_core_req)1 << 6)
 
 /**
  * SW Only requirement: The performance counters should be enabled only when
  * they are needed, to reduce power consumption.
  */
 
-#define MALI_JD_REQ_PERMON               ((mali_jd_core_req)1 << 7)
+#define BASE_JD_REQ_PERMON               ((mali_jd_core_req)1 << 7)
 
 /**
  * SW Only requirement: External resources are referenced by this atom.  When
@@ -216,20 +216,20 @@ typedef u32 mali_jd_core_req;
  * resouces to use, the second pre_dep object can be used to create other
  * dependencies.
  *
- * This bit may not be used in combination with MALI_JD_REQ_EVENT_COALESCE.
+ * This bit may not be used in combination with BASE_JD_REQ_EVENT_COALESCE.
  */
-#define MALI_JD_REQ_EXTERNAL_RESOURCES   ((mali_jd_core_req)1 << 8)
+#define BASE_JD_REQ_EXTERNAL_RESOURCES   ((mali_jd_core_req)1 << 8)
 
 /**
  * SW Only requirement: Software defined job. Jobs with this bit set will not
  * be submitted to the hardware but will cause some action to happen within
  * the driver
  */
-#define MALI_JD_REQ_SOFT_JOB        ((mali_jd_core_req)1 << 9)
+#define BASE_JD_REQ_SOFT_JOB        ((mali_jd_core_req)1 << 9)
 
-#define MALI_JD_REQ_SOFT_DUMP_CPU_GPU_TIME      (MALI_JD_REQ_SOFT_JOB | 0x1)
-#define MALI_JD_REQ_SOFT_FENCE_TRIGGER          (MALI_JD_REQ_SOFT_JOB | 0x2)
-#define MALI_JD_REQ_SOFT_FENCE_WAIT             (MALI_JD_REQ_SOFT_JOB | 0x3)
+#define BASE_JD_REQ_SOFT_DUMP_CPU_GPU_TIME      (BASE_JD_REQ_SOFT_JOB | 0x1)
+#define BASE_JD_REQ_SOFT_FENCE_TRIGGER          (BASE_JD_REQ_SOFT_JOB | 0x2)
+#define BASE_JD_REQ_SOFT_FENCE_WAIT             (BASE_JD_REQ_SOFT_JOB | 0x3)
 
 /**
  * SW Only requirement : Replay job.
@@ -264,24 +264,24 @@ typedef u32 mali_jd_core_req;
  * - Pre-dependencies are created based on job order.
  * - Atom numbers are automatically assigned.
  * - device_nr is set to 0. This is not relevant as
- *   MALI_JD_REQ_SPECIFIC_COHERENT_GROUP should not be set.
+ *   BASE_JD_REQ_SPECIFIC_COHERENT_GROUP should not be set.
  * - Priority is inherited from the replay job.
  */
-#define MALI_JD_REQ_SOFT_REPLAY                 (MALI_JD_REQ_SOFT_JOB | 0x4)
+#define BASE_JD_REQ_SOFT_REPLAY                 (BASE_JD_REQ_SOFT_JOB | 0x4)
 /**
  * SW only requirement: event wait/trigger job.
  *
- * - MALI_JD_REQ_SOFT_EVENT_WAIT: this job will block until the event is set.
- * - MALI_JD_REQ_SOFT_EVENT_SET: this job sets the event, thus unblocks the
+ * - BASE_JD_REQ_SOFT_EVENT_WAIT: this job will block until the event is set.
+ * - BASE_JD_REQ_SOFT_EVENT_SET: this job sets the event, thus unblocks the
  *   other waiting jobs. It completes immediately.
- * - MALI_JD_REQ_SOFT_EVENT_RESET: this job resets the event, making it
+ * - BASE_JD_REQ_SOFT_EVENT_RESET: this job resets the event, making it
  *   possible for other jobs to wait upon. It completes immediately.
  */
-#define MALI_JD_REQ_SOFT_EVENT_WAIT             (MALI_JD_REQ_SOFT_JOB | 0x5)
-#define MALI_JD_REQ_SOFT_EVENT_SET              (MALI_JD_REQ_SOFT_JOB | 0x6)
-#define MALI_JD_REQ_SOFT_EVENT_RESET            (MALI_JD_REQ_SOFT_JOB | 0x7)
+#define BASE_JD_REQ_SOFT_EVENT_WAIT             (BASE_JD_REQ_SOFT_JOB | 0x5)
+#define BASE_JD_REQ_SOFT_EVENT_SET              (BASE_JD_REQ_SOFT_JOB | 0x6)
+#define BASE_JD_REQ_SOFT_EVENT_RESET            (BASE_JD_REQ_SOFT_JOB | 0x7)
 
-#define MALI_JD_REQ_SOFT_DEBUG_COPY             (MALI_JD_REQ_SOFT_JOB | 0x8)
+#define BASE_JD_REQ_SOFT_DEBUG_COPY             (BASE_JD_REQ_SOFT_JOB | 0x8)
 
 /**
  * SW only requirement: Just In Time allocation
@@ -291,24 +291,24 @@ typedef u32 mali_jd_core_req;
  * the atom.
  *
  * It should be noted that the id entry in @base_jit_alloc_info must not
- * be reused until it has been released via @MALI_JD_REQ_SOFT_JIT_FREE.
+ * be reused until it has been released via @BASE_JD_REQ_SOFT_JIT_FREE.
  *
- * Should this soft job fail it is expected that a @MALI_JD_REQ_SOFT_JIT_FREE
+ * Should this soft job fail it is expected that a @BASE_JD_REQ_SOFT_JIT_FREE
  * soft job to free the JIT allocation is still made.
  *
  * The job will complete immediately.
  */
-#define MALI_JD_REQ_SOFT_JIT_ALLOC              (MALI_JD_REQ_SOFT_JOB | 0x9)
+#define BASE_JD_REQ_SOFT_JIT_ALLOC              (BASE_JD_REQ_SOFT_JOB | 0x9)
 /**
  * SW only requirement: Just In Time free
  *
- * This job requests a JIT allocation created by @MALI_JD_REQ_SOFT_JIT_ALLOC
+ * This job requests a JIT allocation created by @BASE_JD_REQ_SOFT_JIT_ALLOC
  * to be freed. The ID of the JIT allocation is passed via the jc element of
  * the atom.
  *
  * The job will complete immediately.
  */
-#define MALI_JD_REQ_SOFT_JIT_FREE               (MALI_JD_REQ_SOFT_JOB | 0xa)
+#define BASE_JD_REQ_SOFT_JIT_FREE               (BASE_JD_REQ_SOFT_JOB | 0xa)
 
 /**
  * SW only requirement: Map external resource
@@ -318,7 +318,7 @@ typedef u32 mali_jd_core_req;
  * passed via the jc element of the atom which is a pointer to a
  * @base_external_resource_list.
  */
-#define MALI_JD_REQ_SOFT_EXT_RES_MAP            (MALI_JD_REQ_SOFT_JOB | 0xb)
+#define BASE_JD_REQ_SOFT_EXT_RES_MAP            (BASE_JD_REQ_SOFT_JOB | 0xb)
 /**
  * SW only requirement: Unmap external resource
  *
@@ -327,7 +327,7 @@ typedef u32 mali_jd_core_req;
  * passed via the jc element of the atom which is a pointer to a
  * @base_external_resource_list.
  */
-#define MALI_JD_REQ_SOFT_EXT_RES_UNMAP          (MALI_JD_REQ_SOFT_JOB | 0xc)
+#define BASE_JD_REQ_SOFT_EXT_RES_UNMAP          (BASE_JD_REQ_SOFT_JOB | 0xc)
 
 /**
  * HW Requirement: Requires Compute shaders (but not Vertex or Geometry Shaders)
@@ -335,91 +335,91 @@ typedef u32 mali_jd_core_req;
  * This indicates that the Job Chain contains Midgard Jobs of the 'Compute
  * Shaders' type.
  *
- * In contrast to @ref MALI_JD_REQ_CS, this does \b not indicate that the Job
+ * In contrast to @ref BASE_JD_REQ_CS, this does \b not indicate that the Job
  * Chain contains 'Geometry Shader' or 'Vertex Shader' jobs.
  */
-#define MALI_JD_REQ_ONLY_COMPUTE    ((mali_jd_core_req)1 << 10)
+#define BASE_JD_REQ_ONLY_COMPUTE    ((mali_jd_core_req)1 << 10)
 
 /**
  * HW Requirement: Use the mali_jd_atom::device_nr field to specify a
  * particular core group
  *
- * If both @ref MALI_JD_REQ_COHERENT_GROUP and this flag are set, this flag
+ * If both @ref BASE_JD_REQ_COHERENT_GROUP and this flag are set, this flag
  * takes priority
  *
- * This is only guaranteed to work for @ref MALI_JD_REQ_ONLY_COMPUTE atoms.
+ * This is only guaranteed to work for @ref BASE_JD_REQ_ONLY_COMPUTE atoms.
  *
  * If the core availability policy is keeping the required core group turned
- * off, then the job will fail with a @ref MALI_JD_EVENT_PM_EVENT error code.
+ * off, then the job will fail with a @ref BASE_JD_EVENT_PM_EVENT error code.
  */
-#define MALI_JD_REQ_SPECIFIC_COHERENT_GROUP ((mali_jd_core_req)1 << 11)
+#define BASE_JD_REQ_SPECIFIC_COHERENT_GROUP ((mali_jd_core_req)1 << 11)
 
 /**
  * SW Flag: If this bit is set then the successful completion of this atom
  * will not cause an event to be sent to userspace
  */
-#define MALI_JD_REQ_EVENT_ONLY_ON_FAILURE   ((mali_jd_core_req)1 << 12)
+#define BASE_JD_REQ_EVENT_ONLY_ON_FAILURE   ((mali_jd_core_req)1 << 12)
 
 /**
  * SW Flag: If this bit is set then completion of this atom will not cause an
  * event to be sent to userspace, whether successful or not.
  */
-#define MALI_JD_REQ_EVENT_NEVER ((mali_jd_core_req)1 << 14)
+#define BASE_JD_REQ_EVENT_NEVER ((mali_jd_core_req)1 << 14)
 
 /**
  * SW Flag: Skip GPU cache clean and invalidation before starting a GPU job.
  *
  * If this bit is set then the GPU's cache will not be cleaned and invalidated
  * until a GPU job starts which does not have this bit set or a job completes
- * which does not have the @ref MALI_JD_REQ_SKIP_CACHE_END bit set. Do not use if
+ * which does not have the @ref BASE_JD_REQ_SKIP_CACHE_END bit set. Do not use if
  * the CPU may have written to memory addressed by the job since the last job
  * without this bit set was submitted.
  */
-#define MALI_JD_REQ_SKIP_CACHE_START ((mali_jd_core_req)1 << 15)
+#define BASE_JD_REQ_SKIP_CACHE_START ((mali_jd_core_req)1 << 15)
 
 /**
  * SW Flag: Skip GPU cache clean and invalidation after a GPU job completes.
  *
  * If this bit is set then the GPU's cache will not be cleaned and invalidated
  * until a GPU job completes which does not have this bit set or a job starts
- * which does not have the @ref MALI_JD_REQ_SKIP_CACHE_START bti set. Do not
+ * which does not have the @ref BASE_JD_REQ_SKIP_CACHE_START bti set. Do not
  * use if the CPU may read from or partially overwrite memory addressed by the
  * job before the next job without this bit set completes.
  */
-#define MALI_JD_REQ_SKIP_CACHE_END ((mali_jd_core_req)1 << 16)
+#define BASE_JD_REQ_SKIP_CACHE_END ((mali_jd_core_req)1 << 16)
 
 /**
  * These requirement bits are currently unused in mali_jd_core_req
  */
 #define MALIP_JD_REQ_RESERVED \
-	(~(MALI_JD_REQ_ATOM_TYPE | MALI_JD_REQ_EXTERNAL_RESOURCES | \
-	MALI_JD_REQ_EVENT_ONLY_ON_FAILURE | MALIP_JD_REQ_EVENT_NEVER | \
-	MALI_JD_REQ_EVENT_COALESCE | \
-	MALI_JD_REQ_COHERENT_GROUP | MALI_JD_REQ_SPECIFIC_COHERENT_GROUP | \
-	MALI_JD_REQ_FS_AFBC | MALI_JD_REQ_PERMON | \
-	MALI_JD_REQ_SKIP_CACHE_START | MALI_JD_REQ_SKIP_CACHE_END))
+	(~(BASE_JD_REQ_ATOM_TYPE | BASE_JD_REQ_EXTERNAL_RESOURCES | \
+	BASE_JD_REQ_EVENT_ONLY_ON_FAILURE | MALIP_JD_REQ_EVENT_NEVER | \
+	BASE_JD_REQ_EVENT_COALESCE | \
+	BASE_JD_REQ_COHERENT_GROUP | BASE_JD_REQ_SPECIFIC_COHERENT_GROUP | \
+	BASE_JD_REQ_FS_AFBC | BASE_JD_REQ_PERMON | \
+	BASE_JD_REQ_SKIP_CACHE_START | BASE_JD_REQ_SKIP_CACHE_END))
 
 /**
  * Mask of all bits in mali_jd_core_req that control the type of the atom.
  *
  * This allows dependency only atoms to have flags set
  */
-#define MALI_JD_REQ_ATOM_TYPE \
-	(MALI_JD_REQ_FS | MALI_JD_REQ_CS | MALI_JD_REQ_T | MALI_JD_REQ_CF | \
-	MALI_JD_REQ_V | MALI_JD_REQ_SOFT_JOB | MALI_JD_REQ_ONLY_COMPUTE)
+#define BASE_JD_REQ_ATOM_TYPE \
+	(BASE_JD_REQ_FS | BASE_JD_REQ_CS | BASE_JD_REQ_T | BASE_JD_REQ_CF | \
+	BASE_JD_REQ_V | BASE_JD_REQ_SOFT_JOB | BASE_JD_REQ_ONLY_COMPUTE)
 
 /**
  * Mask of all bits in mali_jd_core_req that control the type of a soft job.
  */
-#define MALI_JD_REQ_SOFT_JOB_TYPE (MALI_JD_REQ_SOFT_JOB | 0x1f)
+#define BASE_JD_REQ_SOFT_JOB_TYPE (BASE_JD_REQ_SOFT_JOB | 0x1f)
 
 /*
  * Returns non-zero value if core requirements passed define a soft job or
  * a dependency only job.
  */
-#define MALI_JD_REQ_SOFT_JOB_OR_DEP(core_req) \
-	((core_req & MALI_JD_REQ_SOFT_JOB) || \
-	(core_req & MALI_JD_REQ_ATOM_TYPE) == MALI_JD_REQ_DEP)
+#define BASE_JD_REQ_SOFT_JOB_OR_DEP(core_req) \
+	((core_req & BASE_JD_REQ_SOFT_JOB) || \
+	(core_req & BASE_JD_REQ_ATOM_TYPE) == BASE_JD_REQ_DEP)
 
 /**
  * @brief The payload for a replay job. This must be in GPU memory.
@@ -531,11 +531,11 @@ enum mali_external_resource_access {
 /* An aligned address to the resource | mali_external_resource_access */
 typedef u64 mali_external_resource;
 
-struct mali_jd_atom_v2 {
+struct base_jd_atom_v2 {
 	mali_ptr jc;           /**< job-chain GPU address */
 	struct mali_jd_udata udata;	    /**< user data */
-	PAD_CPU_PTR(mali_external_resource *ext_res_list); /**< list of external resources */
-	u16 nr_ext_res;			    /**< nr of external resources */
+	u64 extres_list; /**< list of external resources */
+	u16 nr_extres;			    /**< nr of external resources */
 	u16 compat_core_req;	            /**< core requirements which
 					      correspond to the legacy support
 					      for UK 10.2 */
@@ -705,7 +705,7 @@ struct kbase_ioctl_stream_create {
 struct kbase_ioctl_job_submit {
 	union kbase_ioctl_header header;
 	/* [in] */
-	PAD_CPU_PTR(struct mali_jd_atom_v2 *addr);
+	u64 addr;
 	u32 nr_atoms;
 	u32 stride;
 } __attribute__((packed));

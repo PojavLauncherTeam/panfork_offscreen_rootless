@@ -57,6 +57,9 @@ struct kbase {
         base_va tiler_heap_va;
         base_va tiler_heap_header;
 
+        bool needs_ext_res;
+        uint8_t atom_number;
+
         uint8_t csg_handle;
         uint32_t csg_uid;
         unsigned num_csi;

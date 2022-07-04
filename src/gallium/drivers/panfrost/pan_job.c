@@ -637,6 +637,26 @@ pandecode_cs_bo(struct panfrost_bo *bo, unsigned gpu_id)
 }
 
 static int
+panfrost_batch_submit_kbase(struct panfrost_device *dev,
+                            struct drm_panfrost_submit *submit)
+{
+        struct util_dynarray ext_res = {0};
+
+        bool ret = dev->mali.submit(&dev->mali,
+                                    submit->jc,
+                                    submit->requirements,
+                                    NULL,
+                                    ext_res);
+
+        if (!ret) {
+                errno = EINVAL;
+                return -1;
+        }
+
+        return 0;
+}
+
+static int
 panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                             mali_ptr first_job_desc,
                             uint32_t reqs,
@@ -725,6 +745,8 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
         submit.bo_handles = (u64) (uintptr_t) bo_handles;
         if (ctx->is_noop)
                 ret = 0;
+        else if (dev->kbase)
+                ret = panfrost_batch_submit_kbase(dev, &submit);
         else
                 ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_SUBMIT, &submit);
         free(bo_handles);
