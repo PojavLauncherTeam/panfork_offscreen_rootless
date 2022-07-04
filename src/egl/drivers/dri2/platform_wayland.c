@@ -1789,7 +1789,7 @@ mali_handle_device(void *data, struct mali_buffer_sharing *drm, const char *devi
    drm_magic_t magic;
 
    // hack
-   printf("device %s\n", device);
+   printf("device '%s'\n", device);
    dri2_dpy->device_name = strdup("/dev/dri/card0");
 
    dri2_dpy->fd = loader_open_device(dri2_dpy->device_name);
@@ -2287,7 +2287,7 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
          goto cleanup;
    }
 
-   if (dri2_dpy->fd)
+   if (dri2_dpy->fd == -1)
            goto cleanup;
 
    dri2_dpy->fd = loader_get_user_preferred_fd(dri2_dpy->fd,
