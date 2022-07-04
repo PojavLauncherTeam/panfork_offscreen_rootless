@@ -446,7 +446,8 @@ kbase_close(kbase k)
 {
         while (k->setup_state) {
                 unsigned i = k->setup_state - 1;
-                kbase_main[i].cleanup(k);
+                if (kbase_main[i].cleanup)
+                        kbase_main[i].cleanup(k);
                 --k->setup_state;
         }
 }
