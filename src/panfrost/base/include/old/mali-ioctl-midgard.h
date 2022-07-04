@@ -40,7 +40,7 @@ union kbase_ioctl_mem_alloc {
 
 #define KBASE_IOCTL_GET_VERSION             (_IOWR(0x80,  0, struct kbase_ioctl_get_version))
 #define KBASE_IOCTL_MEM_ALLOC               (_IOWR(0x82,  0, union kbase_ioctl_mem_alloc))
-#define KBASE_IOCTL_MEM_IMPORT              (_IOWR(0x82,  1, struct kbase_ioctl_mem_import))
+#define KBASE_IOCTL_MEM_IMPORT              (_IOWR(0x82,  1, union kbase_ioctl_mem_import))
 #define KBASE_IOCTL_MEM_COMMIT              (_IOWR(0x82,  2, struct kbase_ioctl_mem_commit))
 #define KBASE_IOCTL_MEM_QUERY               (_IOWR(0x82,  3, struct kbase_ioctl_mem_query))
 #define KBASE_IOCTL_MEM_FREE                (_IOWR(0x82,  4, struct kbase_ioctl_mem_free))

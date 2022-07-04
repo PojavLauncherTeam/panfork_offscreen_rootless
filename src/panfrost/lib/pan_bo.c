@@ -490,35 +490,32 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
         pthread_mutex_unlock(&dev->bo_map_lock);
 }
 
-static struct panfrost_bo *
-panfrost_bo_import_kbase(dev, fd)
-{
-        int dup = os_dupfd_cloexec(fd);
-
-//        kbase_ = kbase_
-}
-
 struct panfrost_bo *
 panfrost_bo_import(struct panfrost_device *dev, int fd)
 {
-        if (dev->kbase)
-                return panfrost_bo_import_kbase(dev, fd);
-
         struct panfrost_bo *bo;
         struct drm_panfrost_get_bo_offset get_bo_offset = {0,};
         ASSERTED int ret;
         unsigned gem_handle;
 
-        ret = drmPrimeFDToHandle(dev->fd, fd, &gem_handle);
-        assert(!ret);
+        if (dev->kbase) {
+                gem_handle = dev->mali.import_dmabuf(&dev->mali, fd);
+        } else {
+                ret = drmPrimeFDToHandle(dev->fd, fd, &gem_handle);
+                assert(!ret);
+        }
 
         pthread_mutex_lock(&dev->bo_map_lock);
         bo = pan_lookup_bo(dev, gem_handle);
 
         if (!bo->dev) {
                 get_bo_offset.handle = gem_handle;
-                ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_GET_BO_OFFSET, &get_bo_offset);
-                assert(!ret);
+                if (dev->kbase) {
+                        get_bo_offset.offset = kbase_gem_handle_get(&dev->mali, gem_handle).va;
+                } else {
+                        ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_GET_BO_OFFSET, &get_bo_offset);
+                        assert(!ret);
+                }
 
                 bo->dev = dev;
                 bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
@@ -561,7 +558,7 @@ panfrost_bo_export(struct panfrost_bo *bo)
         struct panfrost_device *dev = bo->dev;
 
         if (dev->kbase) {
-                int fd = kbase_gem_handle_get_fd(&dev->mali, bo->gem_handle);
+                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
                 if (fd < 0)
                         return -1;
 

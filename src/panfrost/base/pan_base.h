@@ -86,6 +86,8 @@ struct kbase {
                                  unsigned mali_flags);
         void (*free)(kbase k, base_va va);
 
+        int (*import_dmabuf)(kbase k, int fd);
+
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);
 
@@ -130,8 +132,7 @@ bool kbase_open_csf(kbase k);
 /* BO management */
 int kbase_alloc_gem_handle(kbase k, base_va va, int fd);
 void kbase_free_gem_handle(kbase k, int handle);
-void kbase_gem_handle_set_va(kbase k, int handle, base_va va);
-int kbase_gem_handle_get_fd(kbase k, int handle);
+kbase_handle kbase_gem_handle_get(kbase k, int handle);
 int kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers);
 
 #endif

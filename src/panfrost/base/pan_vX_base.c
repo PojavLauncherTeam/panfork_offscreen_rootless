@@ -39,6 +39,8 @@
 
 #include "util/macros.h"
 #include "util/u_atomic.h"
+#include "util/os_file.h"
+
 #include "pan_base.h"
 
 #include "drm-uapi/panfrost_drm.h"
@@ -590,6 +592,51 @@ kbase_free(kbase k, base_va va)
                 perror("ioctl(KBASE_IOCTL_MEM_FREE)");
 }
 
+static int
+kbase_import_dmabuf(kbase k, int fd)
+{
+        pthread_mutex_lock(&k->handle_lock);
+
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
+
+        kbase_handle *handles = util_dynarray_begin(&k->gem_handles);
+
+        for (unsigned i = 0; i < size; ++i) {
+                kbase_handle h = handles[i];
+
+                if (os_same_file_description(h.fd, fd)) {
+                        pthread_mutex_unlock(&k->handle_lock);
+                        return i;
+                }
+        }
+
+        int dup = os_dupfd_cloexec(fd);
+
+        union kbase_ioctl_mem_import import = {
+                .in = {
+                        .phandle = (uintptr_t) &dup,
+                        .type = BASE_MEM_IMPORT_TYPE_UMM,
+                        /* Usage flags, CPU/GPU reads/writes */
+                        .flags = 0xf,
+                }
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_IMPORT, &import);
+
+        int handle;
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
+                handle = -1;
+        } else {
+                handle = kbase_alloc_gem_handle(k, import.out.gpu_va, dup);
+        }
+
+        pthread_mutex_unlock(&k->handle_lock);
+
+        return handle;
+}
+
 static void
 kbase_poll_event(kbase k, int64_t timeout_ns)
 {
@@ -821,6 +868,7 @@ kbase_open_csf
 
         k->alloc = kbase_alloc;
         k->free = kbase_free;
+        k->import_dmabuf = kbase_import_dmabuf;
 
         k->poll_event = kbase_poll_event;
         k->handle_events = kbase_handle_events;

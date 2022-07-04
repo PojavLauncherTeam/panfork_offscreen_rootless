@@ -603,22 +603,26 @@ struct mali_mem_import_user_buffer {
 	u64 length;
 };
 
-struct kbase_ioctl_mem_import {
-	union kbase_ioctl_header header;
-	/* [in] */
-	u64 phandle;
-	enum {
-		BASE_MEM_IMPORT_TYPE_INVALID = 0,
-		BASE_MEM_IMPORT_TYPE_UMP = 1,
-		BASE_MEM_IMPORT_TYPE_UMM = 2,
-		BASE_MEM_IMPORT_TYPE_USER_BUFFER = 3,
-	} type :32;
-	u32 :32;
-	/* [in/out] */
-	u64 flags;
-	/* [out] */
-	u64 gpu_va;
-	u64 va_pages;
+union kbase_ioctl_mem_import {
+        struct {
+                union kbase_ioctl_header header;
+                u64 phandle;
+                enum {
+                        BASE_MEM_IMPORT_TYPE_INVALID = 0,
+                        BASE_MEM_IMPORT_TYPE_UMP = 1,
+                        BASE_MEM_IMPORT_TYPE_UMM = 2,
+                        BASE_MEM_IMPORT_TYPE_USER_BUFFER = 3,
+                } type :32;
+                u32 :32;
+                u64 flags;
+        } in;
+        struct {
+                union kbase_ioctl_header header;
+                u64 pad[2];
+                u64 flags;
+                u64 gpu_va;
+                u64 va_pages;
+        } out;
 } __attribute__((packed));
 
 struct kbase_ioctl_mem_commit {

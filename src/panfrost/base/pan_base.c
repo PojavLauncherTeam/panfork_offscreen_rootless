@@ -121,40 +121,21 @@ kbase_free_gem_handle(kbase k, int handle)
         pthread_mutex_unlock(&k->handle_lock);
 }
 
-void
-kbase_gem_handle_set_va(kbase k, int handle, base_va va)
+kbase_handle
+kbase_gem_handle_get(kbase k, int handle)
 {
-        pthread_mutex_lock(&k->handle_lock);
-
-        unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
-
-        if (handle < size) {
-                kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
-
-                ptr->va = va;
-        }
-
-        pthread_mutex_unlock(&k->handle_lock);
-}
-
-int
-kbase_gem_handle_get_fd(kbase k, int handle)
-{
-        int fd = -1;
+        kbase_handle h = { .fd = -1 };
 
         pthread_mutex_lock(&k->handle_lock);
 
         unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
 
-        if (handle < size) {
-                kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
-
-                fd = ptr->fd;
-        }
+        if (handle < size)
+                h = *util_dynarray_element(&k->gem_handles, kbase_handle, handle);
 
         pthread_mutex_unlock(&k->handle_lock);
 
-        return fd;
+        return h;
 }
 
 int
