@@ -39,7 +39,10 @@ endforeach
 libpanfrost_base = static_library(
   'panfrost_base',
   'pan_base.c',
-  include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_panfrost_hw],
+  include_directories : [
+    inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_panfrost_hw,
+    include_directories('include'),
+  ],
   gnu_symbol_visibility : 'hidden',
   build_by_default : false,
   link_with: [libpanfrost_base_per_arch],

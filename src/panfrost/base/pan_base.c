@@ -36,15 +36,7 @@
 #include "util/macros.h"
 #include "pan_base.h"
 
-struct mali_ioctl_get_version_new {
-        uint16_t major;
-        uint16_t minor;
-};
-
-#define MALI_IOCTL_GET_VERSION_NEW (_IOWR(0x80, 0, struct mali_ioctl_get_version_new))
-
-bool kbase_open_old(kbase k);
-bool kbase_open_csf(kbase k);
+#include "mali_kbase_ioctl.h"
 
 bool
 kbase_open(kbase k, int fd, unsigned cs_queue_count)
@@ -54,11 +46,13 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
         k->cs_queue_count = cs_queue_count;
         k->page_size = sysconf(_SC_PAGE_SIZE);
 
-        /* First try a new-style GET_VERSION */
-        struct mali_ioctl_get_version_new ver = { 0 };
-        int ret = ioctl(k->fd, MALI_IOCTL_GET_VERSION_NEW, &ver);
+        struct kbase_ioctl_version_check ver = { 0 };
+        int ret = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK, &ver);
+        int ret2 = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK_RESERVED, &ver);
 
         if (ret == 0) {
+                return kbase_open_new(k);
+        } else if (ret2 == 0) {
                 return kbase_open_csf(k);
         } else {
                 return kbase_open_old(k);

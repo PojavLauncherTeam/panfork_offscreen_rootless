@@ -441,24 +441,7 @@ struct kbase_op kbase_main[] = {
 #endif
 };
 
-bool
-kbase_open(kbase k, int fd, unsigned cs_queue_count)
-{
-        *k = (struct kbase) {0};
-        k->fd = fd;
-        k->cs_queue_count = cs_queue_count;
-
-        for (unsigned i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
-                ++k->setup_state;
-                if (!kbase_main[i].part(k)) {
-                        kbase_close(k);
-                        return false;
-                }
-        }
-        return true;
-}
-
-void
+static void
 kbase_close(kbase k)
 {
         while (k->setup_state) {
@@ -469,7 +452,7 @@ kbase_close(kbase k)
 }
 
 #if PAN_BASE_API >= 2
-struct kbase_cs
+static struct kbase_cs
 kbase_cs_bind(kbase k, base_va va, unsigned size)
 {
         struct kbase_cs cs = {0};
@@ -516,7 +499,7 @@ kbase_cs_bind(kbase k, base_va va, unsigned size)
 }
 
 /* TODO: Free up the CSI to be reused by another CS? */
-void
+static void
 kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 {
         if (cs->user_io)
@@ -529,5 +512,28 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
 }
+
+bool
+kbase_open(kbase k, int fd, unsigned cs_queue_count)
+{
+        *k = (struct kbase) {0};
+        k->fd = fd;
+        k->cs_queue_count = cs_queue_count;
+
+        k->close = kbase_close;
+
+#if PAN_BASE_API >= 2
+        k->cs_bind = kbase_cs_bind;
+        k->cs_term = kbase_cs_term;
 #endif
 
+        for (unsigned i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
+                ++k->setup_state;
+                if (!kbase_main[i].part(k)) {
+                        k->close(k);
+                        return false;
+                }
+        }
+        return true;
+}
+#endif

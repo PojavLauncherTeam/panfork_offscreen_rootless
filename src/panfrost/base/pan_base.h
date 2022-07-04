@@ -35,8 +35,14 @@ struct util_dynarray;
 
 struct kbase_syncobj;
 
-// todo: have a private context struct as well?
-typedef struct kbase {
+struct kbase_cs {
+        void *user_io;
+};
+
+struct kbase;
+typedef struct kbase *kbase;
+
+struct kbase {
         unsigned setup_state;
 
         int fd;
@@ -54,55 +60,53 @@ typedef struct kbase {
         uint8_t csg_handle;
         uint32_t csg_uid;
         unsigned num_csi;
-} *kbase;
 
-struct kbase_cs {
-        void *user_io;
+
+        void (*close)(kbase k);
+
+        uint64_t (*get_pan_gpuprop)(kbase k, unsigned name);
+        uint64_t (*get_mali_gpuprop)(kbase k, unsigned name);
+
+        struct panfrost_ptr (*alloc)(kbase k, size_t size,
+                                     unsigned pan_flags,
+                                     unsigned mali_flags);
+        void (*free)(kbase k, struct base_ptr va);
+
+        void (*cache_clean)(void *ptr, size_t size);
+        void (*cache_invalidate)(void *ptr, size_t size);
+
+        /* <= v9 GPUs */
+        bool (*submit)(kbase k, uint64_t va, unsigned req,
+                       struct kbase_syncobj *o,
+                       struct util_dynarray *ext_res);
+
+        /* >= v10 GPUs */
+        // TODO: Pass in a priority?
+        struct kbase_cs (*cs_bind)(kbase k, base_va va, unsigned size);
+        void (*cs_term)(kbase k, struct kbase_cs *cs, base_va va);
+
+        bool (*cs_submit)(kbase k, struct kbase_cs *cs, unsigned insert_offset,
+                          struct kbase_syncobj *o);
+        bool (*cs_wait)(kbase k, struct kbase_cs *cs, unsigned extract_offset);
+
+        /* syncobj functions */
+        struct kbase_syncobj (*syncobj_create)(kbase k);
+        struct kbase_syncobj (*syncobj_free)(kbase k);
+        struct kbase_syncobj (*syncobj_dup)(kbase k, struct kbase_syncobj *o);
+        /* TODO: timeout? (and for cs_wait) */
+        bool (*syncobj_wait)(kbase k, struct kbase_syncobj *o);
+
+        struct base_ptr (*import)(kbase k, int fd, size_t *size);
+
+        void (*ctr_open)(kbase k);
+        void (*ctr_set_enabled)(kbase k, bool enable);
+        void (*ctr_dump)(kbase k);
 };
 
 bool kbase_open(kbase k, int fd, unsigned cs_queue_count);
-void kbase_close(kbase k);
 
-uint64_t kbase_get_pan_gpuprop(kbase k, unsigned name);
-uint64_t kbase_get_mali_gpuprop(kbase k, unsigned name);
-
-struct panfrost_ptr kbase_alloc(kbase k, size_t size,
-                                unsigned pan_flags,
-                                unsigned mali_flags);
-void kbase_free(kbase k, struct base_ptr va);
-
-void kbase_cache_clean(void *ptr, size_t size);
-void kbase_cache_invalidate(void *ptr, size_t size);
-
-/* <= v9 GPUs */
-#if 0
-bool kbase_submit(kbase k, uint64_t va, unsigned req,
-                  struct kbase_syncobj *o,
-                  struct util_dynarray *ext_res);
-#endif
-
-/* >= v10 GPUs */
-// TODO: Pass in a priority?
-struct kbase_cs kbase_cs_bind(kbase k, base_va va, unsigned size);
-void kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va);
-
-bool kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
-                     struct kbase_syncobj *o);
-bool kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset);
-
-/* syncobj functions */
-
-struct kbase_syncobj *kbase_syncobj_create(kbase k);
-struct kbase_syncobj *kbase_syncobj_free(kbase k);
-struct kbase_syncobj *kbase_syncobj_dup(kbase k, struct kbase_syncobj *o);
-
-/* TODO: timeout? (and for cs_wait) */
-bool kbase_syncobj_wait(kbase k, struct kbase_syncobj *o);
-
-struct base_ptr kbase_import(kbase k, int fd, size_t *size);
-
-void kbase_ctr_open(kbase k);
-void kbase_ctr_set_enabled(kbase k, bool enable);
-void kbase_ctr_dump(kbase k);
+bool kbase_open_old(kbase k);
+bool kbase_open_new(kbase k);
+bool kbase_open_csf(kbase k);
 
 #endif
