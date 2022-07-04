@@ -632,7 +632,7 @@ kbase_import_dmabuf(kbase k, int fd)
                 perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
                 handle = -1;
         } else {
-                handle = kbase_alloc_gem_handle(k, import.out.gpu_va, dup);
+                handle = kbase_alloc_gem_handle_locked(k, import.out.gpu_va, dup);
         }
 
         pthread_mutex_unlock(&k->handle_lock);

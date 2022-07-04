@@ -66,10 +66,8 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
 
 /* If fd != -1, ownership is passed in */
 int
-kbase_alloc_gem_handle(kbase k, base_va va, int fd)
+kbase_alloc_gem_handle_locked(kbase k, base_va va, int fd)
 {
-        pthread_mutex_lock(&k->handle_lock);
-
         kbase_handle h = {
                 .va = va,
                 .fd = fd
@@ -89,8 +87,19 @@ kbase_alloc_gem_handle(kbase k, base_va va, int fd)
 
         util_dynarray_append(&k->gem_handles, kbase_handle, h);
 
-        pthread_mutex_unlock(&k->handle_lock);
         return size;
+}
+
+int
+kbase_alloc_gem_handle(kbase k, base_va va, int fd)
+{
+        pthread_mutex_lock(&k->handle_lock);
+
+        int ret = kbase_alloc_gem_handle_locked(k, va, fd);
+
+        pthread_mutex_unlock(&k->handle_lock);
+
+        return ret;
 }
 
 void

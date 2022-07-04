@@ -131,6 +131,7 @@ bool kbase_open_csf(kbase k);
 
 /* BO management */
 int kbase_alloc_gem_handle(kbase k, base_va va, int fd);
+int kbase_alloc_gem_handle_locked(kbase k, base_va va, int fd);
 void kbase_free_gem_handle(kbase k, int handle);
 kbase_handle kbase_gem_handle_get(kbase k, int handle);
 int kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers);
