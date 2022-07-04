@@ -122,6 +122,26 @@ kbase_free_gem_handle(kbase k, int handle)
 }
 
 int
+kbase_gem_handle_get_fd(kbase k, int handle)
+{
+        int fd = -1;
+
+        pthread_mutex_lock(&k->handle_lock);
+
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
+
+        if (handle < size) {
+                kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
+
+                fd = ptr->fd;
+        }
+
+        pthread_mutex_unlock(&k->handle_lock);
+
+        return fd;
+}
+
+int
 kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers)
 {
         for (;;) {

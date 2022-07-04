@@ -39,6 +39,7 @@
 
 #include "util/u_inlines.h"
 #include "util/u_math.h"
+#include "util/os_file.h"
 
 /* This file implements a userspace BO cache. Allocating and freeing
  * GPU-visible buffers is very expensive, and even the extra kernel roundtrips
@@ -546,6 +547,18 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 int
 panfrost_bo_export(struct panfrost_bo *bo)
 {
+        struct panfrost_device *dev = bo->dev;
+
+        if (dev->kbase) {
+                int fd = kbase_gem_handle_get_fd(&dev->mali, bo->gem_handle);
+                if (fd < 0)
+                        return -1;
+
+                bo->flags |= PAN_BO_SHARED;
+
+                return os_dupfd_cloexec(fd);
+        }
+
         struct drm_prime_handle args = {
                 .handle = bo->gem_handle,
                 .flags = DRM_CLOEXEC,
