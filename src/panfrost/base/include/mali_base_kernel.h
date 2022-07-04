@@ -27,9 +27,7 @@
 #define _UAPI_BASE_KERNEL_H_
 
 #include <linux/types.h>
-#include "mali_base_mem_priv.h"
-#include "gpu/mali_kbase_gpu_id.h"
-#include "gpu/mali_kbase_gpu_coherency.h"
+#include "mali_base_common_kernel.h"
 
 #define BASE_MAX_COHERENT_GROUPS 16
 
