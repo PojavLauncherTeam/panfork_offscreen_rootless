@@ -131,13 +131,6 @@ panfrost_query_gpu_revision(int fd)
         return panfrost_query_raw(fd, DRM_PANFROST_PARAM_GPU_REVISION, true, 0);
 }
 
-static bool
-panfrost_query_gpu_not_panfrost(int fd)
-{
-        return panfrost_query_raw(fd, DRM_PANFROST_PARAM_GPU_PROD_ID, false, 0)
-                == 0;
-}
-
 unsigned
 panfrost_query_l2_slices(const struct panfrost_device *dev)
 {
@@ -292,9 +285,8 @@ panfrost_query_optimal_tib_size(const struct panfrost_device *dev)
 void
 panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
 {
-        if (panfrost_query_gpu_not_panfrost(fd)) {
-                kbase_open(&dev->kbase, fd, 4);
-        }
+        if (kbase_open(&dev->mali, fd, 4))
+                dev->kbase = true;
 
         dev->fd = fd;
         dev->memctx = memctx;
