@@ -61,3 +61,43 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
 
         return false;
 }
+
+int
+kbase_alloc_gem_handle(kbase k, int fd)
+{
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, int);
+
+        int *handles = util_dynarray_begin(&k->gem_handles);
+
+        for (unsigned i = 0; i < size; ++i) {
+                if (handles[i] == -2) {
+                        handles[i] = fd;
+                        return i;
+                }
+        }
+
+        util_dynarray_append(&k->gem_handles, int, fd);
+        return size;
+}
+
+void
+kbase_free_gem_handle(kbase k, int handle)
+{
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, int);
+
+        int fd = -1;
+
+        if (handle >= size)
+                return;
+
+        if (handle + 1 < size) {
+                int *ptr = util_dynarray_element(&k->gem_handles, int, handle);
+                fd = *ptr;
+                *ptr = -2;
+        } else {
+                fd = util_dynarray_pop(&k->gem_handles, int);
+        }
+
+        if (fd != -1)
+                close(fd);
+}

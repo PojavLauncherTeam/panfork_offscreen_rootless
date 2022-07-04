@@ -71,7 +71,22 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
                         create_bo.flags |= PANFROST_BO_NOEXEC;
         }
 
-        ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_CREATE_BO, &create_bo);
+        void *cpu = NULL;
+
+        if (dev->kbase) {
+                struct base_ptr p = dev->mali.alloc(&dev->mali, size, create_bo.flags, 0);
+
+                if (p.gpu) {
+                        cpu = p.cpu;
+                        create_bo.offset = p.gpu;
+                        create_bo.handle = kbase_alloc_gem_handle(&dev->mali, -1);
+                        ret = 0;
+                } else {
+                        ret = -1;
+                }
+        } else {
+                ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_CREATE_BO, &create_bo);
+        }
         if (ret) {
                 fprintf(stderr, "DRM_IOCTL_PANFROST_CREATE_BO failed: %m\n");
                 return NULL;
@@ -82,6 +97,7 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
 
         bo->size = create_bo.size;
         bo->ptr.gpu = create_bo.offset;
+        bo->ptr.cpu = cpu;
         bo->gem_handle = create_bo.handle;
         bo->flags = flags;
         bo->dev = dev;
@@ -92,10 +108,17 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
 static void
 panfrost_bo_free(struct panfrost_bo *bo)
 {
+        struct panfrost_device *dev = bo->dev;
         struct drm_gem_close gem_close = { .handle = bo->gem_handle };
         int ret;
 
-        ret = drmIoctl(bo->dev->fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+        if (dev->kbase) {
+                dev->mali.free(&dev->mali, bo->ptr.gpu);
+                kbase_free_gem_handle(&dev->mali, bo->gem_handle);
+                ret = 0;
+        } else {
+                ret = drmIoctl(bo->dev->fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
+        }
         if (ret) {
                 fprintf(stderr, "DRM_IOCTL_GEM_CLOSE failed: %m\n");
                 assert(0);

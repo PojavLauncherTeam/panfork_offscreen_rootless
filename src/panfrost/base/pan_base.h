@@ -25,13 +25,13 @@
 #ifndef PAN_BASE_H
 #define PAN_BASE_H
 
+#include "util/u_dynarray.h"
+
 typedef uint64_t base_va;
 struct base_ptr {
         void *cpu;
         base_va gpu;
 };
-
-struct util_dynarray;
 
 struct kbase_syncobj;
 
@@ -61,16 +61,18 @@ struct kbase {
         uint32_t csg_uid;
         unsigned num_csi;
 
+        struct util_dynarray gem_handles;
+
 
         void (*close)(kbase k);
 
         bool (*get_pan_gpuprop)(kbase k, unsigned name, uint64_t *value);
         bool (*get_mali_gpuprop)(kbase k, unsigned name, uint64_t *value);
 
-        struct panfrost_ptr (*alloc)(kbase k, size_t size,
-                                     unsigned pan_flags,
-                                     unsigned mali_flags);
-        void (*free)(kbase k, struct base_ptr va);
+        struct base_ptr (*alloc)(kbase k, size_t size,
+                                 unsigned pan_flags,
+                                 unsigned mali_flags);
+        void (*free)(kbase k, base_va va);
 
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);
@@ -78,7 +80,7 @@ struct kbase {
         /* <= v9 GPUs */
         bool (*submit)(kbase k, uint64_t va, unsigned req,
                        struct kbase_syncobj *o,
-                       struct util_dynarray *ext_res);
+                       struct util_dynarray ext_res);
 
         /* >= v10 GPUs */
         // TODO: Pass in a priority?
@@ -108,5 +110,8 @@ bool kbase_open(kbase k, int fd, unsigned cs_queue_count);
 bool kbase_open_old(kbase k);
 bool kbase_open_new(kbase k);
 bool kbase_open_csf(kbase k);
+
+int kbase_alloc_gem_handle(kbase k, int fd);
+void kbase_free_gem_handle(kbase k, int handle);
 
 #endif
