@@ -46,6 +46,7 @@ struct kbase {
         unsigned setup_state;
 
         int fd;
+        unsigned api;
         unsigned page_size;
         unsigned cs_queue_count;
 
@@ -65,6 +66,7 @@ struct kbase {
         unsigned num_csi;
 
         struct util_dynarray gem_handles;
+        struct util_dynarray atom_bos[256];
 
 
         void (*close)(kbase k);
@@ -80,10 +82,13 @@ struct kbase {
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);
 
+        void (*handle_events)(kbase k);
+
         /* <= v9 GPUs */
-        bool (*submit)(kbase k, uint64_t va, unsigned req,
-                       struct kbase_syncobj *o,
-                       struct util_dynarray ext_res);
+        int (*submit)(kbase k, uint64_t va, unsigned req,
+                      struct kbase_syncobj *o,
+                      struct util_dynarray ext_res,
+                      int32_t *handles, unsigned num_handles);
 
         /* >= v10 GPUs */
         // TODO: Pass in a priority?
@@ -110,11 +115,14 @@ struct kbase {
 
 bool kbase_open(kbase k, int fd, unsigned cs_queue_count);
 
+/* Called from kbase_open */
 bool kbase_open_old(kbase k);
 bool kbase_open_new(kbase k);
 bool kbase_open_csf(kbase k);
 
+/* BO management */
 int kbase_alloc_gem_handle(kbase k, int fd);
 void kbase_free_gem_handle(kbase k, int handle);
+int kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers);
 
 #endif

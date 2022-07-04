@@ -718,6 +718,16 @@ struct kbase_ioctl_get_context_id {
 
 #undef PAD_CPU_PTR
 
+enum base_jd_event_code {
+        BASE_JD_EVENT_DONE = 1,
+};
+
+struct base_jd_event_v2 {
+	enum base_jd_event_code event_code;
+	mali_atom_id atom_number;
+	struct mali_jd_udata udata;
+};
+
 /* Defined in mali-props.h */
 struct kbase_ioctl_gpu_props_reg_dump;
 

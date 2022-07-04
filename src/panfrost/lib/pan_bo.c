@@ -136,6 +136,7 @@ panfrost_bo_free(struct panfrost_bo *bo)
 bool
 panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers)
 {
+        struct panfrost_device *dev = bo->dev;
         struct drm_panfrost_wait_bo req = {
                 .handle = bo->gem_handle,
 		.timeout_ns = timeout_ns,
@@ -160,7 +161,11 @@ panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers)
         /* The ioctl returns >= 0 value when the BO we are waiting for is ready
          * -1 otherwise.
          */
-        ret = drmIoctl(bo->dev->fd, DRM_IOCTL_PANFROST_WAIT_BO, &req);
+        if (dev->kbase)
+                ret = kbase_wait_bo(&dev->mali, bo->gem_handle, timeout_ns,
+                                    wait_readers);
+        else
+                ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_WAIT_BO, &req);
         if (ret != -1) {
                 /* Set gpu_access to 0 so that the next call to bo_wait()
                  * doesn't have to call the WAIT_BO ioctl.

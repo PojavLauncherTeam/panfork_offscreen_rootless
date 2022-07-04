@@ -21,9 +21,11 @@
  * SOFTWARE.
  */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -49,9 +51,6 @@
 
 #define kbase_ioctl ioctl
 #else
-
-#include <errno.h>
-#include <stdarg.h>
 
 #include "old/mali-ioctl.h"
 #include "old/mali-ioctl-midgard.h"
@@ -588,15 +587,71 @@ kbase_free(kbase k, base_va va)
 }
 
 #if PAN_BASE_API < 2
-static bool
+static void
+kbase_handle_events(kbase k)
+{
+        struct base_jd_event_v2 event;
+
+        int ret = read(k->fd, &event, sizeof(event));
+
+        if (ret == -1) {
+                if (errno == EAGAIN)
+                        return;
+
+                perror("read(mali fd)");
+                return;
+        }
+
+        if (event.event_code != BASE_JD_EVENT_DONE)
+                fprintf(stderr, "Atom %i reported event %i!\n",
+                        event.atom_number, event.event_code);
+
+        struct util_dynarray *handles = k->atom_bos + event.atom_number;
+}
+#else
+static void
+kbase_handle_events(kbase k)
+{
+        // todo
+}
+#endif
+
+#if PAN_BASE_API < 2
+static int
 kbase_submit(kbase k, uint64_t va, unsigned req,
              struct kbase_syncobj *o,
-             struct util_dynarray ext_res)
+             struct util_dynarray ext_res,
+             int32_t *handles, unsigned num_handles)
 {
+        struct util_dynarray buf;
+        util_dynarray_init(&buf, NULL);
+
+        memcpy(util_dynarray_resize(&buf, int32_t, num_handles),
+               handles, num_handles * sizeof(int32_t));
+
+        // TODO: Just use a lock rather than many atomic operations....
+
         struct base_jd_atom_v2 atom = {
                 .jc = va,
                 .atom_number = p_atomic_add_return(&k->atom_number, 1),
         };
+
+        /* Make sure that we haven't taken an atom that's already in use. */
+        assert(!p_atomic_cmpxchg(&k->atom_bos[atom.atom_number].data,
+                                 NULL, buf.data));
+
+        /* Now we know it's safe, copy the whole buffer */
+        k->atom_bos[atom.atom_number] = buf;
+
+        unsigned handle_buf_size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
+        uint32_t *handle_buf = util_dynarray_begin(&k->gem_handles);
+
+        /* Mark the BOs as in use */
+        // TODO: Have an 8-bit use counter rather than this...
+        for (unsigned i = 0; i < num_handles; ++i) {
+                assert(handles[i] < handle_buf_size);
+                handle_buf[i] |= 3U << 30;
+        }
 
         atom.nr_extres = util_dynarray_num_elements(&ext_res, base_va);
 
@@ -620,10 +675,10 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_JOB_SUBMIT)");
-                return false;
+                return -1;
         }
 
-        return true;
+        return atom.atom_number;
 }
 
 #else
@@ -699,6 +754,8 @@ kbase_open_csf
 #endif
 (kbase k)
 {
+        k->api = PAN_BASE_API;
+
         /* For later APIs, we've already checked the version in pan_base.c */
 #if PAN_BASE_API == 0
         struct kbase_ioctl_get_version ver = { 0 };
@@ -712,6 +769,8 @@ kbase_open_csf
 
         k->alloc = kbase_alloc;
         k->free = kbase_free;
+
+        k->handle_events = kbase_handle_events;
 
 #if PAN_BASE_API < 2
         k->submit = kbase_submit;

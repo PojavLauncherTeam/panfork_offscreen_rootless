@@ -642,16 +642,22 @@ panfrost_batch_submit_kbase(struct panfrost_device *dev,
 {
         struct util_dynarray ext_res = {0};
 
-        bool ret = dev->mali.submit(&dev->mali,
+        kbase_handle_events(&dev->mali);
+
+        int atom = dev->mali.submit(&dev->mali,
                                     submit->jc,
                                     submit->requirements,
                                     NULL,
                                     ext_res);
 
-        if (!ret) {
+        if (atom == -1) {
                 errno = EINVAL;
                 return -1;
         }
+
+        kbase_store_submit_bos(&dev->mali, atom,
+                               (int32_t *)(uintptr_t) submit->bo_handles,
+                               submit->bo_handle_count);
 
         return 0;
 }

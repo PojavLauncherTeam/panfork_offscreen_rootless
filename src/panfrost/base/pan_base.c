@@ -62,42 +62,52 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
         return false;
 }
 
+#define HANDLE_MASK 0x3fffffff
+
+/* If fd != -1, ownership is passed in */
 int
 kbase_alloc_gem_handle(kbase k, int fd)
 {
-        unsigned size = util_dynarray_num_elements(&k->gem_handles, int);
+        uint32_t enc = fd & HANDLE_MASK;
 
-        int *handles = util_dynarray_begin(&k->gem_handles);
+        if (fd == -1)
+                assert(enc == HANDLE_MASK);
+        else
+                assert((uint32_t)fd < HANDLE_MASK);
+
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
+
+        uint32_t *handles = util_dynarray_begin(&k->gem_handles);
 
         for (unsigned i = 0; i < size; ++i) {
                 if (handles[i] == -2) {
-                        handles[i] = fd;
+                        handles[i] = enc;
                         return i;
                 }
         }
 
-        util_dynarray_append(&k->gem_handles, int, fd);
+        util_dynarray_append(&k->gem_handles, uint32_t, enc);
         return size;
 }
 
 void
 kbase_free_gem_handle(kbase k, int handle)
 {
-        unsigned size = util_dynarray_num_elements(&k->gem_handles, int);
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
 
-        int fd = -1;
+        int fd;
 
         if (handle >= size)
                 return;
 
         if (handle + 1 < size) {
-                int *ptr = util_dynarray_element(&k->gem_handles, int, handle);
+                int *ptr = util_dynarray_element(&k->gem_handles, uint32_t, handle);
                 fd = *ptr;
                 *ptr = -2;
         } else {
-                fd = util_dynarray_pop(&k->gem_handles, int);
+                fd = util_dynarray_pop(&k->gem_handles, uint32_t);
         }
 
-        if (fd != -1)
+        if (fd != HANDLE_MASK)
                 close(fd);
 }
