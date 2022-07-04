@@ -420,7 +420,7 @@ struct kbase_op {
         const char *label;
 };
 
-struct kbase_op kbase_main[] = {
+static struct kbase_op kbase_main[] = {
 #if PAN_BASE_API >= 1
         { get_version, NULL, "Check version" },
 #endif
