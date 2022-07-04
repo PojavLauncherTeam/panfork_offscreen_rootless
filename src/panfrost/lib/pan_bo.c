@@ -519,6 +519,9 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
                 bo->dev = dev;
                 bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
+                /* kbase allocations use SAME_VA */
+                if (dev->kbase)
+                        bo->ptr.cpu = (void *)(uintptr_t) bo->ptr.gpu;
                 bo->size = lseek(fd, 0, SEEK_END);
                 /* Sometimes this can fail and return -1. size of -1 is not
                  * a nice thing for mmap to try mmap. Be more robust also

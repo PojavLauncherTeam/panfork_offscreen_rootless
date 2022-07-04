@@ -619,8 +619,8 @@ kbase_import_dmabuf(kbase k, int fd)
                 .in = {
                         .phandle = (uintptr_t) &dup,
                         .type = BASE_MEM_IMPORT_TYPE_UMM,
-                        /* Usage flags, CPU/GPU reads/writes */
-                        .flags = 0xf,
+                        /* Usage flags: CPU/GPU reads/writes, SAME_VA */
+                        .flags = 0x200f,
                 }
         };
 
@@ -632,7 +632,13 @@ kbase_import_dmabuf(kbase k, int fd)
                 perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
                 handle = -1;
         } else {
-                handle = kbase_alloc_gem_handle_locked(k, import.out.gpu_va, dup);
+                assert(import.out.flags & BASE_MEM_SAME_VA);
+
+                uint64_t va = (uintptr_t) mmap(NULL, import.out.va_pages * k->page_size,
+                                               PROT_READ | PROT_WRITE,
+                                               MAP_SHARED, k->fd, import.out.gpu_va);
+
+                handle = kbase_alloc_gem_handle_locked(k, va, dup);
         }
 
         pthread_mutex_unlock(&k->handle_lock);
