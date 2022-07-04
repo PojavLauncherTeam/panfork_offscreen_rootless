@@ -513,7 +513,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 flags |= BASE_MEM_PROT_GPU_EX;
                 flags &= ~BASE_MEM_PROT_GPU_WR;
 
-                if (!PAN_BASE_API) {
+                if (PAN_BASE_API == 0) {
                         /* Assume 4K pages */
                         a.in.va_pages = 0x1000; /* Align shader BOs to 16 MB */
                         size = 1 << 26; /* Four times the alignment */
@@ -523,12 +523,15 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
         a.in.flags = flags;
 
-        int ret = ioctl(k->fd, KBASE_IOCTL_MEM_ALLOC, a);
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_ALLOC, a);
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
                 return r;
         }
+
+        if (PAN_BASE_API == 0)
+                a.out.gpu_va = 0x41000;
 
         if ((flags & BASE_MEM_SAME_VA) &&
             (!(a.out.flags & BASE_MEM_SAME_VA) ||
@@ -577,7 +580,7 @@ kbase_free(kbase k, base_va va)
                 .gpu_addr = va
         };
 
-        int ret = ioctl(k->fd, KBASE_IOCTL_MEM_FREE, &f);
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_FREE, &f);
 
         if (ret == -1)
                 perror("ioctl(KBASE_IOCTL_MEM_FREE)");
