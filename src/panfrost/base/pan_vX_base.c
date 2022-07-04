@@ -705,6 +705,7 @@ kbase_handle_events(kbase k)
                         assert(handle_data[*h].use_count);
                         --handle_data[*h].use_count;
                 }
+                util_dynarray_fini(handles);
 
                 pthread_mutex_unlock(&k->handle_lock);
         }
