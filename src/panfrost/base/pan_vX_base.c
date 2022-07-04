@@ -700,6 +700,8 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
                         util_dynarray_append(&extres, base_va, handle_buf[h].va);
         }
 
+        pthread_mutex_unlock(&k->handle_lock);
+
         if (extres.size) {
                 atom.core_req |= BASE_JD_REQ_EXTERNAL_RESOURCES;
                 atom.nr_extres = util_dynarray_num_elements(&extres, base_va);
