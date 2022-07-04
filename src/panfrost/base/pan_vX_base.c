@@ -512,14 +512,18 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
 }
+#endif
 
 bool
-kbase_open(kbase k, int fd, unsigned cs_queue_count)
+#if PAN_BASE_API == 0
+kbase_open_old
+#elif PAN_BASE_API == 1
+kbase_open_new
+#elif PAN_BASE_API == 2
+kbase_open_csf
+#endif
+(kbase k)
 {
-        *k = (struct kbase) {0};
-        k->fd = fd;
-        k->cs_queue_count = cs_queue_count;
-
         k->close = kbase_close;
 
 #if PAN_BASE_API >= 2
@@ -536,4 +540,3 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
         }
         return true;
 }
-#endif
