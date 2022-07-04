@@ -40,49 +40,49 @@ typedef u8 mali_atom_id;
 
 enum kbase_ioctl_mem_flags {
 	/* IN */
-	MALI_MEM_PROT_CPU_RD = (1U << 0),      /**< Read access CPU side */
-	MALI_MEM_PROT_CPU_WR = (1U << 1),      /**< Write access CPU side */
-	MALI_MEM_PROT_GPU_RD = (1U << 2),      /**< Read access GPU side */
-	MALI_MEM_PROT_GPU_WR = (1U << 3),      /**< Write access GPU side */
-	MALI_MEM_PROT_GPU_EX = (1U << 4),      /**< Execute allowed on the GPU
+	BASE_MEM_PROT_CPU_RD = (1U << 0),      /**< Read access CPU side */
+	BASE_MEM_PROT_CPU_WR = (1U << 1),      /**< Write access CPU side */
+	BASE_MEM_PROT_GPU_RD = (1U << 2),      /**< Read access GPU side */
+	BASE_MEM_PROT_GPU_WR = (1U << 3),      /**< Write access GPU side */
+	BASE_MEM_PROT_GPU_EX = (1U << 4),      /**< Execute allowed on the GPU
 						    side */
 
-	MALI_MEM_GROW_ON_GPF = (1U << 9),      /**< Grow backing store on GPU
+	BASE_MEM_GROW_ON_GPF = (1U << 9),      /**< Grow backing store on GPU
 						    Page Fault */
 
-	MALI_MEM_COHERENT_SYSTEM = (1U << 10), /**< Page coherence Outer
+	BASE_MEM_COHERENT_SYSTEM = (1U << 10), /**< Page coherence Outer
 						    shareable, if available */
-	MALI_MEM_COHERENT_LOCAL = (1U << 11),  /**< Page coherence Inner
+	BASE_MEM_COHERENT_LOCAL = (1U << 11),  /**< Page coherence Inner
 						    shareable */
-	MALI_MEM_CACHED_CPU = (1U << 12),      /**< Should be cached on the
+	BASE_MEM_CACHED_CPU = (1U << 12),      /**< Should be cached on the
 						    CPU */
 
 	/* IN/OUT */
-	MALI_MEM_SAME_VA = (1U << 13), /**< Must have same VA on both the GPU
+	BASE_MEM_SAME_VA = (1U << 13), /**< Must have same VA on both the GPU
 					    and the CPU */
 	/* OUT */
-	MALI_MEM_NEED_MMAP = (1U << 14), /**< Must call mmap to acquire a GPU
+	BASE_MEM_NEED_MMAP = (1U << 14), /**< Must call mmap to acquire a GPU
 					     address for the alloc */
 	/* IN */
-	MALI_MEM_COHERENT_SYSTEM_REQUIRED = (1U << 15), /**< Page coherence
+	BASE_MEM_COHERENT_SYSTEM_REQUIRED = (1U << 15), /**< Page coherence
 					     Outer shareable, required. */
-	MALI_MEM_SECURE = (1U << 16),          /**< Secure memory */
-	MALI_MEM_DONT_NEED = (1U << 17),       /**< Not needed physical
+	BASE_MEM_SECURE = (1U << 16),          /**< Secure memory */
+	BASE_MEM_DONT_NEED = (1U << 17),       /**< Not needed physical
 						    memory */
-	MALI_MEM_IMPORT_SHARED = (1U << 18),   /**< Must use shared CPU/GPU zone
+	BASE_MEM_IMPORT_SHARED = (1U << 18),   /**< Must use shared CPU/GPU zone
 						    (SAME_VA zone) but doesn't
 						    require the addresses to
 						    be the same */
 };
 
 #define KBASE_IOCTL_MEM_FLAGS_IN_MASK                                          \
-	(MALI_MEM_PROT_CPU_RD | MALI_MEM_PROT_CPU_WR |                        \
-	 MALI_MEM_PROT_GPU_RD | MALI_MEM_PROT_GPU_WR | MALI_MEM_PROT_GPU_EX | \
-	 MALI_MEM_GROW_ON_GPF |                                               \
-	 MALI_MEM_COHERENT_SYSTEM | MALI_MEM_COHERENT_LOCAL |                 \
-	 MALI_MEM_CACHED_CPU |                                                \
-	 MALI_MEM_COHERENT_SYSTEM_REQUIRED | MALI_MEM_SECURE |                \
-	 MALI_MEM_DONT_NEED | MALI_MEM_IMPORT_SHARED)
+	(BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |                        \
+	 BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR | BASE_MEM_PROT_GPU_EX | \
+	 BASE_MEM_GROW_ON_GPF |                                               \
+	 BASE_MEM_COHERENT_SYSTEM | BASE_MEM_COHERENT_LOCAL |                 \
+	 BASE_MEM_CACHED_CPU |                                                \
+	 BASE_MEM_COHERENT_SYSTEM_REQUIRED | BASE_MEM_SECURE |                \
+	 BASE_MEM_DONT_NEED | BASE_MEM_IMPORT_SHARED)
 #define BASE_MEM_MAP_TRACKING_HANDLE (3ull << 12)
 
 enum kbase_ioctl_coherency_mode {
@@ -608,10 +608,10 @@ struct kbase_ioctl_mem_import {
 	/* [in] */
 	u64 phandle;
 	enum {
-		MALI_MEM_IMPORT_TYPE_INVALID = 0,
-		MALI_MEM_IMPORT_TYPE_UMP = 1,
-		MALI_MEM_IMPORT_TYPE_UMM = 2,
-		MALI_MEM_IMPORT_TYPE_USER_BUFFER = 3,
+		BASE_MEM_IMPORT_TYPE_INVALID = 0,
+		BASE_MEM_IMPORT_TYPE_UMP = 1,
+		BASE_MEM_IMPORT_TYPE_UMM = 2,
+		BASE_MEM_IMPORT_TYPE_USER_BUFFER = 3,
 	} type :32;
 	u32 :32;
 	/* [in/out] */
@@ -632,9 +632,9 @@ struct kbase_ioctl_mem_commit {
 } __attribute__((packed));
 
 enum kbase_ioctl_mem_query_type {
-	MALI_MEM_QUERY_COMMIT_SIZE = 1,
-	MALI_MEM_QUERY_VA_SIZE     = 2,
-	MALI_MEM_QUERY_FLAGS       = 3
+	BASE_MEM_QUERY_COMMIT_SIZE = 1,
+	BASE_MEM_QUERY_VA_SIZE     = 2,
+	BASE_MEM_QUERY_FLAGS       = 3
 };
 
 struct kbase_ioctl_mem_query {

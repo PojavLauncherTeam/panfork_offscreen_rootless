@@ -19,21 +19,21 @@
 #define KBASE_IOCTL_TYPE_MAX   0x82
 
 union kbase_ioctl_mem_alloc {
-	struct {
-		union kbase_ioctl_header header;
-		/* [in] */
-		u64 va_pages;
-		u64 commit_pages;
-		u64 extent;
-		/* [in/out] */
-		u64 flags;
-		/* [out] */
-		mali_ptr gpu_va;
-		u16 va_alignment;
-
-		u32 :32;
-		u16 :16;
-	} inout;
+        struct {
+                union kbase_ioctl_header header;
+                u64 va_pages;
+                u64 commit_pages;
+                u64 extension;
+                u64 flags;
+        } in;
+        struct {
+                union kbase_ioctl_header header;
+                u64 pad[3];
+                u64 flags;
+                mali_ptr gpu_va;
+                u16 va_alignment;
+        } out;
+        u64 pad[7];
 } __attribute__((packed));
 
 #define KBASE_IOCTL_TYPE_COUNT (KBASE_IOCTL_TYPE_MAX - KBASE_IOCTL_TYPE_BASE + 1)

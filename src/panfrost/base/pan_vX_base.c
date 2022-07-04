@@ -472,6 +472,117 @@ kbase_get_pan_gpuprop(kbase k, unsigned name, uint64_t *value)
         }
 }
 
+static struct base_ptr
+kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
+{
+        struct base_ptr r = {0};
+
+        unsigned pages = size / k->page_size;
+
+        union kbase_ioctl_mem_alloc a = {
+                .in = {
+                        .va_pages = pages,
+                        .commit_pages = pages,
+                }
+        };
+
+        size_t alloc_size = size;
+        unsigned flags = mali_flags;
+        bool exec_align = false;
+
+        if (!flags) {
+                flags = BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |
+                        BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
+                        BASE_MEM_SAME_VA;
+
+                /* ++difficulty_level */
+                if (PAN_BASE_API >= 1)
+                        flags |= BASE_MEM_COHERENT_LOCAL | BASE_MEM_CACHED_CPU;
+        }
+
+        if (pan_flags & PANFROST_BO_HEAP) {
+                size_t align_size = 2 * 1024 * 1024 / k->page_size; /* 2 MB */
+
+                a.in.va_pages = ALIGN_POT(a.in.va_pages, align_size);
+                a.in.commit_pages = 0;
+                a.in.extension = align_size;
+                flags |= BASE_MEM_GROW_ON_GPF;
+        }
+
+        if (!(flags & PANFROST_BO_NOEXEC)) {
+                flags |= BASE_MEM_PROT_GPU_EX;
+                flags &= ~BASE_MEM_PROT_GPU_WR;
+
+                if (!PAN_BASE_API) {
+                        /* Assume 4K pages */
+                        a.in.va_pages = 0x1000; /* Align shader BOs to 16 MB */
+                        size = 1 << 26; /* Four times the alignment */
+                        exec_align = true;
+                }
+        }
+
+        a.in.flags = flags;
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_MEM_ALLOC, a);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
+                return r;
+        }
+
+        if ((flags & BASE_MEM_SAME_VA) &&
+            (!(a.out.flags & BASE_MEM_SAME_VA) ||
+             a.out.gpu_va != 0x41000)) {
+
+                fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
+                        (uint64_t) a.out.flags, (uint64_t) a.out.gpu_va);
+                return r;
+        }
+
+        void *ptr = mmap(NULL, size,
+                         PROT_READ | PROT_WRITE, MAP_SHARED,
+                         k->fd, a.out.gpu_va);
+
+        if (ptr == MAP_FAILED) {
+                perror("mmap(GPU BO)");
+                return r;
+        }
+
+        uint64_t gpu_va = (a.out.flags & BASE_MEM_SAME_VA) ?
+                (uint64_t) ptr : a.out.gpu_va;
+
+        if (exec_align) {
+                gpu_va = ALIGN_POT(gpu_va, 1 << 24);
+
+                ptr = mmap(NULL, alloc_size,
+                           PROT_READ | PROT_WRITE, MAP_SHARED,
+                           k->fd, gpu_va);
+
+                if (ptr == MAP_FAILED) {
+                        perror("mmap(GPU EXEC BO)");
+                        return r;
+                }
+        }
+
+        r.cpu = ptr;
+        r.gpu = gpu_va;
+
+        return r;
+}
+
+static void
+kbase_free(kbase k, base_va va)
+{
+        struct kbase_ioctl_mem_free f = {
+                .gpu_addr = va
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_MEM_FREE, &f);
+
+        if (ret == -1)
+                perror("ioctl(KBASE_IOCTL_MEM_FREE)");
+}
+
 #if PAN_BASE_API >= 2
 static struct kbase_cs
 kbase_cs_bind(kbase k, base_va va, unsigned size)
@@ -555,6 +666,9 @@ kbase_open_csf
 
         k->get_pan_gpuprop = kbase_get_pan_gpuprop;
         k->get_mali_gpuprop = kbase_get_mali_gpuprop;
+
+        k->alloc = kbase_alloc;
+        k->free = kbase_free;
 
 #if PAN_BASE_API >= 2
         k->cs_bind = kbase_cs_bind;
