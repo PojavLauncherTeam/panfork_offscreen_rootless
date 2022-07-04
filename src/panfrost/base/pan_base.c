@@ -21,6 +21,7 @@
  * SOFTWARE.
  */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <string.h>
@@ -32,6 +33,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "util/macros.h"
 #include "pan_base.h"
@@ -62,52 +64,80 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
         return false;
 }
 
-#define HANDLE_MASK 0x3fffffff
-
 /* If fd != -1, ownership is passed in */
 int
-kbase_alloc_gem_handle(kbase k, int fd)
+kbase_alloc_gem_handle(kbase k, base_va va, int fd)
 {
-        uint32_t enc = fd & HANDLE_MASK;
+        pthread_mutex_lock(&k->handle_lock);
 
-        if (fd == -1)
-                assert(enc == HANDLE_MASK);
-        else
-                assert((uint32_t)fd < HANDLE_MASK);
+        kbase_handle h = {
+                .va = va,
+                .fd = fd
+        };
 
-        unsigned size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
 
-        uint32_t *handles = util_dynarray_begin(&k->gem_handles);
+        kbase_handle *handles = util_dynarray_begin(&k->gem_handles);
 
         for (unsigned i = 0; i < size; ++i) {
-                if (handles[i] == -2) {
-                        handles[i] = enc;
+                if (handles[i].fd == -2) {
+                        handles[i] = h;
+                        pthread_mutex_unlock(&k->handle_lock);
                         return i;
                 }
         }
 
-        util_dynarray_append(&k->gem_handles, uint32_t, enc);
+        util_dynarray_append(&k->gem_handles, kbase_handle, h);
+
+        pthread_mutex_unlock(&k->handle_lock);
         return size;
 }
 
 void
 kbase_free_gem_handle(kbase k, int handle)
 {
-        unsigned size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
+        pthread_mutex_lock(&k->handle_lock);
+
+        unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
 
         int fd;
 
-        if (handle >= size)
+        if (handle >= size) {
+                pthread_mutex_unlock(&k->handle_lock);
                 return;
-
-        if (handle + 1 < size) {
-                int *ptr = util_dynarray_element(&k->gem_handles, uint32_t, handle);
-                fd = *ptr;
-                *ptr = -2;
-        } else {
-                fd = util_dynarray_pop(&k->gem_handles, uint32_t);
         }
 
-        if (fd != HANDLE_MASK)
+        if (handle + 1 < size) {
+                kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
+                fd = ptr->fd;
+                ptr->fd = -2;
+        } else {
+                fd = (util_dynarray_pop(&k->gem_handles, kbase_handle)).fd;
+        }
+
+        if (fd != -1)
                 close(fd);
+
+        pthread_mutex_unlock(&k->handle_lock);
+}
+
+int
+kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers)
+{
+        for (;;) {
+                pthread_mutex_lock(&k->handle_lock);
+                if (handle >= util_dynarray_num_elements(&k->gem_handles, kbase_handle)) {
+                        errno = EINVAL;
+                        return -1;
+                }
+                kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
+                if (!ptr->use_count)
+                        return 0;
+
+                pthread_mutex_unlock(&k->handle_lock);
+
+                /* TODO: We can't just keep waiting against the timeout... */
+                k->poll_event(k, timeout_ns);
+                k->handle_events(k);
+        }
 }

@@ -34,6 +34,8 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <poll.h>
+#include <pthread.h>
 
 #include "util/macros.h"
 #include "util/u_atomic.h"
@@ -441,6 +443,8 @@ kbase_close(kbase k)
                         kbase_main[i].cleanup(k);
                 --k->setup_state;
         }
+
+        pthread_mutex_destroy(&k->handle_lock);
 }
 
 static bool
@@ -586,27 +590,65 @@ kbase_free(kbase k, base_va va)
                 perror("ioctl(KBASE_IOCTL_MEM_FREE)");
 }
 
+static void
+kbase_poll_event(kbase k, int64_t timeout_ns)
+{
+        struct pollfd pfd = {
+                .fd = k->fd,
+                .events = POLLIN,
+        };
+
+        struct timespec t = {
+                .tv_sec = timeout_ns / 1000000000,
+                .tv_nsec = timeout_ns % 1000000000,
+        };
+
+        int ret = ppoll(&pfd, 1, &t, NULL);
+
+        if (ret == -1)
+                perror("poll(mali fd)");
+
+        return;
+}
+
 #if PAN_BASE_API < 2
 static void
 kbase_handle_events(kbase k)
 {
         struct base_jd_event_v2 event;
 
-        int ret = read(k->fd, &event, sizeof(event));
+        for (;;) {
+                int ret = read(k->fd, &event, sizeof(event));
 
-        if (ret == -1) {
-                if (errno == EAGAIN)
+                if (ret == -1) {
+                        if (errno == EAGAIN)
+                                return;
+
+                        perror("read(mali fd)");
                         return;
+                }
 
-                perror("read(mali fd)");
-                return;
+                if (event.event_code != BASE_JD_EVENT_DONE)
+                        fprintf(stderr, "Atom %i reported event %i!\n",
+                                event.atom_number, event.event_code);
+
+                pthread_mutex_lock(&k->handle_lock);
+
+                unsigned size = util_dynarray_num_elements(&k->gem_handles,
+                                                           kbase_handle);
+                kbase_handle *handle_data = util_dynarray_begin(&k->gem_handles);
+
+                struct util_dynarray *handles = k->atom_bos + event.atom_number;
+
+                util_dynarray_foreach(handles, int32_t, h) {
+                        if (*h >= size)
+                                continue;
+                        assert(handle_data[*h].use_count);
+                        --handle_data[*h].use_count;
+                }
+
+                pthread_mutex_unlock(&k->handle_lock);
         }
-
-        if (event.event_code != BASE_JD_EVENT_DONE)
-                fprintf(stderr, "Atom %i reported event %i!\n",
-                        event.atom_number, event.event_code);
-
-        struct util_dynarray *handles = k->atom_bos + event.atom_number;
 }
 #else
 static void
@@ -620,7 +662,6 @@ kbase_handle_events(kbase k)
 static int
 kbase_submit(kbase k, uint64_t va, unsigned req,
              struct kbase_syncobj *o,
-             struct util_dynarray ext_res,
              int32_t *handles, unsigned num_handles)
 {
         struct util_dynarray buf;
@@ -629,35 +670,40 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         memcpy(util_dynarray_resize(&buf, int32_t, num_handles),
                handles, num_handles * sizeof(int32_t));
 
-        // TODO: Just use a lock rather than many atomic operations....
+        pthread_mutex_lock(&k->handle_lock);
+
+        uint8_t nr = k->atom_number++;
 
         struct base_jd_atom_v2 atom = {
                 .jc = va,
-                .atom_number = p_atomic_add_return(&k->atom_number, 1),
+                .atom_number = nr,
         };
 
         /* Make sure that we haven't taken an atom that's already in use. */
-        assert(!p_atomic_cmpxchg(&k->atom_bos[atom.atom_number].data,
-                                 NULL, buf.data));
-
-        /* Now we know it's safe, copy the whole buffer */
+        assert(!k->atom_bos[nr].data);
         k->atom_bos[atom.atom_number] = buf;
 
-        unsigned handle_buf_size = util_dynarray_num_elements(&k->gem_handles, uint32_t);
-        uint32_t *handle_buf = util_dynarray_begin(&k->gem_handles);
+        unsigned handle_buf_size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
+        kbase_handle *handle_buf = util_dynarray_begin(&k->gem_handles);
+
+        struct util_dynarray extres;
+        util_dynarray_init(&extres, NULL);
 
         /* Mark the BOs as in use */
-        // TODO: Have an 8-bit use counter rather than this...
         for (unsigned i = 0; i < num_handles; ++i) {
-                assert(handles[i] < handle_buf_size);
-                handle_buf[i] |= 3U << 30;
+                int32_t h = handles[i];
+                assert(h < handle_buf_size);
+                assert(handle_buf[h].use_count < 255);
+                ++handle_buf[h].use_count;
+
+                if (handle_buf[h].fd != -1)
+                        util_dynarray_append(&extres, base_va, handle_buf[h].va);
         }
 
-        atom.nr_extres = util_dynarray_num_elements(&ext_res, base_va);
-
-        if (atom.nr_extres) {
+        if (extres.size) {
                 atom.core_req |= BASE_JD_REQ_EXTERNAL_RESOURCES;
-                atom.extres_list = (uintptr_t) util_dynarray_begin(&ext_res);
+                atom.nr_extres = util_dynarray_num_elements(&extres, base_va);
+                atom.extres_list = (uintptr_t) util_dynarray_begin(&extres);
         }
 
         if (req & PANFROST_JD_REQ_FS)
@@ -672,6 +718,8 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         };
 
         int ret = kbase_ioctl(k->fd, KBASE_IOCTL_JOB_SUBMIT, &submit);
+
+        util_dynarray_fini(&extres);
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_JOB_SUBMIT)");
@@ -756,6 +804,8 @@ kbase_open_csf
 {
         k->api = PAN_BASE_API;
 
+        pthread_mutex_init(&k->handle_lock, NULL);
+
         /* For later APIs, we've already checked the version in pan_base.c */
 #if PAN_BASE_API == 0
         struct kbase_ioctl_get_version ver = { 0 };
@@ -770,6 +820,7 @@ kbase_open_csf
         k->alloc = kbase_alloc;
         k->free = kbase_free;
 
+        k->poll_event = kbase_poll_event;
         k->handle_events = kbase_handle_events;
 
 #if PAN_BASE_API < 2

@@ -42,6 +42,12 @@ struct kbase_cs {
 struct kbase;
 typedef struct kbase *kbase;
 
+typedef struct {
+        base_va va;
+        int fd;
+        uint8_t use_count;
+} kbase_handle;
+
 struct kbase {
         unsigned setup_state;
 
@@ -58,12 +64,13 @@ struct kbase {
         base_va tiler_heap_va;
         base_va tiler_heap_header;
 
-        bool needs_ext_res;
         uint8_t atom_number;
 
         uint8_t csg_handle;
         uint32_t csg_uid;
         unsigned num_csi;
+
+        pthread_mutex_t handle_lock;
 
         struct util_dynarray gem_handles;
         struct util_dynarray atom_bos[256];
@@ -82,12 +89,12 @@ struct kbase {
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);
 
+        void (*poll_event)(kbase k, int64_t timeout_ns);
         void (*handle_events)(kbase k);
 
         /* <= v9 GPUs */
         int (*submit)(kbase k, uint64_t va, unsigned req,
                       struct kbase_syncobj *o,
-                      struct util_dynarray ext_res,
                       int32_t *handles, unsigned num_handles);
 
         /* >= v10 GPUs */
@@ -121,7 +128,7 @@ bool kbase_open_new(kbase k);
 bool kbase_open_csf(kbase k);
 
 /* BO management */
-int kbase_alloc_gem_handle(kbase k, int fd);
+int kbase_alloc_gem_handle(kbase k, base_va va, int fd);
 void kbase_free_gem_handle(kbase k, int handle);
 int kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers);
 
