@@ -121,7 +121,11 @@ pan_get_gpuprop(kbase k, int name)
 static uint64_t
 pan_get_gpuprop(kbase k, int name)
 {
+        struct kbase_ioctl_gpu_props_reg_dump *props = k->gpuprops;
+
         switch (name) {
+        case KBASE_GPUPROP_PRODUCT_ID:
+                return props->core.product_id;
         default:
                 fprintf(stderr, "Unknown prop %i\n", name);
                 return 0;
@@ -226,7 +230,6 @@ get_gpu_id(kbase k)
         uint64_t gpu_id = pan_get_gpuprop(k, KBASE_GPUPROP_PRODUCT_ID);
         if (!gpu_id)
                 return false;
-        //k->info.gpu_id = gpu_id;
 
         uint16_t maj = gpu_id >> 12;
         return maj >= 10;
@@ -510,6 +513,12 @@ kbase_open_csf
 #endif
 (kbase k)
 {
+        /* For later APIs, we've already checked the version in pan_base.c */
+#if PAN_BASE_API == 0
+        struct kbase_ioctl_get_version ver = { 0 };
+        kbase_ioctl(k->fd, KBASE_IOCTL_GET_VERSION, &ver);
+#endif
+
         k->close = kbase_close;
 
 #if PAN_BASE_API >= 2
