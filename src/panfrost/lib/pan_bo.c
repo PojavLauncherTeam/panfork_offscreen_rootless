@@ -490,9 +490,20 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
         pthread_mutex_unlock(&dev->bo_map_lock);
 }
 
+static struct panfrost_bo *
+panfrost_bo_import_kbase(dev, fd)
+{
+        int dup = os_dupfd_cloexec(fd);
+
+//        kbase_ = kbase_
+}
+
 struct panfrost_bo *
 panfrost_bo_import(struct panfrost_device *dev, int fd)
 {
+        if (dev->kbase)
+                return panfrost_bo_import_kbase(dev, fd);
+
         struct panfrost_bo *bo;
         struct drm_panfrost_get_bo_offset get_bo_offset = {0,};
         ASSERTED int ret;
