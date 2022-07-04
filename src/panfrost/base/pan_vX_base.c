@@ -619,8 +619,8 @@ kbase_import_dmabuf(kbase k, int fd)
                 .in = {
                         .phandle = (uintptr_t) &dup,
                         .type = BASE_MEM_IMPORT_TYPE_UMM,
-                        /* Usage flags: CPU/GPU reads/writes, SAME_VA */
-                        .flags = 0x200f,
+                        /* Usage flags: CPU/GPU reads/writes */
+                        .flags = 0xf,
                 }
         };
 
@@ -632,7 +632,7 @@ kbase_import_dmabuf(kbase k, int fd)
                 perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
                 handle = -1;
         } else {
-                assert(import.out.flags & BASE_MEM_SAME_VA);
+                assert(import.out.flags & BASE_MEM_NEED_MMAP);
 
                 uint64_t va = (uintptr_t) mmap(NULL, import.out.va_pages * k->page_size,
                                                PROT_READ | PROT_WRITE,
