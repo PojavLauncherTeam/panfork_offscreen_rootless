@@ -51,10 +51,13 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count)
         int ret2 = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK_RESERVED, &ver);
 
         if (ret == 0) {
-                return kbase_open_new(k);
+                if (ver.major == 3)
+                        return kbase_open_old(k);
+                else
+                        return kbase_open_new(k);
         } else if (ret2 == 0) {
                 return kbase_open_csf(k);
-        } else {
-                return kbase_open_old(k);
         }
+
+        return false;
 }

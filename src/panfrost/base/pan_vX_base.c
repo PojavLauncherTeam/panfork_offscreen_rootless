@@ -129,23 +129,6 @@ pan_get_gpuprop(kbase k, int name)
 }
 #endif
 
-#if PAN_BASE_API >= 1
-static bool
-get_version(kbase k)
-{
-        struct kbase_ioctl_version_check ver = { 0 };
-
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK, &ver);
-
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_VERSION_CHECK)");
-                return false;
-        }
-
-        return ver.major == 11;
-}
-#endif
-
 static bool
 set_flags(kbase k)
 {
@@ -421,9 +404,6 @@ struct kbase_op {
 };
 
 static struct kbase_op kbase_main[] = {
-#if PAN_BASE_API >= 1
-        { get_version, NULL, "Check version" },
-#endif
         { set_flags, NULL, "Set flags" },
         { mmap_tracking, munmap_tracking, "Map tracking handle" },
         { get_gpuprops, free_gpuprops, "Get GPU properties" },
