@@ -19,12 +19,17 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- *
  */
 
 /* Library for interfacing with kbase */
 #ifndef PAN_BASE_H
 #define PAN_BASE_H
+
+typedef uint64_t base_va;
+struct base_ptr {
+        void *cpu;
+        base_va gpu;
+};
 
 struct util_dynarray;
 
@@ -32,15 +37,28 @@ struct kbase_syncobj;
 
 // todo: have a private context struct as well?
 typedef struct {
-   /* Set these before calling kbase_open */
-   struct {
-   } params;
-   struct {
-      unsigned gpu_id;
-      unsigned arch;
-   } info;
+        /* Set these before calling kbase_open */
+        struct {
+                unsigned cs_queue_count;
+        } params;
+        struct {
+                unsigned gpu_id;
+        } info;
 
-   int fd;
+        unsigned setup_state;
+
+        int fd;
+        unsigned page_size;
+
+        unsigned gpuprops_size;
+        void *gpuprops;
+
+        void *tracking_region;
+        void *csf_user_reg;
+        base_va tiler_heap_va;
+        base_va tiler_heap_header;
+        uint8_t csg_handle;
+        uint32_t csg_uid;
 } *kbase;
 
 bool kbase_open(kbase k);
@@ -52,7 +70,7 @@ uint64_t kbase_get_mali_gpuprop(kbase k, unsigned name);
 struct panfrost_ptr kbase_alloc(kbase k, size_t size,
                                 unsigned pan_flags,
                                 unsigned mali_flags);
-void kbase_free(kbase k, struct panfrost_ptr va);
+void kbase_free(kbase k, struct base_ptr va);
 
 void kbase_cache_clean(void *ptr, size_t size);
 void kbase_cache_invalidate(void *ptr, size_t size);
@@ -78,7 +96,7 @@ struct kbase_syncobj *kbase_syncobj_dup(kbase k, struct kbase_syncobj *o);
 /* TODO: timeout? (and for cs_wait) */
 bool kbase_syncobj_wait(kbase k, struct kbase_syncobj *o);
 
-struct mpanfrost_ptr kbase_import(kbase k, int fd, size_t *size);
+struct base_ptr kbase_import(kbase k, int fd, size_t *size);
 
 void kbase_ctr_open(kbase k);
 void kbase_ctr_set_enabled(kbase k, bool enable);

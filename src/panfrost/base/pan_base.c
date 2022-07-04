@@ -1,11 +1,78 @@
-#include "pan_base.h"
-#include "internal.h"
+/*
+ * Copyright (C) 2022 Icecream95
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice (including the next
+ * paragraph) shall be included in all copies or substantial portions of the
+ * Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
 
-bool kbase_open_csf(kbase k);
+#include <fcntl.h>
+#include <inttypes.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include "util/macros.h"
+#include "pan_base.h"
+
+#if PAN_ARCH >= 10
+#define MALI_USE_CSF 1
+#endif
+
+#include "mali_base_kernel.h"
+#include "mali_kbase_ioctl.h"
+
+static uint64_t
+pan_get_gpuprop(kbase k, int name)
+{
+        int i = 0;
+        uint64_t x = 0;
+        while (i < k->gpuprops_size) {
+                x = 0;
+                memcpy(&x, k->gpuprops + i, 4);
+                i += 4;
+
+                int size = 1 << (x & 3);
+                int this_name = x >> 2;
+
+                x = 0;
+                memcpy(&x, k->gpuprops + i, size);
+                i += size;
+
+                if (this_name == name)
+                        return x;
+        }
+
+        fprintf(stderr, "Unknown prop %i\n", name);
+        return 0;
+}
 
 static bool
 open_kbase(kbase k)
 {
+        k->page_size = sysconf(_SC_PAGE_SIZE);
         k->fd = open("/dev/mali0", O_RDWR);
         if (k->fd != -1)
                 return true;
@@ -17,13 +84,6 @@ open_kbase(kbase k)
 static bool
 close_kbase(kbase k)
 {
-        int pid = getpid();
-        char cmd_buffer[64] = {0};
-        sprintf(cmd_buffer, "grep /dev/mali /proc/%i/maps", pid);
-        system(cmd_buffer);
-        sprintf(cmd_buffer, "ls -l /proc/%i/fd", pid);
-        system(cmd_buffer);
-
         if (k->fd > 0)
                 return close(k->fd) == 0;
         return true;
@@ -41,8 +101,7 @@ get_version(kbase k)
                 return false;
         }
 
-        printf("Major %i Minor %i: ", ver.major, ver.minor);
-        return true;
+        return ver.major == 11;
 }
 
 static bool
@@ -123,117 +182,13 @@ free_gpuprops(kbase k)
 static bool
 get_gpu_id(kbase k)
 {
-        uint64_t gpu_id = pan_get_gpuprop(s, KBASE_GPUPROP_PRODUCT_ID);
+        uint64_t gpu_id = pan_get_gpuprop(k, KBASE_GPUPROP_PRODUCT_ID);
         if (!gpu_id)
                 return false;
-        k->gpu_id = gpu_id;
+        k->info.gpu_id = gpu_id;
 
         uint16_t maj = gpu_id >> 12;
-        uint16_t min = (gpu_id >> 8) & 0xf;
-        uint16_t rev = (gpu_id >> 4) & 0xf;
-        uint16_t product = gpu_id & 0xf;
-
-        const char *names[] = {
-                [0] = "G610",
-                [8] = "G710",
-                [10] = "G510",
-                [12] = "G310",
-        };
-        const char *name = (min < ARRAY_SIZE(names)) ? names[min] : NULL;
-        if (!name)
-                name = "unknown";
-
-        printf("v%i.%i r%ip%i (Mali-%s): ", maj, min, rev, product, name);
-
-        if (maj < 10) {
-                printf("not v10 or later: ");
-                return false;
-        }
-
-        return true;
-}
-
-static bool
-get_coherency_mode(kbase k)
-{
-        uint64_t mode = pan_get_gpuprop(s, KBASE_GPUPROP_RAW_COHERENCY_MODE);
-
-        const char *modes[] = {
-                [0] = "ACE-Lite",
-                [1] = "ACE",
-                [31] = "None",
-        };
-        const char *name = (mode < ARRAY_SIZE(modes)) ? modes[mode] : NULL;
-        if (!name)
-                name = "Unknown";
-
-        printf("0x%"PRIx64" (%s): ", mode, name);
-        return true;
-}
-
-static bool
-get_csf_caps(kbase k)
-{
-        union kbase_ioctl_cs_get_glb_iface iface = { 0 };
-
-        int ret = ioctl(k->fd, KBASE_IOCTL_CS_GET_GLB_IFACE, &iface);
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_CS_GET_GLB_IFACE(0))");
-                return false;
-        }
-
-        printf("v%i: feature mask 0x%x, %i groups, %i total: ",
-               iface.out.glb_version, iface.out.features,
-               iface.out.group_num, iface.out.total_stream_num);
-
-        unsigned group_num = iface.out.group_num;
-        unsigned stream_num = iface.out.total_stream_num;
-
-        struct basep_cs_group_control *group_data =
-                calloc(group_num, sizeof(*group_data));
-
-        struct basep_cs_stream_control *stream_data =
-                calloc(stream_num, sizeof(*stream_data));
-
-        iface = (union kbase_ioctl_cs_get_glb_iface) {
-                .in = {
-                        .max_group_num = group_num,
-                        .max_total_stream_num = stream_num,
-                        .groups_ptr = (uintptr_t) group_data,
-                        .streams_ptr = (uintptr_t) stream_data,
-                }
-        };
-
-        ret = ioctl(k->fd, KBASE_IOCTL_CS_GET_GLB_IFACE, &iface);
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_CS_GET_GLB_IFACE(size))");
-
-                free(group_data);
-                free(stream_data);
-
-                return false;
-        }
-
-        for (unsigned i = 0; i < group_num; ++i) {
-                if (i && !memcmp(group_data + i, group_data + i - 1, sizeof(*group_data)))
-                        continue;
-
-                fprintf(stderr, "Group %i-: feature mask 0x%x, %i streams\n",
-                        i, group_data[i].features, group_data[i].stream_num);
-        }
-
-        for (unsigned i = 0; i < stream_num; ++i) {
-                if (i && !memcmp(stream_data + i, stream_data + i - 1, sizeof(*stream_data)))
-                        continue;
-
-                fprintf(stderr, "Stream %i-: feature mask 0x%x\n",
-                        i, stream_data[i].features);
-        }
-
-        free(group_data);
-        free(stream_data);
-
-        return true;
+        return maj >= 10;
 }
 
 static bool
@@ -291,4 +246,147 @@ init_mem_jit(kbase k)
                 return false;
         }
         return true;
+}
+
+static bool
+tiler_heap_create(kbase k)
+{
+        union kbase_ioctl_cs_tiler_heap_init init = {
+                .in = {
+                        .chunk_size = 1 << 21,
+                        .initial_chunks = 5,
+                        .max_chunks = 200,
+                        .target_in_flight = 65535,
+                }
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_INIT, &init);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_INIT)");
+                return false;
+        }
+
+        k->tiler_heap_va = init.out.gpu_heap_va;
+        k->tiler_heap_header = init.out.first_chunk_va;
+
+        return true;
+}
+
+static bool
+tiler_heap_term(kbase k)
+{
+        if (!k->tiler_heap_va)
+                return true;
+
+        struct kbase_ioctl_cs_tiler_heap_term term = {
+                .gpu_heap_va = k->tiler_heap_va
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_TERM, &term);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_TERM)");
+                return false;
+        }
+        return true;
+}
+
+static bool
+cs_group_create(kbase k)
+{
+        union kbase_ioctl_cs_queue_group_create_1_6 create = {
+                .in = {
+                        /* Mali *still* only supports a single tiler unit */
+                        .tiler_mask = 1,
+                        .fragment_mask = ~0ULL,
+                        .compute_mask = ~0ULL,
+
+                        .cs_min = k->params.cs_queue_count,
+
+                        .priority = 1,
+                        .tiler_max = 1,
+                        .fragment_max = 64,
+                        .compute_max = 64,
+                }
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6, &create);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_GROUP_CREATE_1_6)");
+                return false;
+        }
+
+        k->csg_handle = create.out.group_handle;
+        k->csg_uid = create.out.group_uid;
+
+        /* Should be at least 1 */
+        assert(k->csg_uid);
+
+        return true;
+}
+
+static bool
+cs_group_term(kbase k)
+{
+        if (!k->csg_uid)
+                return true;
+
+        struct kbase_ioctl_cs_queue_group_term term = {
+                .group_handle = k->csg_handle
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE, &term);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE)");
+                return false;
+        }
+        return true;
+}
+
+typedef bool (* kbase_func)(kbase k);
+
+struct kbase_op {
+        kbase_func part;
+        kbase_func cleanup;
+        const char *label;
+};
+
+struct kbase_op kbase_main[] = {
+        { open_kbase, close_kbase, "Open kbase device" },
+        { get_version, NULL, "Check version" },
+        { set_flags, NULL, "Set flags" },
+        { mmap_tracking, munmap_tracking, "Map tracking handle" },
+        { get_gpuprops, free_gpuprops, "Get GPU properties" },
+        { get_gpu_id, NULL, "GPU ID" },
+        { mmap_user_reg, munmap_user_reg, "Map user register page" },
+        { init_mem_exec, NULL, "Initialise EXEC_VA zone" },
+        { init_mem_jit, NULL, "Initialise JIT allocator" },
+        { tiler_heap_create, tiler_heap_term, "Create chunked tiler heap" },
+        { cs_group_create, cs_group_term, "Create command stream group" },
+};
+
+bool
+kbase_open(kbase k)
+{
+        for (unsigned i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
+                ++k->setup_state;
+                if (!kbase_main[i].part(k)) {
+                        kbase_close(k);
+                        return false;
+                }
+        }
+        return true;
+}
+
+void
+kbase_close(kbase k)
+{
+        while (k->setup_state) {
+                unsigned i = k->setup_state - 1;
+                kbase_main[i].cleanup(k);
+                --k->setup_state;
+        }
 }
