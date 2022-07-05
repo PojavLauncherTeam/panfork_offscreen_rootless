@@ -306,54 +306,9 @@ init_mem_jit(kbase k)
 
 #if PAN_BASE_API >= 2
 static bool
-tiler_heap_create(kbase k)
+cs_group_create(kbase k, struct kbase_context *c)
 {
-        union kbase_ioctl_cs_tiler_heap_init init = {
-                .in = {
-                        .chunk_size = 1 << 21,
-                        .initial_chunks = 5,
-                        .max_chunks = 200,
-                        .target_in_flight = 65535,
-                }
-        };
-
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_INIT, &init);
-
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_INIT)");
-                return false;
-        }
-
-        k->tiler_heap_va = init.out.gpu_heap_va;
-        k->tiler_heap_header = init.out.first_chunk_va;
-
-        return true;
-}
-
-static bool
-tiler_heap_term(kbase k)
-{
-        if (!k->tiler_heap_va)
-                return true;
-
-        struct kbase_ioctl_cs_tiler_heap_term term = {
-                .gpu_heap_va = k->tiler_heap_va
-        };
-
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_TERM, &term);
-
-        if (ret == -1) {
-                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_TERM)");
-                return false;
-        }
-        return true;
-}
-#endif
-
-#if PAN_BASE_API >= 2
-static bool
-cs_group_create(kbase k)
-{
+        /* TODO: What about compute-only contexts? */
         union kbase_ioctl_cs_queue_group_create_1_6 create = {
                 .in = {
                         /* Mali *still* only supports a single tiler unit */
@@ -377,29 +332,75 @@ cs_group_create(kbase k)
                 return false;
         }
 
-        k->csg_handle = create.out.group_handle;
-        k->csg_uid = create.out.group_uid;
+        c->csg_handle = create.out.group_handle;
+        c->csg_uid = create.out.group_uid;
 
         /* Should be at least 1 */
-        assert(k->csg_uid);
+        assert(c->csg_uid);
 
         return true;
 }
 
 static bool
-cs_group_term(kbase k)
+cs_group_term(kbase k, struct kbase_context *c)
 {
-        if (!k->csg_uid)
+        if (!c->csg_uid)
                 return true;
 
         struct kbase_ioctl_cs_queue_group_term term = {
-                .group_handle = k->csg_handle
+                .group_handle = c->csg_handle
         };
 
         int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE, &term);
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_CS_QUEUE_GROUP_TERMINATE)");
+                return false;
+        }
+        return true;
+}
+#endif
+
+#if PAN_BASE_API >= 2
+static bool
+tiler_heap_create(kbase k, struct kbase_context *c)
+{
+        union kbase_ioctl_cs_tiler_heap_init init = {
+                .in = {
+                        .chunk_size = 1 << 21,
+                        .initial_chunks = 5,
+                        .max_chunks = 200,
+                        .target_in_flight = 65535,
+                }
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_INIT, &init);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_INIT)");
+                return false;
+        }
+
+        c->tiler_heap_va = init.out.gpu_heap_va;
+        c->tiler_heap_header = init.out.first_chunk_va;
+
+        return true;
+}
+
+static bool
+tiler_heap_term(kbase k, struct kbase_context *c)
+{
+        if (!c->tiler_heap_va)
+                return true;
+
+        struct kbase_ioctl_cs_tiler_heap_term term = {
+                .gpu_heap_va = c->tiler_heap_va
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_TILER_HEAP_TERM, &term);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_TILER_HEAP_TERM)");
                 return false;
         }
         return true;
@@ -429,10 +430,6 @@ static struct kbase_op kbase_main[] = {
 #if PAN_BASE_API >= 1
         { init_mem_exec, NULL, "Initialise EXEC_VA zone" },
         { init_mem_jit, NULL, "Initialise JIT allocator" },
-#endif
-#if PAN_BASE_API >= 2
-        { tiler_heap_create, tiler_heap_term, "Create chunked tiler heap" },
-        { cs_group_create, cs_group_term, "Create command stream group" },
 #endif
 };
 
@@ -829,8 +826,36 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
 }
 
 #else
+static struct kbase_context *
+kbase_context_create(kbase k)
+{
+        struct kbase_context *c = calloc(1, sizeof(*c));
+
+        if (!cs_group_create(k, c)) {
+                free(c);
+                return NULL;
+        }
+
+        if (!tiler_heap_create(k, c)) {
+                cs_group_term(k, c);
+                free(c);
+                return NULL;
+        }
+
+        return c;
+}
+
+static void
+kbase_context_destroy(kbase k, struct kbase_context *ctx)
+{
+        tiler_heap_term(k, ctx);
+        cs_group_term(k, ctx);
+        free(ctx);
+}
+
 static struct kbase_cs
-kbase_cs_bind(kbase k, base_va va, unsigned size)
+kbase_cs_bind(kbase k, struct kbase_context *ctx,
+              base_va va, unsigned size)
 {
         struct kbase_cs cs = {0};
 
@@ -850,8 +875,8 @@ kbase_cs_bind(kbase k, base_va va, unsigned size)
         union kbase_ioctl_cs_queue_bind bind = {
                 .in = {
                         .buffer_gpu_addr = va,
-                        .group_handle = k->csg_handle,
-                        .csi_index = k->num_csi++,
+                        .group_handle = ctx->csg_handle,
+                        .csi_index = ctx->num_csi++,
                 }
         };
 
@@ -926,6 +951,9 @@ kbase_open_csf
 #if PAN_BASE_API < 2
         k->submit = kbase_submit;
 #else
+        k->context_create = kbase_context_create;
+        k->context_destroy = kbase_context_destroy;
+
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
 #endif

@@ -35,7 +35,17 @@ struct base_ptr {
 
 struct kbase_syncobj;
 
+struct kbase_context {
+        uint8_t csg_handle;
+        uint32_t csg_uid;
+        unsigned num_csi;
+
+        base_va tiler_heap_va;
+        base_va tiler_heap_header;
+};
+
 struct kbase_cs {
+        struct kbase_context *ctx;
         void *user_io;
 };
 
@@ -65,14 +75,8 @@ struct kbase {
 
         void *tracking_region;
         void *csf_user_reg;
-        base_va tiler_heap_va;
-        base_va tiler_heap_header;
 
         uint8_t atom_number;
-
-        uint8_t csg_handle;
-        uint32_t csg_uid;
-        unsigned num_csi;
 
         pthread_mutex_t handle_lock;
 
@@ -104,8 +108,11 @@ struct kbase {
                       int32_t *handles, unsigned num_handles);
 
         /* >= v10 GPUs */
+        struct kbase_context *(*context_create)(kbase k);
+        void (*context_destroy)(kbase k, struct kbase_context *ctx);
         // TODO: Pass in a priority?
-        struct kbase_cs (*cs_bind)(kbase k, base_va va, unsigned size);
+        struct kbase_cs (*cs_bind)(kbase k, struct kbase_context *ctx,
+                                   base_va va, unsigned size);
         void (*cs_term)(kbase k, struct kbase_cs *cs, base_va va);
 
         bool (*cs_submit)(kbase k, struct kbase_cs *cs, unsigned insert_offset,
@@ -118,8 +125,6 @@ struct kbase {
         struct kbase_syncobj (*syncobj_dup)(kbase k, struct kbase_syncobj *o);
         /* TODO: timeout? (and for cs_wait) */
         bool (*syncobj_wait)(kbase k, struct kbase_syncobj *o);
-
-        struct base_ptr (*import)(kbase k, int fd, size_t *size);
 
         void (*ctr_open)(kbase k);
         void (*ctr_set_enabled)(kbase k, bool enable);
