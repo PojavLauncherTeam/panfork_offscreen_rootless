@@ -838,6 +838,13 @@ done:
         return ret;
 }
 
+static int
+panfrost_batch_submit_csf(struct panfrost_batch *batch,
+                          const struct pan_fb_info *fb)
+{
+        return 1;
+}
+
 static void
 panfrost_emit_tile_map(struct panfrost_batch *batch, struct pan_fb_info *fb)
 {
@@ -863,6 +870,7 @@ panfrost_batch_submit(struct panfrost_context *ctx,
 {
         struct pipe_screen *pscreen = ctx->base.screen;
         struct panfrost_screen *screen = pan_screen(pscreen);
+        struct panfrost_device *dev = pan_device(pscreen);
         int ret;
 
         /* Nothing to do! */
@@ -906,7 +914,11 @@ panfrost_batch_submit(struct panfrost_context *ctx,
         if (batch->scoreboard.first_tiler || batch->clear)
                 screen->vtbl.emit_fbd(batch, &fb);
 
-        ret = panfrost_batch_submit_jobs(batch, &fb, 0, ctx->syncobj);
+        /* TODO: Don't hardcode the arch number */
+        if (dev->arch < 10)
+                ret = panfrost_batch_submit_jobs(batch, &fb, 0, ctx->syncobj);
+        else
+                ret = panfrost_batch_submit_csf(batch, &fb);
 
         if (ret)
                 fprintf(stderr, "panfrost_batch_submit failed: %d\n", ret);
