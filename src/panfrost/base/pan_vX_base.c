@@ -480,7 +480,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 {
         struct base_ptr r = {0};
 
-        unsigned pages = size / k->page_size;
+        unsigned pages = DIV_ROUND_UP(size, k->page_size);
 
         union kbase_ioctl_mem_alloc a = {
                 .in = {
@@ -498,6 +498,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                         BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
                         BASE_MEM_SAME_VA;
 
+                /* TODO: What about heap BOs? */
                 /* ++difficulty_level */
                 if (PAN_BASE_API >= 1)
                         flags |= BASE_MEM_COHERENT_LOCAL | BASE_MEM_CACHED_CPU;
@@ -526,7 +527,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
         a.in.flags = flags;
 
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_ALLOC, a);
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_ALLOC, &a);
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_MEM_ALLOC)");
@@ -542,6 +543,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
                 fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
                         (uint64_t) a.out.flags, (uint64_t) a.out.gpu_va);
+                errno = EINVAL;
                 return r;
         }
 
@@ -900,7 +902,6 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         return cs;
 }
 
-/* TODO: Free up the CSI to be reused by another CS? */
 static void
 kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 {
