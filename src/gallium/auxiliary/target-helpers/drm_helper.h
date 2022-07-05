@@ -7,6 +7,8 @@
 #include "frontend/drm_driver.h"
 #include "util/driconf.h"
 
+#include <fcntl.h>
+
 /**
  * Instantiate a drm_driver_descriptor struct.
  */
@@ -347,7 +349,7 @@ pipe_panfrost_create_screen(int fd, const struct pipe_screen_config *config)
 {
    struct pipe_screen *screen;
 
-   screen = panfrost_drm_screen_create(fd);
+   screen = panfrost_drm_screen_create(open("/dev/mali0", O_RDWR | O_CLOEXEC | O_NONBLOCK));
    return screen ? debug_screen_wrap(screen) : NULL;
 }
 DRM_DRIVER_DESCRIPTOR(panfrost, NULL, 0)
