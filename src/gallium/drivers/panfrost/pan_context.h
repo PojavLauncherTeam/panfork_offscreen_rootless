@@ -132,6 +132,7 @@ struct panfrost_context {
 
         /* Sync obj used to keep track of in-flight jobs. */
         uint32_t syncobj;
+        struct kbase_syncobj *syncobj_kbase;
 
         /* Set of 32 batches. When the set is full, the LRU entry (the batch
          * with the smallest seqnum) is flushed to free a slot.

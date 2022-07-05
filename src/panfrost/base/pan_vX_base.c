@@ -917,6 +917,35 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 }
 #endif
 
+struct kbase_syncobj {
+};
+
+static struct kbase_syncobj *
+kbase_syncobj_create(kbase k)
+{
+        struct kbase_syncobj *o = calloc(1, sizeof(*o));
+        return o;
+}
+
+static void
+kbase_syncobj_destroy(kbase k, struct kbase_syncobj *o)
+{
+        free(o);
+}
+
+static struct kbase_syncobj *
+kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
+{
+        return NULL;
+}
+
+static bool
+kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
+{
+        return false;
+}
+
+
 bool
 #if PAN_BASE_API == 0
 kbase_open_old
@@ -958,6 +987,11 @@ kbase_open_csf
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
 #endif
+
+        k->syncobj_create = kbase_syncobj_create;
+        k->syncobj_destroy = kbase_syncobj_destroy;
+        k->syncobj_dup = kbase_syncobj_dup;
+        k->syncobj_wait = kbase_syncobj_wait;
 
         for (unsigned i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
                 ++k->setup_state;

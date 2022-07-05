@@ -120,9 +120,9 @@ struct kbase {
         bool (*cs_wait)(kbase k, struct kbase_cs *cs, unsigned extract_offset);
 
         /* syncobj functions */
-        struct kbase_syncobj (*syncobj_create)(kbase k);
-        struct kbase_syncobj (*syncobj_free)(kbase k);
-        struct kbase_syncobj (*syncobj_dup)(kbase k, struct kbase_syncobj *o);
+        struct kbase_syncobj *(*syncobj_create)(kbase k);
+        void (*syncobj_destroy)(kbase k, struct kbase_syncobj *o);
+        struct kbase_syncobj *(*syncobj_dup)(kbase k, struct kbase_syncobj *o);
         /* TODO: timeout? (and for cs_wait) */
         bool (*syncobj_wait)(kbase k, struct kbase_syncobj *o);
 
