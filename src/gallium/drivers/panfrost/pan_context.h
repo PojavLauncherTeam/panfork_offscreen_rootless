@@ -229,6 +229,8 @@ struct panfrost_context {
 
         int in_sync_fd;
         uint32_t in_sync_obj;
+
+        struct kbase_context *kbase_ctx;
 };
 
 /* Corresponds to the CSO */

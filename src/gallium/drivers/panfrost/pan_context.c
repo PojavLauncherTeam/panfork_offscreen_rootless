@@ -571,6 +571,9 @@ panfrost_destroy(struct pipe_context *pipe)
         struct panfrost_context *panfrost = pan_context(pipe);
         struct panfrost_device *dev = pan_device(pipe->screen);
 
+        if (dev->kbase && dev->mali.context_create)
+                dev->mali.context_destroy(&dev->mali, panfrost->kbase_ctx);
+
         _mesa_hash_table_destroy(panfrost->writers, NULL);
 
         if (panfrost->blitter)
@@ -980,6 +983,9 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
                                                         _mesa_key_pointer_equal);
 
         assert(ctx->blitter);
+
+        if (dev->kbase && dev->mali.context_create)
+                ctx->kbase_ctx = dev->mali.context_create(&dev->mali);
 
         /* Prepare for render! */
 
