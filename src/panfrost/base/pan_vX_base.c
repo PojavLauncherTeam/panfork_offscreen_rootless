@@ -677,7 +677,11 @@ static void
 kbase_syncobj_unref(struct kbase_syncobj *o)
 {
         unsigned ret = p_atomic_dec_return(&o->ref_count);
+
         if (!ret) {
+                close(o->pipefd[0]);
+                close(o->pipefd[1]);
+
                 for (unsigned i = 0; i < o->child_count; ++i)
                         kbase_syncobj_unref(o->children[i]);
 
