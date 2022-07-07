@@ -75,7 +75,7 @@ bifrost_compiler = executable(
 
 csf_test = executable(
   'csf_test',
-  ['csf_test/test.c'],
+  ['csf_test/test.c', sha1_h],
   include_directories : [
     inc_mapi,
     inc_mesa,

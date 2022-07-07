@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include "util/macros.h"
+#include "git_sha1.h"
 
 #include "mali_kbase_csf_ioctl.h"
 #include "mali_kbase_ioctl.h"
@@ -1332,6 +1333,8 @@ main(void)
         struct state s = {
                 .page_size = sysconf(_SC_PAGE_SIZE),
         };
+
+        printf("Running Valhall CSF tests" MESA_GIT_SHA1 "\n");
 
         do_test_list(&s, kbase_main, ARRAY_SIZE(kbase_main));
 }
