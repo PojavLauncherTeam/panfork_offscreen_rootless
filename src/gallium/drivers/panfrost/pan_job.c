@@ -638,14 +638,15 @@ pandecode_cs_bo(struct panfrost_bo *bo, unsigned gpu_id)
 
 static int
 panfrost_batch_submit_kbase(struct panfrost_device *dev,
-                            struct drm_panfrost_submit *submit)
+                            struct drm_panfrost_submit *submit,
+                            struct kbase_syncobj *syncobj)
 {
         dev->mali.handle_events(&dev->mali);
 
         int atom = dev->mali.submit(&dev->mali,
                                     submit->jc,
                                     submit->requirements,
-                                    ctx->syncobj_kbase,
+                                    syncobj,
                                     (int32_t *)(uintptr_t) submit->bo_handles,
                                     submit->bo_handle_count);
 
@@ -747,7 +748,7 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
         if (ctx->is_noop)
                 ret = 0;
         else if (dev->kbase)
-                ret = panfrost_batch_submit_kbase(dev, &submit);
+                ret = panfrost_batch_submit_kbase(dev, &submit, ctx->syncobj_kbase);
         else
                 ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_SUBMIT, &submit);
         free(bo_handles);
