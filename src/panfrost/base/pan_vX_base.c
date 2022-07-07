@@ -687,7 +687,7 @@ kbase_handle_events(kbase k)
                 }
 
                 if (event.event_code != BASE_JD_EVENT_DONE)
-                        fprintf(stderr, "Atom %i reported event %i!\n",
+                        fprintf(stderr, "Atom %i reported event 0x%x!\n",
                                 event.atom_number, event.event_code);
 
                 pthread_mutex_lock(&k->handle_lock);
