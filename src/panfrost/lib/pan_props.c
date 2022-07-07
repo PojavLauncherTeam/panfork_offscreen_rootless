@@ -296,8 +296,10 @@ panfrost_query_optimal_tib_size(const struct panfrost_device *dev)
 void
 panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
 {
-        if (kbase_open(&dev->mali, fd, 4))
+        if (kbase_open(&dev->mali, fd, 4)) {
                 dev->kbase = true;
+                fd = -1;
+        }
 
         dev->fd = fd;
         dev->memctx = memctx;
