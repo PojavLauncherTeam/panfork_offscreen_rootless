@@ -645,7 +645,7 @@ panfrost_batch_submit_kbase(struct panfrost_device *dev,
         int atom = dev->mali.submit(&dev->mali,
                                     submit->jc,
                                     submit->requirements,
-                                    NULL,
+                                    ctx->syncobj_kbase,
                                     (int32_t *)(uintptr_t) submit->bo_handles,
                                     submit->bo_handle_count);
 
@@ -758,8 +758,11 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
         /* Trace the job if we're doing that */
         if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC)) {
                 /* Wait so we can get errors reported back */
-                drmSyncobjWait(dev->fd, &out_sync, 1,
-                               INT64_MAX, 0, NULL);
+                if (dev->kbase)
+                        dev->mali.syncobj_wait(&dev->mali, ctx->syncobj_kbase);
+                else
+                        drmSyncobjWait(dev->fd, &out_sync, 1,
+                                       INT64_MAX, 0, NULL);
 
                 if (dev->debug & PAN_DBG_TRACE) {
                         if (dev->arch < 10) {
