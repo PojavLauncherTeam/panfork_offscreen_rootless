@@ -648,6 +648,95 @@ kbase_import_dmabuf(kbase k, int fd)
         return handle;
 }
 
+struct kbase_syncobj {
+        /* Use kbase_syncobj_ref / kbase_syncobj_unref */
+        unsigned ref_count;
+
+        /* syncobjs which are dup'd from this one */
+        pthread_mutex_t child_mtx;
+        unsigned child_count;
+        struct kbase_syncobj **children;
+
+        /* How many jobs are still executing? */
+        unsigned job_count;
+
+        /* Write a byte to this pipe when job_count hits zero */
+        int pipefd[2];
+};
+
+static void
+kbase_syncobj_ref(struct kbase_syncobj *o)
+{
+        ASSERTED unsigned ret = p_atomic_inc_return(&o->ref_count);
+        /* We need to have at least one existing reference to be able to call
+         * this function */
+        assert(ret > 1);
+}
+
+static void
+kbase_syncobj_unref(struct kbase_syncobj *o)
+{
+        unsigned ret = p_atomic_dec_return(&o->ref_count);
+        if (!ret) {
+                for (unsigned i = 0; i < o->child_count; ++i)
+                        kbase_syncobj_unref(o->children[i]);
+
+                pthread_mutex_destroy(&o->child_mtx);
+                free(o->children);
+                free(o);
+        }
+}
+
+static void
+kbase_syncobj_inc_jobs(struct kbase_syncobj *o)
+{
+        /* TODO: Avoid taking so many locks */
+        pthread_mutex_lock(&o->child_mtx);
+
+        /* Might as well not bother with the atomic, given the locking... */
+        if (p_atomic_inc_return(&o->job_count) == 1) {
+                /* This is the first job, make sure that the pipe is empty */
+                uint32_t data = 0;
+                int ret = read(o->pipefd[0], &data, 4);
+
+                if (ret == -1 && errno != EAGAIN)
+                        perror("read(o->pipdfd[0])");
+
+                /* We should never have more than one byte in the pipe at a
+                 * time */
+                if (ret > 1)
+                        fprintf(stderr, "syncobj pipe too large!\n");
+        }
+
+        for (unsigned i = 0; i < o->child_count; ++i)
+                kbase_syncobj_inc_jobs(o->children[i]);
+
+        pthread_mutex_unlock(&o->child_mtx);
+}
+
+static void
+kbase_syncobj_dec_jobs(struct kbase_syncobj *o)
+{
+        /* TODO: Avoid taking so many locks */
+        pthread_mutex_lock(&o->child_mtx);
+
+        /* Might as well not bother with the atomic, given the locking... */
+        if (p_atomic_dec_return(&o->job_count) == 0) {
+
+                /* This was the last job, write a cookie into the pipe */
+                uint8_t data = 0xEE;
+                int ret = write(o->pipefd[1], &data, 1);
+
+                if (ret != 1)
+                        perror("write(o->pipdfd[1])");
+        }
+
+        for (unsigned i = 0; i < o->child_count; ++i)
+                kbase_syncobj_dec_jobs(o->children[i]);
+
+        pthread_mutex_unlock(&o->child_mtx);
+}
+
 static void
 kbase_poll_event(kbase k, int64_t timeout_ns)
 {
@@ -684,6 +773,13 @@ kbase_handle_events(kbase k)
 
                         perror("read(mali fd)");
                         return;
+                }
+
+                struct kbase_syncobj *o = (void *)event.udata.blob[0];
+
+                if (o) {
+                        kbase_syncobj_dec_jobs(o);
+                        kbase_syncobj_unref(o);
                 }
 
                 if (event.event_code != BASE_JD_EVENT_DONE)
@@ -737,6 +833,11 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         struct util_dynarray buf;
         util_dynarray_init(&buf, NULL);
 
+        if (o) {
+                kbase_syncobj_ref(o);
+                kbase_syncobj_inc_jobs(o);
+        }
+
         memcpy(util_dynarray_resize(&buf, int32_t, num_handles),
                handles, num_handles * sizeof(int32_t));
 
@@ -750,6 +851,7 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         struct base_jd_atom_v2 atom = {
                 .jc = va,
                 .atom_number = nr,
+                .udata.blob[0] = (uintptr_t) o,
         };
 
         for (unsigned i = 0; i < KBASE_SLOT_COUNT; ++i)
@@ -917,32 +1019,93 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 }
 #endif
 
-struct kbase_syncobj {
-};
-
 static struct kbase_syncobj *
 kbase_syncobj_create(kbase k)
 {
         struct kbase_syncobj *o = calloc(1, sizeof(*o));
+
+        o->ref_count = 1;
+
+        pthread_mutex_init(&o->child_mtx, NULL);
+
+        int ret = pipe2(o->pipefd, O_CLOEXEC | O_NONBLOCK);
+        if (ret == -1)
+                perror("pipe(o->pipefd)");
+
         return o;
 }
 
 static void
 kbase_syncobj_destroy(kbase k, struct kbase_syncobj *o)
 {
-        free(o);
+        kbase_syncobj_unref(o);
 }
 
 static struct kbase_syncobj *
 kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
 {
-        return NULL;
+        struct kbase_syncobj *dup = kbase_syncobj_create(k);
+
+        /* Updates are passed from older to newer syncobjs, so reference the
+         * new object */
+        kbase_syncobj_ref(dup);
+
+        pthread_mutex_lock(&o->child_mtx);
+
+        ++o->child_count;
+        o->children = reallocarray(o->children, o->child_count,
+                                   sizeof(*o->children));
+
+        o->children[o->child_count - 1] = dup;
+
+        dup->job_count = o->job_count;
+
+        pthread_mutex_unlock(&o->child_mtx);
+
+        return dup;
 }
 
 static bool
 kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 {
-        return false;
+        unsigned try_count = 0;
+
+        while (p_atomic_read(&o->job_count)) {
+
+                /* There are currently-executing jobs which reference this
+                 * syncobj, wait for an event. */
+
+                struct pollfd pfd[2] = {
+                        {
+                                .fd = k->fd,
+                                .events = POLLIN,
+                        },
+                        {
+                                .fd = o->pipefd[0],
+                                .events = POLLIN,
+                        },
+                };
+
+                int ret = poll(pfd, 2, 200);
+                if (ret == -1)
+                        perror("poll(syncobj)");
+
+                if (ret == 0 && try_count > 10) {
+                        fprintf(stderr, "syncobj wait timeout, returning\n");
+                        return false;
+                }
+
+                if (ret == 0) {
+                        ++try_count;
+                        fprintf(stderr, "syncobj wait timeout\n");
+                        continue;
+                }
+
+                if (pfd[0].revents)
+                        kbase_handle_events(k);
+        }
+
+        return true;
 }
 
 
