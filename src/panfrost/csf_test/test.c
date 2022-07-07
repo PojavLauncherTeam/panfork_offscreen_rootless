@@ -75,6 +75,12 @@ cache_invalidate(volatile void *addr)
         __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
 }
 
+static void
+cache_barrier(void)
+{
+        __asm__ volatile ("dsb sy" ::: "memory");
+}
+
 typedef void (*cacheline_op)(volatile void *addr);
 
 #define CACHELINE_SIZE 64
@@ -833,6 +839,8 @@ submit_cs(struct state *s, unsigned i)
                      insert_offset - last_offset, s->gpu_id);
         dump_end(stderr);
 
+        cache_barrier();
+
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
         s->cs[i].ptr = s->cs_mem[i].cpu + insert_offset;
 
@@ -945,6 +953,8 @@ wait_cs(struct state *s, unsigned i)
                         }
                 }
         }
+
+        cache_barrier();
 
         return true;
 }
