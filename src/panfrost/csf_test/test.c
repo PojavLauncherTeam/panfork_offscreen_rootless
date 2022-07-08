@@ -317,19 +317,24 @@ get_gpu_id(struct state *s, struct test *t)
         uint16_t maj = gpu_id >> 12;
         uint16_t min = (gpu_id >> 8) & 0xf;
         uint16_t rev = (gpu_id >> 4) & 0xf;
+
         uint16_t product = gpu_id & 0xf;
+        uint16_t prod = product | ((maj & 1) << 4);
 
         const char *names[] = {
-                [0] = "G610",
-                [8] = "G710",
-                [10] = "G510",
-                [12] = "G310",
+                [1] = "TDUX",
+                [2] = "G710",
+                [3] = "G510",
+                [4] = "G310",
+                [7] = "G610",
+                [16 + 2] = "G715", /* TODO: Immortalis instead of Mali? */
+                [16 + 3] = "G615",
         };
-        const char *name = (min < ARRAY_SIZE(names)) ? names[min] : NULL;
+        const char *name = (prod < ARRAY_SIZE(names)) ? names[prod] : NULL;
         if (!name)
                 name = "unknown";
 
-        printf("v%i.%i r%ip%i (Mali-%s): ", maj, min, rev, product, name);
+        printf("v%i.%i.%i Mali-%s (%i): ", maj, min, rev, name, product);
 
         if (maj < 10) {
                 printf("not v10 or later: ");
