@@ -1371,7 +1371,7 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
                                 printf("PASS\n");
                         } else {
                                 printf("FAIL\n");
-                                if (!getenv("TEST_KEEP_GOING"))
+                                if (getenv("TEST_STOP_ON_FAIL"))
                                         return i + 1;
                         }
                 }
