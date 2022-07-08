@@ -948,21 +948,51 @@ wait_event(struct state *s, unsigned timeout_ms)
 }
 
 static bool
+kick_queue(struct state *s, unsigned i)
+{
+        struct kbase_ioctl_cs_queue_kick kick = {
+                .buffer_gpu_addr = s->cs_mem[i].gpu
+        };
+
+        int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
 wait_cs(struct state *s, unsigned i)
 {
         unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i].cpu;
 
         unsigned timeout_ms = 100;
 
+        bool done_kick = false;
+
         while (CS_READ_REGISTER(s, i, CS_EXTRACT) != extract_offset) {
                 if (wait_event(s, timeout_ms)) {
                         fprintf(stderr, "Event wait timeout!\n");
 
                         unsigned e = CS_READ_REGISTER(s, i, CS_EXTRACT);
+                        unsigned a = CS_READ_REGISTER(s, i, CS_ACTIVE);
+
                         if (e != extract_offset) {
-                                fprintf(stderr, "CS_EXTRACT (%i) != %i\n",
-                                        e, extract_offset);
-                                return false;
+                                fprintf(stderr, "CS_EXTRACT (%i) != %i, "
+                                        "CS_ACTIVE (%i)\n",
+                                        e, extract_offset, a);
+
+                                if (done_kick) {
+                                        cache_barrier();
+                                        return false;
+                                } else {
+                                        fprintf(stderr, "Kicking queue\n");
+                                        kick_queue(s, i);
+                                        done_kick = true;
+                                }
                         }
                 }
         }
@@ -990,16 +1020,8 @@ cs_init(struct state *s, struct test *t)
                 }
                 submit_cs(s, i);
 
-                struct kbase_ioctl_cs_queue_kick kick = {
-                        .buffer_gpu_addr = s->cs_mem[i].gpu
-                };
-
-                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
-
-                if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                if (!kick_queue(s, i))
                         return false;
-                }
         }
 
         return true;
