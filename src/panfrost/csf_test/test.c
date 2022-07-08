@@ -204,12 +204,14 @@ open_kbase(struct state *s, struct test *t)
 static bool
 close_kbase(struct state *s, struct test *t)
 {
-        int pid = getpid();
-        char cmd_buffer[64] = {0};
-        sprintf(cmd_buffer, "grep /dev/mali /proc/%i/maps", pid);
-        system(cmd_buffer);
-        sprintf(cmd_buffer, "ls -l /proc/%i/fd", pid);
-        system(cmd_buffer);
+        if (getenv("TEST_CHECK_LEAKS")) {
+                int pid = getpid();
+                char cmd_buffer[64] = {0};
+                sprintf(cmd_buffer, "grep /dev/mali /proc/%i/maps", pid);
+                system(cmd_buffer);
+                sprintf(cmd_buffer, "ls -l /proc/%i/fd", pid);
+                system(cmd_buffer);
+        }
 
         if (s->mali_fd > 0)
                 return close(s->mali_fd) == 0;
