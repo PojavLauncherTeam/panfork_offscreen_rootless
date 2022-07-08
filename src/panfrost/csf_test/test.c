@@ -1290,6 +1290,7 @@ struct test kbase_main[] = {
         { cs_init, NULL, "Initialise and start command stream queues" },
 
         { cs_simple, NULL, "Execute MOV command" },
+        { cs_simple, NULL, "Execute MOV command (again)" },
         { cs_store, NULL, "Execute STR command" },
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
