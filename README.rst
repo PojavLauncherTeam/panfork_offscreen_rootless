@@ -23,6 +23,11 @@ repo, and placing it in ``/lib/firmware/``.
 Compiling
 ---------
 
+(Alternatively, a
+[binary](https://gitlab.freedesktop.org/icecream95/mesa/-/snippets/6805)
+tarball can be downloaded, which is self-contained and does not need
+any file from this repository.)
+
 .. code-block:: sh
 
   $ mkdir build
