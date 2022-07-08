@@ -159,6 +159,7 @@ struct test {
 
         /* for cs_store */
         bool add;
+        bool invalid;
 };
 
 /* See STATE and ALLOC macros below */
@@ -1053,6 +1054,9 @@ cs_store(struct state *s, struct test *t)
         unsigned addr_reg = 0x48;
         unsigned value_reg = 0x4a;
 
+        if (t->invalid)
+                dest_va = 0xfdcba9876543;
+
         pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 2; }
         pan_emit_cs_48(c, addr_reg, dest_va);
         pan_emit_cs_32(c, value_reg, value);
@@ -1078,7 +1082,10 @@ cs_store(struct state *s, struct test *t)
         cache_barrier(); /* Just in case it's needed */
         uint32_t result = *dest;
 
-        if (result != value) {
+        if (t->invalid && result == value) {
+                printf("Got %i, did not expect %i: ", result, value);
+                return false;
+        } else if (result != value) {
                 printf("Got %i, expected %i: ", result, value);
                 return false;
         }
@@ -1316,6 +1323,7 @@ struct test kbase_main[] = {
 
         { cs_simple, NULL, "Execute MOV command" },
         { cs_simple, NULL, "Execute MOV command (again)" },
+        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
         { cs_store, NULL, "Execute STR command" },
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
