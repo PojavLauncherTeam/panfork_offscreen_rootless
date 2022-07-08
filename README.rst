@@ -26,7 +26,8 @@ Compiling
 (Alternatively, a
 [binary](https://gitlab.freedesktop.org/icecream95/mesa/-/snippets/6805)
 tarball can be downloaded, which is self-contained and does not need
-any file from this repository.)
+any file from this repository. However, extracting it in the root
+`mesa/` directory allows debuggers to find source code.)
 
 .. code-block:: sh
 
