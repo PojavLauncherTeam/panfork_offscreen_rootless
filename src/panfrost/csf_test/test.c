@@ -373,8 +373,12 @@ get_csf_caps(struct state *s, struct test *t)
                 return false;
         }
 
-        printf("v%i: feature mask 0x%x, %i groups, %i total: ",
-               iface.out.glb_version, iface.out.features,
+        int ver_maj = iface.out.glb_version >> 24;
+        int ver_min = (iface.out.glb_version >> 16) & 0xff;
+        int ver_rev = iface.out.glb_version & 0xffff;
+
+        printf("v%i.%i.%i: feature mask 0x%x, %i groups, %i total: ",
+               ver_maj, ver_min, ver_rev, iface.out.features,
                iface.out.group_num, iface.out.total_stream_num);
 
         unsigned group_num = iface.out.group_num;
@@ -417,8 +421,12 @@ get_csf_caps(struct state *s, struct test *t)
                 if (i && !memcmp(stream_data + i, stream_data + i - 1, sizeof(*stream_data)))
                         continue;
 
-                fprintf(stderr, "Stream %i-: feature mask 0x%x\n",
-                        i, stream_data[i].features);
+                unsigned reg = stream_data[i].features & 0xff;
+                unsigned score = (stream_data[i].features >> 8) & 0xff;
+                unsigned feat = stream_data[i].features >> 16;
+
+                fprintf(stderr, "Stream %i-: 0x%x work registers, %i scoreboards, iterator mask: 0x%x\n",
+                        i, reg, score, feat);
         }
 
         free(group_data);
