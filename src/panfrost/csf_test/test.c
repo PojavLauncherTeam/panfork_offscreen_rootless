@@ -1075,6 +1075,7 @@ cs_store(struct state *s, struct test *t)
         wait_cs(s, 0);
 
         cache_invalidate(dest);
+        cache_barrier(); /* Just in case it's needed */
         uint32_t result = *dest;
 
         if (result != value) {
@@ -1133,6 +1134,7 @@ cs_sub(struct state *s, struct test *t)
         wait_cs(s, 0);
 
         cache_invalidate(dest);
+        cache_barrier(); /* Just in case it's needed */
         uint32_t result = *dest;
 
         if (result != value) {
@@ -1266,6 +1268,7 @@ compute_execute(struct state *s, struct test *t)
         wait_cs(s, 0);
 
         cache_invalidate(dest.cpu);
+        cache_barrier(); /* Just in case it's needed */
         uint32_t result = *(uint32_t *)dest.cpu;
 
         if (result != value) {
