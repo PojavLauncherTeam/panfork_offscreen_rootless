@@ -1339,9 +1339,9 @@ struct test kbase_main[] = {
         { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
         { cs_simple, NULL, "Execute MOV command (vertex, invalid)", .invalid = true, .vertex = true },
         { cs_simple, NULL, "Execute MOV command (vertex, again)", .invalid = true },
-        { cs_store, NULL, "Execute STR command" },
-        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
-        { cs_store, NULL, "Execute ADD command", .add = true },
+//        { cs_store, NULL, "Execute STR command" },
+//        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
+//        { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
         { compute_compile, NULL, "Compile a compute shader" },
