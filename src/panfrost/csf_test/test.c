@@ -861,6 +861,10 @@ submit_cs(struct state *s, unsigned i)
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
         s->cs[i].ptr = s->cs_mem[i].cpu + insert_offset;
 
+        cache_barrier();
+        // Just to make sure it's written...
+        usleep(1000);
+
         CS_RING_DOORBELL(s, i);
 
         s->cs_last_submit[i] = insert_offset;
