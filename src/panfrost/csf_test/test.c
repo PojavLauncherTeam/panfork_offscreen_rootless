@@ -160,6 +160,7 @@ struct test {
         bool add;
         bool invalid;
         bool blit;
+        bool vertex;
 };
 
 /* See STATE and ALLOC macros below */
@@ -1033,13 +1034,15 @@ cs_init(struct state *s, struct test *t)
 static bool
 cs_simple(struct state *s, struct test *t)
 {
-        pan_command_stream *c = s->cs;
+        unsigned queue = t->vertex ? 2 : 0;
+
+        pan_command_stream *c = s->cs + queue;
 
         unsigned dest = t->invalid ? 0x65 : 0x48;
 
         pan_emit_cs_32(c, dest, 0x1234);
-        submit_cs(s, 0);
-        return wait_cs(s, 0);
+        submit_cs(s, queue);
+        return wait_cs(s, queue);
 }
 
 static bool
@@ -1329,9 +1332,11 @@ struct test kbase_main[] = {
 
         { cs_simple, NULL, "Execute MOV command" },
         { cs_simple, NULL, "Execute MOV command (again)" },
-        { cs_simple, NULL, "Execute MOV command (invalid address)", .invalid = true },
-        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
+        { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
+        { cs_simple, NULL, "Execute MOV command (vertex, invalid)", .invalid = true, .vertex = true },
+        { cs_simple, NULL, "Execute MOV command (vertex, again)", .invalid = true },
         { cs_store, NULL, "Execute STR command" },
+        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
