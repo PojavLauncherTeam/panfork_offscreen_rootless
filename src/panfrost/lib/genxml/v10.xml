@@ -1516,10 +1516,11 @@
     <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
   </struct>
 
+  <!-- TODO: This appears to be a mask -->
   <enum name="CS Iterator">
-    <value name="Unk" value="1"/>
+    <value name="Compute" value="1"/>
     <value name="Fragment" value="2"/>
-    <value name="Compute" value="3"/>
+    <value name="Blit" value="3"/>
     <value name="Vertex" value="13"/>
   </enum>
 
