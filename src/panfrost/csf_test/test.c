@@ -157,9 +157,9 @@ struct test {
         unsigned offset;
         unsigned flags;
 
-        /* for cs_store */
         bool add;
         bool invalid;
+        bool blit;
 };
 
 /* See STATE and ALLOC macros below */
@@ -1221,7 +1221,9 @@ mem_offset(struct panfrost_ptr ptr, unsigned offset)
 static bool
 compute_execute(struct state *s, struct test *t)
 {
-        pan_command_stream *c = s->cs;
+        unsigned queue = t->blit ? 1 : 0;
+
+        pan_command_stream *c = s->cs + queue;
         pan_command_stream _i = { .ptr = s->allocations.cached.cpu }, *i = &_i;
         mali_ptr cs_va = s->allocations.cached.gpu;
 
@@ -1275,8 +1277,8 @@ compute_execute(struct state *s, struct test *t)
         pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
 
-        submit_cs(s, 0);
-        wait_cs(s, 0);
+        submit_cs(s, queue);
+        wait_cs(s, queue);
 
         cache_invalidate(dest.cpu);
         cache_barrier(); /* Just in case it's needed */
@@ -1335,6 +1337,7 @@ struct test kbase_main[] = {
 
         { compute_compile, NULL, "Compile a compute shader" },
         { compute_execute, NULL, "Execute a compute shader" },
+        { compute_execute, NULL, "Execute compute on blit queue", .blit = true },
 };
 
 static void
