@@ -1080,7 +1080,7 @@ cs_store(struct state *s, struct test *t)
         if (t->invalid)
                 dest_va = 0xfdcba9876543;
 
-        //pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 2; }
+        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 2; }
         pan_emit_cs_48(c, addr_reg, dest_va);
         pan_emit_cs_32(c, value_reg, value);
 
@@ -1149,7 +1149,7 @@ cs_sub(struct state *s, struct test *t)
         void *start = i->ptr;
 
         pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
-        //pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
 
         pan_emit_cs_48(i, addr_reg, dest_va);
         pan_emit_cs_32(i, value_reg, value);
@@ -1273,7 +1273,7 @@ compute_execute(struct state *s, struct test *t)
         void *start = i->ptr;
 
         pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
-        //pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
 
         pan_pack_cs(i, COMPUTE_PAYLOAD, cfg) {
                 cfg.workgroup_size_x = 1;
@@ -1293,7 +1293,7 @@ compute_execute(struct state *s, struct test *t)
 
         pan_pack_ins(i, COMPUTE_LAUNCH, _);
 
-        //pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
+        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
 
         submit_cs(s, queue);
@@ -1352,9 +1352,9 @@ struct test kbase_main[] = {
         { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
         { cs_simple, NULL, "Execute MOV command (vertex, invalid)", .invalid = true, .vertex = true },
         { cs_simple, NULL, "Execute MOV command (vertex, again)", .invalid = true },
-//        { cs_store, NULL, "Execute STR command" },
-//        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
-//        { cs_store, NULL, "Execute ADD command", .add = true },
+        { cs_store, NULL, "Execute STR command" },
+        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
+        { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
         { compute_compile, NULL, "Compile a compute shader" },
