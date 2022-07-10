@@ -51,6 +51,9 @@
 #include "compiler/nir/nir_builder.h"
 #include "bifrost/valhall/disassemble.h"
 
+/* TODO: Put this in v10.xml? */
+#define CS_EVENT_REGISTER 0x5A
+
 static void
 dump_start(FILE *f)
 {
@@ -428,6 +431,10 @@ get_csf_caps(struct state *s, struct test *t)
                 unsigned reg = stream_data[i].features & 0xff;
                 unsigned score = (stream_data[i].features >> 8) & 0xff;
                 unsigned feat = stream_data[i].features >> 16;
+
+                /* I think this is correct... */
+                if (reg > CS_EVENT_REGISTER)
+                        ++reg;
 
                 fprintf(stderr, "Stream %i-: 0x%x work registers, %i scoreboards, iterator mask: 0x%x\n",
                         i, reg, score, feat);
@@ -1029,6 +1036,8 @@ cs_init(struct state *s, struct test *t)
                 pan_pack_ins(s->cs + i, CS_SELECT_BUFFER, cfg) {
                         cfg.index = 2;
                 }
+                pan_emit_cs_48(s->cs + i, CS_EVENT_REGISTER,
+                               s->allocations.event.gpu);
                 submit_cs(s, i);
 
                 if (!kick_queue(s, i))
