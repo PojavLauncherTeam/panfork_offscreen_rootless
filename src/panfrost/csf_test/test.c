@@ -127,7 +127,7 @@ struct state {
         uint32_t gpu_id;
 
         struct {
-                struct panfrost_ptr normal, exec, coherent, cached;
+                struct panfrost_ptr normal, exec, coherent, cached, event;
         } allocations;
 
         uint64_t tiler_heap_va;
@@ -1013,6 +1013,9 @@ wait_cs(struct state *s, unsigned i)
 static bool
 cs_init(struct state *s, struct test *t)
 {
+        uint64_t event_init[] = { 1, 1, 1 };
+        memcpy(s->allocations.event.cpu, event_init, sizeof(event_init));
+
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 CS_WRITE_REGISTER(s, i, CS_INSERT, 0);
                 pan_pack_ins(s->cs + i, CS_SET_ITERATOR, cfg) {
@@ -1328,6 +1331,7 @@ struct test kbase_main[] = {
         ALLOC_TEST("Allocate exectuable memory", exec, 0x2017),
         ALLOC_TEST("Allocate coherent memory", coherent, 0x280f),
         ALLOC_TEST("Allocate cached memory", cached, 0x380f),
+        ALLOC_TEST("Allocate CSF event memory", event, 0x8200f),
 
         /* These three tests are run for every queue, but later ones are not */
         { cs_queue_create, cs_queue_free, "Create command stream queues" },
