@@ -432,10 +432,6 @@ get_csf_caps(struct state *s, struct test *t)
                 unsigned score = (stream_data[i].features >> 8) & 0xff;
                 unsigned feat = stream_data[i].features >> 16;
 
-                /* I think this is correct... */
-                if (reg > CS_EVENT_REGISTER)
-                        ++reg;
-
                 fprintf(stderr, "Stream %i-: 0x%x work registers, %i scoreboards, iterator mask: 0x%x\n",
                         i, reg, score, feat);
         }
@@ -1293,6 +1289,8 @@ compute_execute(struct state *s, struct test *t)
 
         pan_pack_ins(i, COMPUTE_LAUNCH, _);
 
+        pan_emit_cs_32(c, 0x54, 1);
+        pan_emit_cs_ins(c, 0x24, 0x540000000233);
         pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
 

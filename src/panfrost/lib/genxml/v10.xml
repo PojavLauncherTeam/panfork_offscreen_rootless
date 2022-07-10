@@ -1509,7 +1509,7 @@
 
   <struct name="CS Str 32" layout="ins" op="38">
     <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
-    <field name="Unk 2" start="16" size="16" type="hex" default="4"/>
+    <field name="Unk 2" start="16" size="16" type="hex" default="253"/>
     <!-- TODO: Separate types for 32-bit and 64-bit registers -->
     <field name="Addr" start="32" size="8" type="register"/>
     <field name="Value" start="40" size="8" type="register"/>
