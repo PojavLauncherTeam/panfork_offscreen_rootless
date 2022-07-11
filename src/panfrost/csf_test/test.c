@@ -1062,8 +1062,8 @@ cs_store(struct state *s, struct test *t)
 {
         pan_command_stream *c = s->cs;
 
-        uint32_t *dest = s->allocations.cached.cpu + 240;
-        mali_ptr dest_va = s->allocations.cached.gpu + 240;
+        uint32_t *dest = s->allocations.event.cpu + 240;
+        mali_ptr dest_va = s->allocations.event.gpu + 240;
         uint32_t value = 1234;
         uint32_t add = 4320000;
 
