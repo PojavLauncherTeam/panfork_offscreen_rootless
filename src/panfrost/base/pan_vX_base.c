@@ -878,11 +878,12 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
                 assert(handle_buf[h].use_count < 255);
 
                 /* Implicit sync */
-                for (unsigned s = 0; s < KBASE_SLOT_COUNT; ++s)
-                        dep_slots[s] =
-                                kbase_latest_slot(dep_slots[s],
-                                                  handle_buf[h].last_access[s],
-                                                  nr);
+                if (handle_buf[h].use_count)
+                        for (unsigned s = 0; s < KBASE_SLOT_COUNT; ++s)
+                                dep_slots[s] =
+                                        kbase_latest_slot(dep_slots[s],
+                                                          handle_buf[h].last_access[s],
+                                                          nr);
 
                 handle_buf[h].last_access[slot] = nr;
                 ++handle_buf[h].use_count;
