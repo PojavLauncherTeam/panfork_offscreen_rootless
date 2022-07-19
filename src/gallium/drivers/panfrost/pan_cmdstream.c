@@ -3338,9 +3338,7 @@ panfrost_emit_draw(void *out,
 
                 cfg.multisample_enable = rast->multisample;
 
-#if PAN_ARCH < 10
-                cfg.sample_mask = rast->multisample ? ctx->sample_mask : 0xFFFF; // TODO v10
-#endif
+                cfg.sample_mask = rast->multisample ? ctx->sample_mask : 0xFFFF;
 
                 /* Use per-sample shading if required by API Also use it when a
                  * blend shader is used with multisampling, as this is handled

@@ -1163,27 +1163,20 @@ pan_preload_emit_dcd(struct pan_pool *pool,
 
                         cfg.blend = blend.gpu;
                         cfg.blend_count = bd_count;
-                        /* TODO v10: Remove these ifdefs once we find the bits */
-#if PAN_ARCH < 10
                         cfg.render_target_mask = 0x1;
-#endif
                 }
 
                 cfg.allow_forward_pixel_to_kill = !zs;
                 cfg.allow_forward_pixel_to_be_killed = true;
                 cfg.depth_stencil = pan_blitter_emit_zs(pool, z, s);
-#if PAN_ARCH < 10
                 cfg.sample_mask = 0xFFFF;
-#endif
                 cfg.multisample_enable = ms;
                 cfg.evaluate_per_sample = ms;
                 cfg.maximum_z = 1.0;
                 cfg.clean_fragment_write = clean_fragment_write;
-#if PAN_ARCH < 10
                 cfg.shader.resources = T.gpu | nr_tables;
                 cfg.shader.shader = spd.gpu;
                 cfg.shader.thread_storage = tsd;
-#endif
         }
 #endif
 }

@@ -1052,6 +1052,8 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
 
         CS_RING_DOORBELL(cs);
 
+        __asm__ volatile ("dmb sy" ::: "memory");
+
         // for good luck
         struct kbase_ioctl_cs_queue_kick kick = {
                 .buffer_gpu_addr = cs->va,
@@ -1071,6 +1073,10 @@ static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 {
         unsigned count = 0;
+
+        // Clearly it's useless to check CS_EXTRACT... at least without the
+        // necessary synchronisation commands?
+        usleep(100000);
 
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
                 usleep(10000);
