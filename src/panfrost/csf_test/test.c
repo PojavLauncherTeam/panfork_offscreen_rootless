@@ -84,6 +84,12 @@ cache_barrier(void)
         __asm__ volatile ("dsb sy" ::: "memory");
 }
 
+static void
+memory_barrier(void)
+{
+        __asm__ volatile ("dmb sy" ::: "memory");
+}
+
 typedef void (*cacheline_op)(volatile void *addr);
 
 #define CACHELINE_SIZE 64
@@ -130,7 +136,7 @@ struct state {
         uint32_t gpu_id;
 
         struct {
-                struct panfrost_ptr normal, exec, coherent, cached, event;
+                struct panfrost_ptr normal, exec, coherent, cached, event, ev2;
         } allocations;
 
         uint64_t tiler_heap_va;
@@ -864,11 +870,9 @@ submit_cs(struct state *s, unsigned i)
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
         s->cs[i].ptr = s->cs_mem[i].cpu + insert_offset;
 
-        cache_barrier();
-        // Just to make sure it's written...
-        usleep(1000);
-
+	memory_barrier();
         CS_RING_DOORBELL(s, i);
+	memory_barrier();
 
         s->cs_last_submit[i] = insert_offset;
 }
@@ -936,12 +940,17 @@ wait_event(struct state *s, unsigned timeout_ms)
                 break;
         }
         case BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL: {
+		unsigned queue = e.payload.fatal_queue.csi_index;
+
                 // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
                 fprintf(stderr, "Queue %i error: status 0x%x "
-                        "sideband 0x%"PRIx64"\n",
-                        e.payload.fatal_queue.csi_index,
-                        e.payload.fatal_queue.status,
+                        "sideband 0x%"PRIx64":",
+                        queue, e.payload.fatal_queue.status,
                         (uint64_t) e.payload.fatal_queue.sideband);
+
+		unsigned e = CS_READ_REGISTER(s, queue, CS_EXTRACT);
+		pandecode_cs(s->cs_mem[queue].gpu + e, 8, s->gpu_id);
+
                 break;
         }
 
@@ -993,8 +1002,10 @@ wait_cs(struct state *s, unsigned i)
 
                         if (e != extract_offset) {
                                 fprintf(stderr, "CS_EXTRACT (%i) != %i, "
-                                        "CS_ACTIVE (%i)\n",
+                                        "CS_ACTIVE (%i):",
                                         e, extract_offset, a);
+				/* Decode two instructions instead? */
+				pandecode_cs(s->cs_mem[i].gpu + e, 8, s->gpu_id);
 
                                 if (done_kick) {
                                         cache_barrier();
@@ -1062,8 +1073,8 @@ cs_store(struct state *s, struct test *t)
 {
         pan_command_stream *c = s->cs;
 
-        uint32_t *dest = s->allocations.event.cpu + 240;
-        mali_ptr dest_va = s->allocations.event.gpu + 240;
+        uint32_t *dest = s->allocations.ev2.cpu + 240;
+        mali_ptr dest_va = s->allocations.ev2.gpu + 240;
         uint32_t value = 1234;
         uint32_t add = 4320000;
 
@@ -1090,6 +1101,9 @@ cs_store(struct state *s, struct test *t)
         }
 
         pan_pack_ins(c, CS_STR_32, cfg) {
+		cfg.unk_1 = 1;
+		cfg.unk_2 = 4;
+		cfg.unk_3 = 1;
                 cfg.addr = addr_reg;
                 cfg.value = value_reg;
         }
@@ -1149,10 +1163,15 @@ cs_sub(struct state *s, struct test *t)
 
         pan_emit_cs_48(i, addr_reg, dest_va);
         pan_emit_cs_32(i, value_reg, value);
+	pan_emit_cs_ins(i, 0x25, 0x01484a00f80005ULL);
+	/*
         pan_pack_ins(i, CS_STR_32, cfg) {
+		cfg.unk_1 = 1;
+		cfg.unk_2 = 4;
+		cfg.unk_3 = 1;
                 cfg.addr = addr_reg;
                 cfg.value = value_reg;
-        }
+		}*/
 
         emit_cs_call(c, cs_va, start, i->ptr);
 
@@ -1269,7 +1288,7 @@ compute_execute(struct state *s, struct test *t)
         void *start = i->ptr;
 
         pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
-        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+        //pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
 
         pan_pack_cs(i, COMPUTE_PAYLOAD, cfg) {
                 cfg.workgroup_size_x = 1;
@@ -1289,9 +1308,9 @@ compute_execute(struct state *s, struct test *t)
 
         pan_pack_ins(i, COMPUTE_LAUNCH, _);
 
-        pan_emit_cs_32(c, 0x54, 1);
-        pan_emit_cs_ins(c, 0x24, 0x540000000233);
-        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
+        //pan_emit_cs_32(c, 0x54, 1);
+        //pan_emit_cs_ins(c, 0x24, 0x540000000233);
+        //pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
 
         submit_cs(s, queue);
@@ -1339,6 +1358,7 @@ struct test kbase_main[] = {
         ALLOC_TEST("Allocate coherent memory", coherent, 0x280f),
         ALLOC_TEST("Allocate cached memory", cached, 0x380f),
         ALLOC_TEST("Allocate CSF event memory", event, 0x8200f),
+        ALLOC_TEST("Allocate CSF event memory 2", ev2, 0x8200f),
 
         /* These three tests are run for every queue, but later ones are not */
         { cs_queue_create, cs_queue_free, "Create command stream queues" },
@@ -1348,10 +1368,10 @@ struct test kbase_main[] = {
         { cs_simple, NULL, "Execute MOV command" },
         { cs_simple, NULL, "Execute MOV command (again)" },
         { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
-        { cs_simple, NULL, "Execute MOV command (vertex, invalid)", .invalid = true, .vertex = true },
-        { cs_simple, NULL, "Execute MOV command (vertex, again)", .invalid = true },
+        //{ cs_simple, NULL, "Execute MOV command (vertex, invalid)", .invalid = true, .vertex = true },
+        { cs_simple, NULL, "Execute MOV command (vertex, again)", .vertex = true },
         { cs_store, NULL, "Execute STR command" },
-        { cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
+        //{ cs_store, NULL, "Execute STR command to invalid address", .invalid = true },
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
@@ -1394,7 +1414,7 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
                                 printf("PASS\n");
                         } else {
                                 printf("FAIL\n");
-                                if (getenv("TEST_STOP_ON_FAIL"))
+                                if (!getenv("TEST_KEEP_GOING"))
                                         return i + 1;
                         }
                 }

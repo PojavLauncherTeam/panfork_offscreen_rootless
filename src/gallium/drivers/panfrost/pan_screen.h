@@ -100,6 +100,8 @@ struct panfrost_vtable {
                                struct panfrost_compile_inputs *inputs,
                                struct util_dynarray *binary,
                                struct pan_shader_info *info);
+
+	void (*emit_csf_toplevel)(struct panfrost_batch *);
 };
 
 struct panfrost_screen {

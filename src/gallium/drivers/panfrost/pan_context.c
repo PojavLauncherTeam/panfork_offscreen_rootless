@@ -895,6 +895,23 @@ panfrost_fence_server_sync(struct pipe_context *pctx,
         close(fd);
 }
 
+static struct panfrost_cs
+panfrost_cs_create(struct panfrost_device *dev, struct kbase_context *kctx, unsigned size,
+                   unsigned mask)
+{
+        struct panfrost_cs c = {0};
+
+        c.bo = panfrost_bo_create(dev, size, 0, "Command stream");
+        c.cs.ptr = c.bo->ptr.cpu;
+
+        c.base = dev->mali.cs_bind(&dev->mali, kctx, c.bo->ptr.gpu, size);
+
+        c.size = size;
+        c.mask = mask;
+
+        return c;
+}
+
 struct pipe_context *
 panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
 {
@@ -990,6 +1007,22 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
 
         if (dev->kbase && dev->mali.context_create)
                 ctx->kbase_ctx = dev->mali.context_create(&dev->mali);
+
+	if (dev->arch >= 10) {
+		ctx->kbase_cs_vertex = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 13);
+		ctx->kbase_cs_fragment = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 2);
+
+		ctx->event_bo = panfrost_bo_create(dev, 4096, PAN_BO_EVENT, "Event BO");
+
+		uint64_t event_init[] = { 1, 1, 1 };
+		memcpy(ctx->event_bo->ptr.cpu, event_init, sizeof(event_init));
+
+		ctx->kbase_cs_vertex.event_base = ctx->event_bo->ptr.gpu;
+		ctx->kbase_cs_fragment.event_base = ctx->event_bo->ptr.gpu;
+		// These values are fairly arbitrary
+		ctx->kbase_cs_vertex.event_ptr = ctx->event_bo->ptr.gpu + 128;
+		ctx->kbase_cs_fragment.event_ptr = ctx->event_bo->ptr.gpu + 192;
+	}
 
         /* Prepare for render! */
 

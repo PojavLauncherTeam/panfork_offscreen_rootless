@@ -50,6 +50,9 @@
  * cached locally */
 #define PAN_BO_SHARED             (1 << 4)
 
+/* Use event memory, required for CSF events to be signaled to the kernel */
+#define PAN_BO_EVENT              (1 << 5)
+
 /* GPU access flags */
 
 /* BO is either shared (can be accessed by more than one GPU batch) or private

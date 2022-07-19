@@ -25,6 +25,7 @@
  */
 
 #include <assert.h>
+#include <unistd.h>
 
 #include "drm-uapi/panfrost_drm.h"
 
@@ -766,6 +767,7 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                                        INT64_MAX, 0, NULL);
 
                 if (dev->debug & PAN_DBG_TRACE) {
+			// TODO: Remove CSF code
                         if (dev->arch < 10) {
                                 pandecode_jc(submit.jc, dev->gpu_id);
                         } else if (reqs & PANFROST_JD_REQ_FS) {
@@ -846,7 +848,32 @@ static int
 panfrost_batch_submit_csf(struct panfrost_batch *batch,
                           const struct pan_fb_info *fb)
 {
-        return 1;
+        struct panfrost_context *ctx = batch->ctx;
+        struct pipe_screen *pscreen = ctx->base.screen;
+        struct panfrost_screen *screen = pan_screen(pscreen);
+        struct panfrost_device *dev = pan_device(pscreen);
+
+        if (panfrost_has_fragment_job(batch))
+                screen->vtbl.emit_fragment_job(batch, fb);
+
+	screen->vtbl.emit_csf_toplevel(batch);
+
+	unsigned vs_offset = (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
+	unsigned fs_offset = (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
+
+	if (dev->debug & PAN_DBG_TRACE) {
+		// TODO: decode toplevel commands
+		pandecode_cs_bo(batch->cs_vertex_bo, dev->gpu_id);
+		pandecode_cs_bo(batch->cs_fragment_bo, dev->gpu_id);
+	}
+
+	dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL);
+	dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+
+	dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL);
+	dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
+
+	return 0;
 }
 
 static void

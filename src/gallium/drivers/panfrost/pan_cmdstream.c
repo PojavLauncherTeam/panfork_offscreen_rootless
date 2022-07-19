@@ -2777,6 +2777,50 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
         return transfer.gpu;
 }
 
+// TODO: Check that we don't go past CS_EXTRACT
+static void
+wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
+{
+	assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
+
+	if (s->ptr == bo->ptr.cpu + bo->size)
+		s->ptr = bo->ptr.cpu;
+}
+
+#define W wrap_csf(cs->bo, &cs->cs)
+
+static void
+emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
+{
+	// TODO clean up ifdef
+#if PAN_ARCH >= 10
+	// Nothing to emit
+	if (s.ptr == bo->ptr.cpu)
+		return;
+
+	if (!cs->init) {
+		pan_pack_ins(&cs->cs, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
+		pan_pack_ins(&cs->cs, CS_SELECT_BUFFER, cfg) { cfg.index = 2; } W;
+		pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
+
+		cs->init = true;
+	}
+
+	pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
+	pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
+	pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
+
+	// TODO: Do something yielding an event
+#endif
+}
+
+static void
+emit_csf_toplevel(struct panfrost_batch *batch)
+{
+	emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
+	emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
+}
+
 #define DEFINE_CASE(c) case PIPE_PRIM_##c: return MALI_DRAW_MODE_##c;
 
 static uint8_t
@@ -3049,11 +3093,19 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
                 return batch->tiler_ctx.bifrost;
 
         struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
+                pan_pool_alloc_aligned(&batch->pool.base, 0x12000, 64);
+//                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
 
-        GENX(pan_emit_tiler_heap)(dev, t.cpu);
+//        GENX(pan_emit_tiler_heap)(dev, t.cpu + 0x10000);
 
-        mali_ptr heap = t.gpu;
+        pan_pack(t.cpu + 0x10000, TILER_HEAP, heap) {
+                heap.size = 2097152;
+                heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
+                heap.bottom = heap.base + 64;
+                heap.top = heap.base + heap.size;
+        }
+
+        mali_ptr heap = t.gpu + 0x10000;
 
         t = pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
         GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
@@ -3231,7 +3283,7 @@ panfrost_emit_shader(struct panfrost_batch *batch,
         ubos = panfrost_emit_const_buf(batch, stage, &ubo_count, &cfg->fau,
                                        &fau_words);
 
-        resources = panfrost_emit_resources(batch, stage, ubos, ubo_count);
+        resources = panfrost_emit_resources(batch, stage, ubos, 0);// todo ubo_count
 
         cfg->thread_storage = thread_storage;
         cfg->shader = shader_ptr;
@@ -3334,11 +3386,9 @@ panfrost_emit_draw(void *out,
                          * Only set when there is a fragment shader, since
                          * otherwise no colour updates are possible.
                          */
-#if PAN_ARCH < 10
                         cfg.render_target_mask =
                                 (fs->info.outputs_written >> FRAG_RESULT_DATA0) &
-                                ctx->fb_rt_mask; // TODO v10
-#endif
+                                ctx->fb_rt_mask;
 
                         /* Also use per-sample shading if required by the shader
                          */
@@ -3493,6 +3543,8 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                                      batch->tls.gpu);
         }
 
+        return;
+
         pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, VARYING, cfg) {
                 /* If a varying shader is used, we configure it with the same
                  * state as the position shader for backwards compatible
@@ -3607,7 +3659,6 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
                  */
                 cfg.allow_merging_workgroups = true;
 
-                /* These are set later for v10 */
 #if PAN_ARCH < 10
                 cfg.task_increment = 1;
                 cfg.task_axis = MALI_TASK_AXIS_Z;
@@ -3630,8 +3681,7 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
 #if PAN_ARCH >= 10
         // TODO: Use a seperate compute queue?
         pan_pack_ins(&batch->cs_vertex, COMPUTE_LAUNCH, cfg) {
-                cfg.task_increment = 1;
-                cfg.task_axis = MALI_TASK_AXIS_Z;
+                // TODO v10: Set parameters
         }
         batch->scoreboard.first_job = 1;
 #else
@@ -4206,11 +4256,9 @@ panfrost_launch_grid(struct pipe_context *pipe,
                 cfg.workgroup_count_y = num_wg[1];
                 cfg.workgroup_count_z = num_wg[2];
 
-#if PAN_ARCH < 10
                 panfrost_emit_shader(batch, &cfg.compute, PIPE_SHADER_COMPUTE,
                                      batch->rsd[PIPE_SHADER_COMPUTE],
-                                     panfrost_emit_shared_memory(batch, info)); // TODO v10
-#endif
+                                     panfrost_emit_shared_memory(batch, info));
 
                 /* Workgroups may be merged if the shader does not use barriers
                  * or shared memory. This condition is checked against the
@@ -4251,8 +4299,8 @@ panfrost_launch_grid(struct pipe_context *pipe,
 
 #if PAN_ARCH >= 10
         pan_pack_ins(&batch->cs_vertex, COMPUTE_LAUNCH, cfg) {
-                cfg.task_increment = 1;
-                cfg.task_axis = MALI_TASK_AXIS_Z;
+                /* TODO: Change this as needed */
+                cfg.unk_1 = 512;
         }
         batch->scoreboard.first_job = 1;
 #else
@@ -4681,7 +4729,7 @@ prepare_shader(struct panfrost_compiled_shader *state,
         /* Generic, or IDVS/points */
         pan_pack(ptr.cpu, SHADER_PROGRAM, cfg) {
                 cfg.stage = pan_shader_stage(&state->info);
-                cfg.primary_shader = true;
+                cfg.primary_shader = false;
                 cfg.register_allocation = pan_register_allocation(state->info.work_reg_count);
                 cfg.binary = state->bin.gpu;
                 cfg.preload.r48_r63 = (state->info.preload >> 48);
@@ -4697,7 +4745,7 @@ prepare_shader(struct panfrost_compiled_shader *state,
         /* IDVS/triangles */
         pan_pack(ptr.cpu + pan_size(SHADER_PROGRAM), SHADER_PROGRAM, cfg) {
                 cfg.stage = pan_shader_stage(&state->info);
-                cfg.primary_shader = true;
+                cfg.primary_shader = false;
                 cfg.register_allocation = pan_register_allocation(state->info.work_reg_count);
                 cfg.binary = state->bin.gpu + state->info.vs.no_psiz_offset;
                 cfg.preload.r48_r63 = (state->info.preload >> 48);
@@ -4903,6 +4951,7 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
         screen->vtbl.init_polygon_list = init_polygon_list;
         screen->vtbl.get_compiler_options = GENX(pan_shader_get_compiler_options);
         screen->vtbl.compile_shader = GENX(pan_shader_compile);
+        screen->vtbl.emit_csf_toplevel = emit_csf_toplevel;
 
         GENX(pan_blitter_init)(dev, &screen->blitter.bin_pool.base,
                                &screen->blitter.desc_pool.base);

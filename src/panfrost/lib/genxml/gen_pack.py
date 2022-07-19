@@ -589,7 +589,7 @@ class Group(object):
 
             size = 32
             # Can we move all fields from the next index here?
-            if csf and index + 1 in words:
+            if csf and index % 2 == 0 and index + 1 in words:
                 word_next = words[index + 1]
                 end = max(c.end for c in word_next.contributors)
                 if end - word_start < 48:

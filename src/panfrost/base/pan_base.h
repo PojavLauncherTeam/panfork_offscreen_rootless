@@ -47,6 +47,10 @@ struct kbase_context {
 struct kbase_cs {
         struct kbase_context *ctx;
         void *user_io;
+	base_va va;
+	unsigned size;
+
+	unsigned last_insert;
 };
 
 struct kbase;

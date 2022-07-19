@@ -46,6 +46,8 @@
 #include "drm-uapi/panfrost_drm.h"
 
 #if PAN_BASE_API >= 2
+#include "csf/mali_gpu_csf_registers.h"
+
 #define MALI_USE_CSF 1
 #endif
 
@@ -500,8 +502,8 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
                 /* TODO: What about heap BOs? */
                 /* ++difficulty_level */
-                if (PAN_BASE_API >= 1)
-                        flags |= BASE_MEM_COHERENT_LOCAL | BASE_MEM_CACHED_CPU;
+                //if (PAN_BASE_API >= 1)
+                //        flags |= BASE_MEM_COHERENT_LOCAL | BASE_MEM_CACHED_CPU;
         }
 
         if (pan_flags & PANFROST_BO_HEAP) {
@@ -966,7 +968,10 @@ static struct kbase_cs
 kbase_cs_bind(kbase k, struct kbase_context *ctx,
               base_va va, unsigned size)
 {
-        struct kbase_cs cs = {0};
+        struct kbase_cs cs = {
+                .va = va,
+                .size = size,
+        };
 
         struct kbase_ioctl_cs_queue_register reg = {
                 .buffer_gpu_addr = va,
@@ -1021,6 +1026,68 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
         };
 
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
+}
+
+#define CS_RING_DOORBELL(cs) \
+        *((uint32_t *)(cs->user_io)) = 1
+
+#define CS_READ_REGISTER(cs, r) \
+        *((uint64_t *)(cs->user_io + 4096 * 2 + r))
+
+#define CS_WRITE_REGISTER(cs, r, v) \
+        *((uint64_t *)(cs->user_io + 4096 + r)) = v
+
+static bool
+kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
+                struct kbase_syncobj *o)
+{
+        if (insert_offset == cs->last_insert)
+                return true;
+
+        __asm__ volatile ("dsb sy" ::: "memory");
+
+        CS_WRITE_REGISTER(cs, CS_INSERT, insert_offset);
+
+        __asm__ volatile ("dmb sy" ::: "memory");
+
+        CS_RING_DOORBELL(cs);
+
+        // for good luck
+        struct kbase_ioctl_cs_queue_kick kick = {
+                .buffer_gpu_addr = cs->va,
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
+{
+        unsigned count = 0;
+
+        while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
+                usleep(10000);
+                ++count;
+
+                if (count > 200) {
+                        unsigned e = CS_READ_REGISTER(cs, CS_EXTRACT);
+                        unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
+
+                        fprintf(stderr, "CS_EXTRACT (%i) != %i, "
+                                "CS_ACTIVE (%i)\n",
+                                e, extract_offset, a);
+                        return false;
+                }
+        }
+
+        return true;
 }
 #endif
 
@@ -1154,6 +1221,8 @@ kbase_open_csf
 
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
+        k->cs_submit = kbase_cs_submit;
+        k->cs_wait = kbase_cs_wait;
 #endif
 
         k->syncobj_create = kbase_syncobj_create;

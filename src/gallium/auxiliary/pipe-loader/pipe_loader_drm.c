@@ -188,8 +188,7 @@ pipe_loader_drm_probe_fd(struct pipe_loader_device **dev, int fd)
    bool ret;
    int new_fd;
 
-   if (fd < 0 || (new_fd = os_dupfd_cloexec(fd)) < 0)
-     return false;
+   new_fd = fd;
 
    ret = pipe_loader_drm_probe_fd_nodup(dev, new_fd);
    if (!ret)

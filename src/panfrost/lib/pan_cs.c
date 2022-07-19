@@ -287,6 +287,8 @@ pan_prepare_crc(const struct pan_fb_info *fb, int rt_crc,
                 uint32_t clear_val = fb->rts[rt_crc].clear_value[0];
                 ext->crc_clear_color = clear_val | 0xc000000000000000 |
                                        (((uint64_t)clear_val & 0xffff) << 32);
+#else
+                ext->crc_unk = 0x1f;
 #endif
         }
 #endif
@@ -735,6 +737,9 @@ GENX(pan_emit_fbd)(const struct panfrost_device *dev,
 #if PAN_ARCH >= 6
                 bool force_clean_write = pan_force_clean_write(fb, tile_size);
 
+#if PAN_ARCH >= 9
+                cfg.frame_argument = 0x10000;
+#endif
                 cfg.sample_locations =
                         panfrost_sample_positions(dev, pan_sample_pattern(fb->nr_samples));
                 cfg.pre_frame_0 = pan_fix_frame_shader_mode(fb->bifrost.pre_post.modes[0], force_clean_write);
@@ -944,7 +949,7 @@ GENX(pan_emit_tiler_heap)(const struct panfrost_device *dev,
         pan_pack(out, TILER_HEAP, heap) {
                 heap.size = dev->tiler_heap->size;
                 heap.base = dev->tiler_heap->ptr.gpu;
-                heap.bottom = dev->tiler_heap->ptr.gpu;
+                heap.bottom = dev->tiler_heap->ptr.gpu + 64;
                 heap.top = dev->tiler_heap->ptr.gpu + dev->tiler_heap->size;
         }
 }
@@ -969,16 +974,21 @@ GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
                  * on dEQP-GLES31.functional.fbo.no_attachments.maximums.all on
                  * Mali-G57.
                  */
-                if (MAX2(fb_width, fb_height) >= 4096)
-                        tiler.hierarchy_mask &= ~1;
+                //if (MAX2(fb_width, fb_height) >= 4096)
+                tiler.hierarchy_mask &= ~1;
 
                 tiler.fb_width = fb_width;
                 tiler.fb_height = fb_height;
                 tiler.heap = heap;
+#if PAN_ARCH >= 10
+                tiler.unk_heap = heap - 0xfff0;
+#endif
                 tiler.sample_pattern = pan_sample_pattern(nr_samples);
 #if PAN_ARCH >= 9
                 tiler.first_provoking_vertex = first_provoking_vertex;
 #endif
+                tiler.state.word1 = 31;
+                tiler.state.word3 = 0x10000000;
         }
 }
 #endif
@@ -995,11 +1005,17 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
         }
 #endif
 
+#if PAN_ARCH < 10
+#define BOUND_SHIFT MALI_TILE_SHIFT
+#else
+#define BOUND_SHIFT 0
+#endif
+
         pan_section_pack_cs_v10(out, fb->cs_fragment, FRAGMENT_JOB, PAYLOAD, payload) {
-                payload.bound_min_x = fb->extent.minx >> MALI_TILE_SHIFT;
-                payload.bound_min_y = fb->extent.miny >> MALI_TILE_SHIFT;
-                payload.bound_max_x = fb->extent.maxx >> MALI_TILE_SHIFT;
-                payload.bound_max_y = fb->extent.maxy >> MALI_TILE_SHIFT;
+                payload.bound_min_x = fb->extent.minx >> BOUND_SHIFT;
+                payload.bound_min_y = fb->extent.miny >> BOUND_SHIFT;
+                payload.bound_max_x = fb->extent.maxx >> BOUND_SHIFT;
+                payload.bound_max_y = fb->extent.maxy >> BOUND_SHIFT;
                 payload.framebuffer = fbd;
 
                 // TODO: The location of `tile_enable_map` for v10

@@ -75,7 +75,9 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
         void *cpu = NULL;
 
         if (dev->kbase) {
-                struct base_ptr p = dev->mali.alloc(&dev->mali, size, create_bo.flags, 0);
+                unsigned mali_flags = (flags & PAN_BO_EVENT) ? 0x8200f : 0;
+
+                struct base_ptr p = dev->mali.alloc(&dev->mali, size, create_bo.flags, mali_flags);
 
                 if (p.gpu) {
                         cpu = p.cpu;

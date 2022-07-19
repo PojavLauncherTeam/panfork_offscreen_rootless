@@ -610,6 +610,7 @@
   <struct name="Primitive" layout="cs">
     <field name="Point size array format" size="2" start="0x38:11" type="Point Size Array Format"/>
     <field name="Primitive restart" size="2" start="0x38:18" type="Primitive Restart"/>
+    <field name="Unk 2" size="8" start="0x38:16" type="hex" default="67"/>
 
     <!-- These are likely 0x38, but bit positions have not been verified -->
     <field name="Primitive Index Enable" size="1" start="0:13" type="bool"/>
@@ -1076,6 +1077,7 @@
     <field name="ZS Clean Pixel Write Enable" size="1" start="0:31" type="bool"/>
 
     <field name="CRC Row Stride" size="32" start="1:0" type="uint"/>
+    <field name="CRC Unk" size="16" start="2:0" type="hex"/>
     <field name="CRC Clear Color" size="48" start="2:16" type="hex"/>
     <field name="CRC Base" size="64" start="4:0" type="address"/>
 
@@ -1179,7 +1181,7 @@
   <struct name="Tiler Heap" align="32">
     <field name="Type" size="4" start="0:0" type="Descriptor Type" default="Buffer"/>
     <field name="Buffer type" size="4" start="0:4" type="Buffer Type" default="Tiler heap"/>
-    <field name="Chunk size" size="2" start="0:8" type="Chunk Size" default="2 MiB"/>
+    <field name="Chunk size" size="2" start="0:8" type="Chunk Size" default="256 KiB"/>
     <field name="Partitioning" size="2" start="0:10" type="Chunk Partition" default="Dynamic"/>
     <field name="Size" size="32" start="1:0" type="uint" modifier="align(4096)"/>
     <field name="Base" size="64" start="2:0" type="address"/>
@@ -1229,6 +1231,7 @@
     <field name="Layer count" size="8" start="4:0" type="uint" default="1" modifier="minus(1)"/>
     <field name="Layer offset" size="8" start="4:8" type="uint"/>
     <field name="Heap" size="64" start="6:0" type="address"/>
+    <field name="Unk Heap" size="64" start="8:0" type="address"/>
     <field name="Weights" size="256" start="8:0" type="Tiler Weights"/>
     <field name="State" size="512" start="32:0" type="Tiler State"/>
   </struct>
@@ -1321,9 +1324,9 @@
   </struct>
 
   <struct name="Compute Launch" layout="ins" op="4">
-    <field name="Task increment" start="0" size="14" type="uint" default="1"/>
-    <field name="Task axis" start="14" size="2" type="Task Axis"/>
-    <field name="Unk" start="40" size="8" type="hex" default="255"/>
+    <field name="Unk 1" start="0" size="14" type="uint" default="1"/>
+    <field name="Unk 2" start="14" size="2" type="uint" default="2"/>
+    <field name="Unk 3" start="40" size="8" type="hex" default="255"/>
   </struct>
 
   <!-- Compute job also covers vertex and geometry operations -->
@@ -1398,10 +1401,12 @@
     <field name="Alpha-to-coverage Invert" size="1" start="0x39:21" type="bool"/>
     <field name="Alpha-to-coverage" size="1" start="0x39:22" type="bool"/>
     <field name="Scissor to bounding box" size="1" start="0x39:23" type="bool"/>
+    <field name="Render target mask" start="0x26:12" size="8" type="hex"/>
+    <field name="Sample mask" size="16" start="0x3a:0" type="uint"/>
 
-    <!-- TODO: Do these -->
-    <field name="Sample mask" size="16" start="1:0" type="uint"/>
-    <field name="Render target mask" start="1:16" size="8" type="hex"/>
+    <field name="Unk 1" size="1" start="0x3a:16" type="bool" default="true"/>
+
+    <!-- TODO v10 -->
     <field name="Vertex array" start="2:0" size="96" type="Vertex Array"/>
 
     <field name="Minimum Z" start="0x2c:0" size="32" type="float"/>
@@ -1434,10 +1439,10 @@
     <field name="Alpha-to-coverage Invert" size="1" start="0:21" type="bool"/>
     <field name="Alpha-to-coverage" size="1" start="0:22" type="bool"/>
     <field name="Scissor to bounding box" size="1" start="0:23" type="bool"/>
-    <!-- TODO v10 -->
-    <!--<field name="Sample mask" size="16" start="1:0" type="uint"/>
     <field name="Render target mask" start="1:16" size="8" type="hex"/>
-    <field name="Vertex array" start="2:0" size="96" type="Vertex Array"/>-->
+    <field name="Sample mask" size="16" start="1:0" type="uint"/>
+    <!-- TODO v10 -->
+    <!--<field name="Vertex array" start="2:0" size="96" type="Vertex Array"/>-->
     <field name="Minimum Z" start="6:0" size="32" type="float"/>
     <field name="Maximum Z" start="7:0" size="32" type="float"/>
     <field name="Depth/stencil" start="10:0" size="64" type="address"/>
@@ -1511,8 +1516,8 @@
     <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
     <field name="Unk 2" start="16" size="16" type="hex" default="253"/>
     <!-- TODO: Separate types for 32-bit and 64-bit registers -->
-    <field name="Addr" start="32" size="8" type="register"/>
-    <field name="Value" start="40" size="8" type="register"/>
+    <field name="Value" start="32" size="8" type="register"/>
+    <field name="Addr" start="40" size="8" type="register"/>
     <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
   </struct>
 

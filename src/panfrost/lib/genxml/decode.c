@@ -1305,6 +1305,9 @@ pandecode_cs_command(uint64_t command,
         uint8_t arg1 = h & 0xff;
         uint8_t arg2 = h >> 8;
 
+	if (command)
+		pandecode_log("%016"PRIx64" ", command);
+
         switch (op) {
         case 0:
                 if (addr || value)

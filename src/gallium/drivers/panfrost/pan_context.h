@@ -117,6 +117,18 @@ struct panfrost_streamout {
         unsigned num_targets;
 };
 
+/* TODO this struct is a mess */
+struct panfrost_cs {
+	struct kbase_cs base;
+	struct panfrost_bo *bo;
+	pan_command_stream cs;
+	unsigned size;
+	unsigned mask;
+	bool init;
+	mali_ptr event_base;
+	mali_ptr event_ptr;
+};
+
 struct panfrost_context {
         /* Gallium context */
         struct pipe_context base;
@@ -232,6 +244,9 @@ struct panfrost_context {
         uint32_t in_sync_obj;
 
         struct kbase_context *kbase_ctx;
+	struct panfrost_bo *event_bo;
+	struct panfrost_cs kbase_cs_vertex;
+	struct panfrost_cs kbase_cs_fragment;
 };
 
 /* Corresponds to the CSO */
