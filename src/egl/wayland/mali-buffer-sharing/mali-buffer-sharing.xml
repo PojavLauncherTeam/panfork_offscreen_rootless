@@ -26,13 +26,16 @@
     THIS SOFTWARE.
   </copyright>
 
-  <interface name="mali_buffer_sharing" version="4">
+  <interface name="mali_buffer_sharing" version="5">
     <enum name="format">
+      <!-- TODO: Update old enums -->
       <entry name="argb4444" value="0x10ba60a"/>
       <entry name="argb5551" value="0x104160a"/>
       <entry name="rgb565" value="0x1040a0a"/>
       <entry name="xrgb8888" value="0x10bba0a"/>
-      <entry name="argb8888" value="0x10bb60a"/>
+
+      <!-- TODO: This is AB24 -->
+      <entry name="argb8888" value="0x34324241"/>
     </enum>
 
     <event name="alloc_device">
@@ -44,8 +47,9 @@
       <arg name="width" type="int"/>
       <arg name="height" type="int"/>
       <arg name="stride" type="uint"/>
-      <arg name="offset" type="uint"/>
       <arg name="format" type="uint"/>
+      <arg name="unk1" type="uint"/>
+      <arg name="unk2" type="uint"/>
       <!-- FD of the dmabuf to send -->
       <arg name="name" type="fd"/>
     </request>

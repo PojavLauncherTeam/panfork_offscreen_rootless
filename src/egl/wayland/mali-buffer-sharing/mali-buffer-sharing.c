@@ -103,8 +103,8 @@ static void
 mali_create_buffer(struct wl_client *client,
                    struct wl_resource *resource,
                    uint32_t id,
-                   int32_t width, int32_t height,
-                   uint32_t stride, uint32_t offset, uint32_t format,
+                   int32_t width, int32_t height, uint32_t stride,
+                   uint32_t format, uint32_t unk1, uint32_t unk2,
                    int fd)
 {
         enum wl_drm_format drm_format;
@@ -122,7 +122,7 @@ mali_create_buffer(struct wl_client *client,
         }
 
         create_buffer(client, resource, id, 0, fd, width, height, drm_format,
-                      offset, stride);
+                      0, stride);
         close(fd);
 }
 

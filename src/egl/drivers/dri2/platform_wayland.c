@@ -1507,7 +1507,7 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
 
       ret = mali_buffer_sharing_create_buffer((void *)wl_mali,
                                               width, height, stride,
-                                              0 /* offset */, format, fd);
+                                              format, 0, 0, fd);
       close(fd);
    } else {
       struct wl_drm *wl_drm =
@@ -1789,7 +1789,7 @@ mali_handle_device(void *data, struct mali_buffer_sharing *drm, const char *devi
    drm_magic_t magic;
 
    // hack
-   printf("device '%s'\n", device);
+   //printf("device '%s'\n", device);
    dri2_dpy->device_name = strdup("/dev/dri/card0");
 
    dri2_dpy->fd = loader_open_device(dri2_dpy->device_name);
@@ -2057,7 +2057,7 @@ registry_handle_global_drm(void *data, struct wl_registry *registry,
       dri2_dpy->wl_drm_version = MIN2(version, 2);
       dri2_dpy->wl_drm_name = name;
    } else if (strcmp(interface, mali_buffer_sharing_interface.name) == 0) {
-      dri2_dpy->wl_mali_version = MIN2(version, 4);
+      dri2_dpy->wl_mali_version = MIN2(version, 5);
       dri2_dpy->wl_mali_name = name;
    } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 && version >= 3) {
       dri2_dpy->wl_dmabuf =
