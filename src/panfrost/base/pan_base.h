@@ -51,6 +51,7 @@ struct kbase_cs {
         unsigned size;
 
         unsigned last_insert;
+        unsigned last_extract;
 };
 
 struct kbase;

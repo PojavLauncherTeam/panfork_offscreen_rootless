@@ -1078,6 +1078,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
         // necessary synchronisation commands?
         usleep(100000);
 
+        // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
                 usleep(10000);
                 ++count;
@@ -1089,9 +1090,14 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
                         fprintf(stderr, "CS_EXTRACT (%i) != %i, "
                                 "CS_ACTIVE (%i)\n",
                                 e, extract_offset, a);
+
+                        cs->last_extract = e;
+
                         return false;
                 }
         }
+
+        cs->last_extract = extract_offset;
 
         return true;
 }
