@@ -2781,10 +2781,10 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 static void
 wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
 {
-	assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
+        assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
 
-	if (s->ptr == bo->ptr.cpu + bo->size)
-		s->ptr = bo->ptr.cpu;
+        if (s->ptr == bo->ptr.cpu + bo->size)
+                s->ptr = bo->ptr.cpu;
 }
 
 #define W wrap_csf(cs->bo, &cs->cs)
@@ -2792,33 +2792,33 @@ wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
 static void
 emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
 {
-	// TODO clean up ifdef
+        // TODO clean up ifdef
 #if PAN_ARCH >= 10
-	// Nothing to emit
-	if (s.ptr == bo->ptr.cpu)
-		return;
+        // Nothing to emit
+        if (s.ptr == bo->ptr.cpu)
+                return;
 
-	if (!cs->init) {
-		pan_pack_ins(&cs->cs, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
-		pan_pack_ins(&cs->cs, CS_SELECT_BUFFER, cfg) { cfg.index = 2; } W;
-		pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
+        if (!cs->init) {
+                pan_pack_ins(&cs->cs, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
+                pan_pack_ins(&cs->cs, CS_SELECT_BUFFER, cfg) { cfg.index = 2; } W;
+                pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
 
-		cs->init = true;
-	}
+                cs->init = true;
+        }
 
-	pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
-	pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
-	pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
+        pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
+        pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
+        pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 
-	// TODO: Do something yielding an event
+        // TODO: Do something yielding an event
 #endif
 }
 
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
-	emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
-	emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
+        emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
+        emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
 }
 
 #define DEFINE_CASE(c) case PIPE_PRIM_##c: return MALI_DRAW_MODE_##c;

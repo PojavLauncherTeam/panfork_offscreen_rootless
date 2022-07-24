@@ -1004,8 +1004,8 @@ wait_cs(struct state *s, unsigned i)
                                 fprintf(stderr, "CS_EXTRACT (%i) != %i, "
                                         "CS_ACTIVE (%i):",
                                         e, extract_offset, a);
-				/* Decode two instructions instead? */
-				pandecode_cs(s->cs_mem[i].gpu + e, 8, s->gpu_id);
+                                /* Decode two instructions instead? */
+                                pandecode_cs(s->cs_mem[i].gpu + e, 8, s->gpu_id);
 
                                 if (done_kick) {
                                         cache_barrier();

@@ -856,24 +856,25 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         if (panfrost_has_fragment_job(batch))
                 screen->vtbl.emit_fragment_job(batch, fb);
 
-	screen->vtbl.emit_csf_toplevel(batch);
+        screen->vtbl.emit_csf_toplevel(batch);
 
-	unsigned vs_offset = (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
-	unsigned fs_offset = (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
+        unsigned vs_offset = (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
+        unsigned fs_offset = (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
 
-	if (dev->debug & PAN_DBG_TRACE) {
-		// TODO: decode toplevel commands
-		pandecode_cs_bo(batch->cs_vertex_bo, dev->gpu_id);
-		pandecode_cs_bo(batch->cs_fragment_bo, dev->gpu_id);
-	}
+        if (dev->debug & PAN_DBG_TRACE) {
+                // TODO: decode toplevel commands
+                pandecode_cs_bo(batch->cs_vertex_bo, dev->gpu_id);
+                pandecode_cs_bo(batch->cs_fragment_bo, dev->gpu_id);
+        }
 
-	dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL);
-	dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL);
+        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
 
-	dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL);
-	dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
-	return 0;
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL);
+        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
+
+        return 0;
 }
 
 static void
