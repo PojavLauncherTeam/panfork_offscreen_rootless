@@ -3092,20 +3092,28 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         if (batch->tiler_ctx.bifrost)
                 return batch->tiler_ctx.bifrost;
 
+#if PAN_ARCH < 10
+        struct panfrost_ptr t =
+                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
+
+        GENX(pan_emit_tiler_heap)(dev, t.cpu);
+#else
         struct panfrost_ptr t =
                 pan_pool_alloc_aligned(&batch->pool.base, 0x12000, 64);
-//                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
 
-//        GENX(pan_emit_tiler_heap)(dev, t.cpu + 0x10000);
+        /* What's this about? I don't know... */
+        t.cpu += 0x10000;
+        t.gpu += 0x10000;
 
-        pan_pack(t.cpu + 0x10000, TILER_HEAP, heap) {
+        pan_pack(t.cpu, TILER_HEAP, heap) {
                 heap.size = 2097152;
                 heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
                 heap.bottom = heap.base + 64;
                 heap.top = heap.base + heap.size;
         }
+#endif
 
-        mali_ptr heap = t.gpu + 0x10000;
+        mali_ptr heap = t.gpu;
 
         t = pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
         GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
@@ -3283,7 +3291,8 @@ panfrost_emit_shader(struct panfrost_batch *batch,
         ubos = panfrost_emit_const_buf(batch, stage, &ubo_count, &cfg->fau,
                                        &fau_words);
 
-        resources = panfrost_emit_resources(batch, stage, ubos, 0);// todo ubo_count
+        // TODO: is UBO emission problematic?
+        resources = panfrost_emit_resources(batch, stage, ubos, ubo_count);
 
         cfg->thread_storage = thread_storage;
         cfg->shader = shader_ptr;
@@ -3539,22 +3548,28 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
 
                 panfrost_emit_shader(batch, &cfg, PIPE_SHADER_VERTEX, vs_ptr,
                                      batch->tls.gpu);
-        }
 
-        return;
+                // do we always emit this in this path?
+                // oh.. see below
 
-        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, VARYING, cfg) {
-                /* If a varying shader is used, we configure it with the same
-                 * state as the position shader for backwards compatible
-                 * behaviour with Bifrost. This could be optimized.
-                 */
-                if (!secondary_shader) continue;
+                pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, VARYING, vary) {
+                        /* If a varying shader is used, we configure it with the same
+                         * state as the position shader for backwards compatible
+                         * behaviour with Bifrost. This could be optimized.
+                         */
+                        if (!secondary_shader) continue;
 
-                mali_ptr ptr = batch->rsd[PIPE_SHADER_VERTEX] +
+                        mali_ptr ptr = batch->rsd[PIPE_SHADER_VERTEX] +
                                 (2 * pan_size(SHADER_PROGRAM));
 
-                panfrost_emit_shader(batch, &cfg, PIPE_SHADER_VERTEX,
-                             ptr, batch->tls.gpu);
+                        vary.thread_storage = cfg.thread_storage;
+                        vary.shader = ptr;
+                        // todo are these shared?
+                        vary.resources = cfg.resources;
+
+                        vary.fau = cfg.fau;
+                        vary.fau_count = cfg.fau_count;
+                }
         }
 }
 #endif
