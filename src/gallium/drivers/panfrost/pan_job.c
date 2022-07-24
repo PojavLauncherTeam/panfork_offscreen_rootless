@@ -870,18 +870,23 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL);
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
 
-        if (ctx->kbase_cs_vertex.base.last_extract != vs_offset)
-                pandecode_cs(ctx->kbase_cs_vertex.base.va +
-                             ctx->kbase_cs_vertex.base.last_extract,
-                             16, dev->gpu_id);
+        if (ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
+                void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +
+                        ctx->kbase_cs_vertex.base.last_extract;
+                uint64_t *a = x;
+                // TODO: Avoid buffer overflows
+                fprintf(stderr, "V 0x%lx 0x%lx 0x%lx\n", a[-1], a[0], a[1]);
+        }
 
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL);
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
-        if (ctx->kbase_cs_fragment.base.last_extract != fs_offset)
-                pandecode_cs(ctx->kbase_cs_fragment.base.va +
-                             ctx->kbase_cs_fragment.base.last_extract,
-                             16, dev->gpu_id);
+        if (ctx->kbase_cs_fragment.base.last_extract != vs_offset) {
+                void *x = ctx->kbase_cs_fragment.bo->ptr.cpu +
+                        ctx->kbase_cs_fragment.base.last_extract;
+                uint64_t *a = x;
+                fprintf(stderr, "F 0x%lx 0x%lx 0x%lx\n", a[-1], a[0], a[1]);
+        }
 
         return 0;
 }
