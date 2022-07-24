@@ -1491,23 +1491,9 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
          return NULL;
       }
 
-      uint32_t format;
-
-      switch (fourcc) {
-      case DRM_FORMAT_RGB565:
-              format = MALI_BUFFER_SHARING_FORMAT_RGB565;
-              break;
-      case DRM_FORMAT_XRGB8888:
-              format = MALI_BUFFER_SHARING_FORMAT_XRGB8888;
-              break;
-      default:
-              format = MALI_BUFFER_SHARING_FORMAT_ARGB8888;
-              break;
-      }
-
       ret = mali_buffer_sharing_create_buffer((void *)wl_mali,
                                               width, height, stride,
-                                              format, 0, 0, fd);
+                                              fourcc, 0, 0, fd);
       close(fd);
    } else {
       struct wl_drm *wl_drm =
@@ -1821,9 +1807,13 @@ mali_handle_device(void *data, struct mali_buffer_sharing *drm, const char *devi
    }
 
    int supported_fourcc[] = {
-      DRM_FORMAT_RGB565,
-      DRM_FORMAT_XRGB8888,
-      DRM_FORMAT_ARGB8888,
+      WL_DRM_FORMAT_ABGR16F,
+      WL_DRM_FORMAT_ABGR2101010,
+      WL_DRM_FORMAT_XRGB8888,
+      WL_DRM_FORMAT_ARGB8888,
+      WL_DRM_FORMAT_ABGR8888,
+      WL_DRM_FORMAT_XBGR8888,
+      WL_DRM_FORMAT_RGB565,
    };
 
    for (unsigned i = 0; i < ARRAY_SIZE(supported_fourcc); ++i) {

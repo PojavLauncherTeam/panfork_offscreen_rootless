@@ -44,17 +44,17 @@
 static void
 destroy_buffer(struct wl_resource *resource)
 {
-	struct wl_drm_buffer *buffer = wl_resource_get_user_data(resource);
-	struct wl_drm *drm = buffer->drm;
+        struct wl_drm_buffer *buffer = wl_resource_get_user_data(resource);
+        struct wl_drm *drm = buffer->drm;
 
-	drm->callbacks.release_buffer(drm->user_data, buffer);
-	free(buffer);
+        drm->callbacks.release_buffer(drm->user_data, buffer);
+        free(buffer);
 }
 
 static void
 buffer_destroy(struct wl_client *client, struct wl_resource *resource)
 {
-	wl_resource_destroy(resource);
+        wl_resource_destroy(resource);
 }
 
 static void
@@ -64,39 +64,39 @@ create_buffer(struct wl_client *client, struct wl_resource *resource,
               uint32_t format,
               int32_t offset, int32_t stride)
 {
-	struct wl_drm *drm = wl_resource_get_user_data(resource);
-	struct wl_drm_buffer *buffer;
+        struct wl_drm *drm = wl_resource_get_user_data(resource);
+        struct wl_drm_buffer *buffer;
 
-	buffer = calloc(1, sizeof *buffer);
-	if (buffer == NULL) {
-		wl_resource_post_no_memory(resource);
-		return;
-	}
+        buffer = calloc(1, sizeof *buffer);
+        if (buffer == NULL) {
+                wl_resource_post_no_memory(resource);
+                return;
+        }
 
-	buffer->drm = drm;
-	buffer->width = width;
-	buffer->height = height;
-	buffer->format = format;
-	buffer->offset[0] = offset;
-	buffer->stride[0] = stride;
+        buffer->drm = drm;
+        buffer->width = width;
+        buffer->height = height;
+        buffer->format = format;
+        buffer->offset[0] = offset;
+        buffer->stride[0] = stride;
 
         drm->callbacks.reference_buffer(drm->user_data, name, fd, buffer);
-	if (buffer->driver_buffer == NULL) {
+        if (buffer->driver_buffer == NULL) {
                 // TODO: We should return an error
-		return;
-	}
+                return;
+        }
 
-	buffer->resource =
-		wl_resource_create(client, &wl_buffer_interface, 1, id);
-	if (!buffer->resource) {
-		wl_resource_post_no_memory(resource);
-		free(buffer);
-		return;
-	}
+        buffer->resource =
+                wl_resource_create(client, &wl_buffer_interface, 1, id);
+        if (!buffer->resource) {
+                wl_resource_post_no_memory(resource);
+                free(buffer);
+                return;
+        }
 
-	wl_resource_set_implementation(buffer->resource,
-				       (void (**)(void)) &drm->buffer_interface,
-				       buffer, destroy_buffer);
+        wl_resource_set_implementation(buffer->resource,
+                                       (void (**)(void)) &drm->buffer_interface,
+                                       buffer, destroy_buffer);
 }
 
 static void
@@ -104,24 +104,10 @@ mali_create_buffer(struct wl_client *client,
                    struct wl_resource *resource,
                    uint32_t id,
                    int32_t width, int32_t height, uint32_t stride,
-                   uint32_t format, uint32_t unk1, uint32_t unk2,
+                   enum wl_drm_format format, uint32_t unk1, uint32_t unk2,
                    int fd)
 {
-        enum wl_drm_format drm_format;
-
-        switch (format) {
-        case MALI_BUFFER_SHARING_FORMAT_RGB565:
-                drm_format = WL_DRM_FORMAT_RGB565;
-                break;
-        case MALI_BUFFER_SHARING_FORMAT_XRGB8888:
-                drm_format = WL_DRM_FORMAT_XRGB8888;
-                break;
-        case MALI_BUFFER_SHARING_FORMAT_ARGB8888:
-        default:
-                drm_format = WL_DRM_FORMAT_ARGB8888;
-        }
-
-        create_buffer(client, resource, id, 0, fd, width, height, drm_format,
+        create_buffer(client, resource, id, 0, fd, width, height, format,
                       0, stride);
         close(fd);
 }
@@ -130,9 +116,9 @@ static void
 mali_auth(struct wl_client *client,
           struct wl_resource *resource, uint32_t id)
 {
-	struct wl_drm *drm = wl_resource_get_user_data(resource);
+        struct wl_drm *drm = wl_resource_get_user_data(resource);
 
-	drm->callbacks.authenticate(drm->user_data, id);
+        drm->callbacks.authenticate(drm->user_data, id);
 }
 
 static const struct mali_buffer_sharing_interface mali_interface = {
@@ -144,16 +130,16 @@ static void
 bind_mali(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
         struct wl_drm *drm = data;
-	struct wl_resource *resource;
+        struct wl_resource *resource;
 
-	resource = wl_resource_create(client, &mali_buffer_sharing_interface,
-				      MIN(version, 4), id);
-	if (!resource) {
-		wl_client_post_no_memory(client);
-		return;
-	}
+        resource = wl_resource_create(client, &mali_buffer_sharing_interface,
+                                      MIN(version, 4), id);
+        if (!resource) {
+                wl_client_post_no_memory(client);
+                return;
+        }
 
-	wl_resource_set_implementation(resource, &mali_interface, data, NULL);
+        wl_resource_set_implementation(resource, &mali_interface, data, NULL);
 
         printf("device name: %s\n", drm->device_name);
         mali_buffer_sharing_send_alloc_device(resource, "");
@@ -163,23 +149,23 @@ struct wl_drm *
 mali_buffer_sharing_init(struct wl_display *display, char *device_name,
                  const struct wayland_drm_callbacks *callbacks, void *user_data)
 {
-	struct wl_drm *drm;
+        struct wl_drm *drm;
 
-	drm = malloc(sizeof *drm);
-	if (!drm)
-		return NULL;
+        drm = malloc(sizeof *drm);
+        if (!drm)
+                return NULL;
 
-	drm->display = display;
-	drm->device_name = strdup(device_name);
-	drm->callbacks = *callbacks;
-	drm->user_data = user_data;
+        drm->display = display;
+        drm->device_name = strdup(device_name);
+        drm->callbacks = *callbacks;
+        drm->user_data = user_data;
         drm->flags = 1;
 
         drm->buffer_interface.destroy = buffer_destroy;
 
-	drm->wl_drm_global =
-		wl_global_create(display, &mali_buffer_sharing_interface, 4,
-				 drm, bind_mali);
+        drm->wl_drm_global =
+                wl_global_create(display, &mali_buffer_sharing_interface, 4,
+                                 drm, bind_mali);
 
-	return drm;
+        return drm;
 }
