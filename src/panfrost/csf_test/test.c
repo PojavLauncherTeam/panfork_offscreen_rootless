@@ -125,6 +125,8 @@ typedef bool (* section)(struct state *s, struct test *t);
 
 struct state {
         int page_size;
+        int argc;
+        char **argv;
 
         int mali_fd;
         int tl_fd;
@@ -870,9 +872,9 @@ submit_cs(struct state *s, unsigned i)
         CS_WRITE_REGISTER(s, i, CS_INSERT, insert_offset);
         s->cs[i].ptr = s->cs_mem[i].cpu + insert_offset;
 
-	memory_barrier();
+        memory_barrier();
         CS_RING_DOORBELL(s, i);
-	memory_barrier();
+        memory_barrier();
 
         s->cs_last_submit[i] = insert_offset;
 }
@@ -940,7 +942,7 @@ wait_event(struct state *s, unsigned timeout_ms)
                 break;
         }
         case BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL: {
-		unsigned queue = e.payload.fatal_queue.csi_index;
+                unsigned queue = e.payload.fatal_queue.csi_index;
 
                 // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
                 fprintf(stderr, "Queue %i error: status 0x%x "
@@ -948,8 +950,8 @@ wait_event(struct state *s, unsigned timeout_ms)
                         queue, e.payload.fatal_queue.status,
                         (uint64_t) e.payload.fatal_queue.sideband);
 
-		unsigned e = CS_READ_REGISTER(s, queue, CS_EXTRACT);
-		pandecode_cs(s->cs_mem[queue].gpu + e, 8, s->gpu_id);
+                unsigned e = CS_READ_REGISTER(s, queue, CS_EXTRACT);
+                pandecode_cs(s->cs_mem[queue].gpu + e, 8, s->gpu_id);
 
                 break;
         }
@@ -1054,6 +1056,87 @@ cs_init(struct state *s, struct test *t)
         return true;
 }
 
+static struct panfrost_ptr *
+buffers_elem(struct util_dynarray *buffers, unsigned index)
+{
+        unsigned size = util_dynarray_num_elements(buffers,
+                                                   struct panfrost_ptr);
+
+        if (index >= size) {
+                unsigned grow = index + 1 - size;
+
+                memset(util_dynarray_grow(buffers, struct panfrost_ptr, grow),
+                       0, grow * sizeof(struct panfrost_ptr));
+        }
+
+        return util_dynarray_element(buffers, struct panfrost_ptr, index);
+}
+
+static bool
+cs_test(struct state *s, struct test *t)
+{
+        if (s->argc < 2)
+                return true;
+
+        FILE *f = fopen(s->argv[1], "r");
+
+        struct util_dynarray buffers;
+        util_dynarray_init(&buffers, NULL);
+
+        for (;;) {
+                char *line = NULL;
+                size_t sz = 0;
+                if (getline(&line, &sz, f) == -1)
+                        break;
+
+                unsigned src, dst, offset, size;
+                int read;
+
+                if (sscanf(line, "reloc %u+%u %u",
+                           &dst, &offset, &src) == 3) {
+
+                        struct panfrost_ptr *s = buffers_elem(&buffers, src);
+                        struct panfrost_ptr *d = buffers_elem(&buffers, dst);
+
+                        if (!s->gpu || !d->gpu) {
+                                fprintf(stderr, "relocating to buffer that doesn't exist!\n");
+                        }
+
+                        uint64_t *dest = d->cpu + offset;
+                        *dest |= s->gpu;
+
+                } else if (sscanf(line, "buffer %u %u %n",
+                                  &dst, &size, &read) == 2) {
+                        line += read;
+
+                        struct panfrost_ptr buffer =
+                                alloc_mem(s, ALIGN_POT(size, s->page_size),
+                                          0x200f);
+
+                        *buffers_elem(&buffers, dst) = buffer;
+
+                        uint64_t *fill = buffer.cpu;
+
+                        for (unsigned i = 0; i < size / 8; ++i) {
+                                read = 0;
+                                unsigned long long val = 0;
+                                sscanf(line, "%Lx %n", &val, &read);
+                                line += read;
+                                fill[i] = val;
+                        }
+                } else if (sscanf(line, "cs %u %u", &dst, &size) == 2) {
+                        struct panfrost_ptr *d = buffers_elem(&buffers, dst);
+
+                        pandecode_cs(d->gpu, size, s->gpu_id);
+                } else {
+                        fprintf(stderr, "unknown command '%s'\n", line);
+                }
+        }
+
+        /* Skip following tests */
+        return false;
+}
+
 static bool
 cs_simple(struct state *s, struct test *t)
 {
@@ -1101,9 +1184,9 @@ cs_store(struct state *s, struct test *t)
         }
 
         pan_pack_ins(c, CS_STR_32, cfg) {
-		cfg.unk_1 = 1;
-		cfg.unk_2 = 4;
-		cfg.unk_3 = 1;
+                cfg.unk_1 = 1;
+                cfg.unk_2 = 4;
+                cfg.unk_3 = 1;
                 cfg.addr = addr_reg;
                 cfg.value = value_reg;
         }
@@ -1163,15 +1246,15 @@ cs_sub(struct state *s, struct test *t)
 
         pan_emit_cs_48(i, addr_reg, dest_va);
         pan_emit_cs_32(i, value_reg, value);
-	pan_emit_cs_ins(i, 0x25, 0x01484a00f80005ULL);
-	/*
+        pan_emit_cs_ins(i, 0x25, 0x01484a00f80005ULL);
+        /*
         pan_pack_ins(i, CS_STR_32, cfg) {
-		cfg.unk_1 = 1;
-		cfg.unk_2 = 4;
-		cfg.unk_3 = 1;
+                cfg.unk_1 = 1;
+                cfg.unk_2 = 4;
+                cfg.unk_3 = 1;
                 cfg.addr = addr_reg;
                 cfg.value = value_reg;
-		}*/
+                }*/
 
         emit_cs_call(c, cs_va, start, i->ptr);
 
@@ -1365,6 +1448,8 @@ struct test kbase_main[] = {
         { cs_queue_register, cs_queue_term, "Register command stream queues" },
         { cs_init, NULL, "Initialise and start command stream queues" },
 
+        { cs_test, NULL, "Test command stream" },
+
         { cs_simple, NULL, "Execute MOV command" },
         { cs_simple, NULL, "Execute MOV command (again)" },
         { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
@@ -1433,10 +1518,12 @@ do_test_list(struct state *s, struct test *tests, unsigned length)
 }
 
 int
-main(void)
+main(int argc, char *argv[])
 {
         struct state s = {
                 .page_size = sysconf(_SC_PAGE_SIZE),
+                .argc = argc,
+                .argv = argv,
         };
 
         printf("Running Valhall CSF tests" MESA_GIT_SHA1 "\n");

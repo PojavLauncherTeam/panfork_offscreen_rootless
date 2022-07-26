@@ -1434,9 +1434,9 @@ pandecode_cs_command(uint64_t command,
         case 34: {
                 const char *name;
                 switch (l) {
-                case 1: name = "other"; break;
+                case 1: name = "compute"; break;
                 case 2: name = "fragment"; break;
-                case 3: name = "compute"; break;
+                case 3: name = "blit"; break;
                 case 13: name = "vertex"; break;
                 default: name = "unk";
                 }
