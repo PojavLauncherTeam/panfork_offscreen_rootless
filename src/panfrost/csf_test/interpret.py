@@ -4,51 +4,13 @@ import re
 import sys
 
 cmds = """
-  @ this is a comment
-@ hi!
-220000000000000d iter vertex @another comment
-1700000000000002 slot 2
-0148006000000000 mov x48, #0x6000000000
-3000480000000000 UNK 00 30, #0x480000000000
-0156005fffe63000 mov x56, #0x5fffe63000
-015a005fffe05000 mov x5a, #0x5fffe05000
-0140005fffe05040 mov x40, #0x5fffe05040
-0254000000000001 mov w54, #0x1
-2400540000000233 UNK 00 24, #0x540000000233
-0300000000ff0000 wait all
-0148005ffba00040 mov x48, #0x5ffba00040
-024a0000000000c8 mov w4a, #0xc8
-2000484a00000000 job w4a (25 instructions), x48 (0x5ffba00040)
-  1700000000000003   slot 3
-  0300000000080000   wait 3
-  3100000000000000   UNK 00 31, #0x0
-  022a000000010001   mov w2a, #0x10001
-  0128005fffa3d5c0   mov x28, #0x5fffa3d5c0
-  114a5600ffff0010   add x4a, x56, -65520
-  114a570000065520   add x4a, x57, #0x65520
-  014c000000000000   mov x4c, #0x0
-  0148005fffa3d5c0   mov x48, #0x5fffa3d5c0
-  1556480000030018   str x56, [x48, 18]
-  154c480000030000   str x4c, [x48, 0]
-  0300000000010000   wait 0
-  0148005ffda00040   mov x48, #0x5ffda00040
-  024a0000000000e8   mov w4a, #0xe8
-  2000484a00000000   job w4a (29 instructions), x48 (0x5ffda00040)
-    023c00003f800000     mov w3c, #0x3f800000
-    0110005fffe02000     mov x10, #0x5fffe02000
-    023900000000212b     mov w39, #0x212b
-    06004a4200000008     idvs w42, w4a, mode 8 index 0
-  0900000000000000   UNK 00 09, #0x0
-  0300000000080000   wait 3
-  3100000100000000   UNK 00 31, #0x100000000
-  mov x48, #0
-  mov w4a, #0x12
-  job w4a, x48
-    mov x10, #0x1234
-    UNK 00 08, #0x0
-  114a400000000000   mov x4a, x40
-  0248000000000001   mov w48, #0x1
-  25014a4800f80005   strev(unk) (unk 01), w48, [x4a, unk f80005]
+!cs 0
+mov x48, #0x5ffba00040
+mov w4a, #0xc8
+job w4a (25 instructions), x48 (0x5ffba00040)
+  mov x56, #0x5fffa3d5c0
+  mov x48, #0x5fffa3d5c0
+  str x56, [x48, 18]
 """
 
 class Level:

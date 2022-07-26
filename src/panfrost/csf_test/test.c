@@ -1089,7 +1089,7 @@ cs_test(struct state *s, struct test *t)
                 if (getline(&line, &sz, f) == -1)
                         break;
 
-                unsigned src, dst, offset, size;
+                unsigned src, dst, offset, size, iter;
                 int read;
 
                 if (sscanf(line, "reloc %u+%u %u",
@@ -1124,7 +1124,8 @@ cs_test(struct state *s, struct test *t)
                                 line += read;
                                 fill[i] = val;
                         }
-                } else if (sscanf(line, "cs %u %u", &dst, &size) == 2) {
+                } else if (sscanf(line, "cs %u buf %u %u",
+                                  &iter, &dst, &size) == 2) {
                         struct panfrost_ptr *d = buffers_elem(&buffers, dst);
 
                         pandecode_cs(d->gpu, size, s->gpu_id);
