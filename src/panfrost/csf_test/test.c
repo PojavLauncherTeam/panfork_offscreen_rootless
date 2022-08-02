@@ -1042,7 +1042,7 @@ cs_init(struct state *s, struct test *t)
                         case 3: cfg.iterator = MALI_CS_ITERATOR_FRAGMENT; break;
                         }
                 }
-                pan_pack_ins(s->cs + i, CS_SELECT_BUFFER, cfg) {
+                pan_pack_ins(s->cs + i, CS_SLOT, cfg) {
                         cfg.index = 2;
                 }
                 pan_emit_cs_48(s->cs + i, CS_EVENT_REGISTER,
@@ -1171,7 +1171,7 @@ cs_store(struct state *s, struct test *t)
         if (t->invalid)
                 dest_va = 0xfdcba9876543;
 
-        pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 2; }
+        pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = (1 << 1); }
         pan_emit_cs_48(c, addr_reg, dest_va);
         pan_emit_cs_32(c, value_reg, value);
 
@@ -1242,8 +1242,8 @@ cs_sub(struct state *s, struct test *t)
 
         void *start = i->ptr;
 
-        pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
-        pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+        pan_pack_ins(i, CS_SLOT, cfg) { cfg.index = 3; }
+        pan_pack_ins(i, CS_WAIT, cfg) { cfg.slots = (1 << 3); }
 
         pan_emit_cs_48(i, addr_reg, dest_va);
         pan_emit_cs_32(i, value_reg, value);
@@ -1371,8 +1371,8 @@ compute_execute(struct state *s, struct test *t)
 
         void *start = i->ptr;
 
-        pan_pack_ins(i, CS_SELECT_BUFFER, cfg) { cfg.index = 3; }
-        //pan_pack_ins(i, CS_STATE, cfg) { cfg.state = 8; }
+        pan_pack_ins(i, CS_SLOT, cfg) { cfg.index = 3; }
+        //pan_pack_ins(i, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
 
         pan_pack_cs(i, COMPUTE_PAYLOAD, cfg) {
                 cfg.workgroup_size_x = 1;
@@ -1394,7 +1394,7 @@ compute_execute(struct state *s, struct test *t)
 
         //pan_emit_cs_32(c, 0x54, 1);
         //pan_emit_cs_ins(c, 0x24, 0x540000000233);
-        //pan_pack_ins(c, CS_STATE, cfg) { cfg.state = 255; }
+        //pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
 
         submit_cs(s, queue);

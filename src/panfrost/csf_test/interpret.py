@@ -36,6 +36,10 @@ def fmt_cs(c):
     buf, len = c
     return f"cs {buf} {len}"
 
+def fmt_exe(e):
+    return f"!cs {buf} {len}"
+
+exe = []
 levels = []
 completed = []
 reloc = []
@@ -109,7 +113,11 @@ def interpret(text):
 
         sk = True
 
-        if s[0] == "UNK":
+        if s[0] == "!cs":
+            assert(len(s) == 2)
+            exe.append(int(s[1]))
+            continue
+        elif s[0] == "UNK":
             assert(len(s) == 4)
             cmd = hx(s[2])
             addr = hx(s[1])
@@ -253,3 +261,4 @@ add_cs()
 print("\n".join(str(x) for x in completed))
 print("\n".join(fmt_reloc(x) for x in reloc))
 print("\n".join(fmt_cs(c) for c in cs))
+print("\n".join(fmt_exe(x) for x in exe))

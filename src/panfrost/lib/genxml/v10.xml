@@ -603,6 +603,7 @@
   <struct name="IDVS launch" layout="ins" op="6">
     <field name="Draw mode" size="8" start="0" type="Draw Mode" default="None"/>
     <field name="Index type" size="3" start="8" type="Index Type" default="None"/>
+    <field name="Varying" size="1" start="18" type="bool"/>
     <field name="Unk register 1" size="8" start="32" type="register" default="0x42"/>
     <field name="Unk register 2" size="8" start="40" type="register" default="0x4a"/>
   </struct>
@@ -1457,9 +1458,9 @@
     <field name="Count" start="0x22:0" size="32" type="uint"/>
   </struct>
 
-  <struct name="Allocation" size="1">
+  <struct name="Allocation" layout="cs">
     <field name="Vertex packet stride" start="0:0" size="16" type="uint"/>
-    <field name="Vertex attribute stride" start="0:16" size="16" type="uint"/>
+    <field name="Vertex attribute stride" start="0x30:0" size="16" type="uint"/>
   </struct>
 
   <struct name="Tiler Pointer" layout="cs">
@@ -1500,14 +1501,8 @@
     <section name="Draw" offset="128" type="Draw"/>
   </aggregate>
 
-  <!-- What values mean is unknown -->
-  <struct name="CS State" layout="ins" op="3">
-    <field name="State" start="16" size="8" type="hex"/>
-  </struct>
-
   <struct name="CS Add Imm" layout="ins" op="17">
-    <!-- TODO: Is this actually 40 bits? -->
-    <field name="Value" start="0" size="32" type="uint"/>
+    <field name="Value" start="0" size="32" type="int"/>
     <field name="Src" start="40" size="8" type="register"/>
     <field name="Dest" start="48" size="8" type="register"/>
   </struct>
@@ -1521,6 +1516,14 @@
     <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
   </struct>
 
+  <struct name="CS Slot" layout="ins" op="23">
+    <field name="Index" start="0" size="3" type="uint"/>
+  </struct>
+
+  <struct name="CS Wait" layout="ins" op="3">
+    <field name="Slots" start="16" size="8" type="hex"/>
+  </struct>
+
   <!-- TODO: This appears to be a mask -->
   <enum name="CS Iterator">
     <value name="Compute" value="1"/>
@@ -1528,11 +1531,6 @@
     <value name="Blit" value="3"/>
     <value name="Vertex" value="13"/>
   </enum>
-
-  <!-- This is just a guess -->
-  <struct name="CS Select Buffer" layout="ins" op="23">
-    <field name="Index" start="0" size="8" type="hex"/>
-  </struct>
 
   <struct name="CS Set Iterator" layout="ins" op="34">
     <field name="Iterator" start="0" size="56" type="CS Iterator"/>

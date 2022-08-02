@@ -2794,23 +2794,44 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 {
         // TODO clean up ifdef
 #if PAN_ARCH >= 10
-        // Nothing to emit
-        if (s.ptr == bo->ptr.cpu)
+        // Nothing to emit :: TODO this should not be like this
+        if (s.ptr == bo->ptr.cpu + 24)
                 return;
 
         if (!cs->init) {
                 pan_pack_ins(&cs->cs, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
-                pan_pack_ins(&cs->cs, CS_SELECT_BUFFER, cfg) { cfg.index = 2; } W;
+                pan_pack_ins(&cs->cs, CS_SLOT, cfg) { cfg.index = 2; } W;
                 pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
 
                 cs->init = true;
         }
 
+        pan_emit_cs_ins(&s, 9, 0);
+        pan_pack_ins(&s, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
+        pan_emit_cs_ins(&s, 0x31, 0x1ULL << 32);
+        pan_pack_ins(&s, CS_ADD_IMM, cfg) {
+                cfg.dest = 0x4a;
+                cfg.src = 0x40;
+        }
+        pan_emit_cs_32(&cs->cs, 0x48, 1);
+        // TODO genxmlify
+        pan_emit_cs_ins(&s, 0x26, 0x01484a00040001);
+
+        // Needs to be different if multiple jobs running at once?
+        pan_emit_cs_48(&cs->cs, 0x40, cs->event_base);
+        // #0xffffe0, #0xffffe1 also seen
+        pan_emit_cs_32(&cs->cs, 0x54, 1);
+        // TODO genxmlify
+        pan_emit_cs_ins(&cs->cs, 0x24, 0x540000000233ULL);
+        // 0xff for vertex jobs
+        pan_pack_ins(&cs->cs, CS_WAIT, cfg) { cfg.slots = (1 << 0); }
+
         pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
         pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
         pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 
-        // TODO: Do something yielding an event
+        /* Fragment jobs should emit an event here; we can "use" the result as
+         * soon as the job is underway?.. I think. */
 #endif
 }
 
@@ -3470,7 +3491,7 @@ panfrost_emit_draw(void *out,
 }
 
 #if PAN_ARCH >= 9
-static void
+static bool
 panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                             const struct pipe_draw_info *info,
                             const struct pipe_draw_start_count_bias *draw,
@@ -3497,8 +3518,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 cfg.count = info->instance_count;
         }
 
-#if PAN_ARCH == 9
-        pan_section_pack(job, MALLOC_VERTEX_JOB, ALLOCATION, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, ALLOCATION, cfg) {
                 if (secondary_shader) {
                         unsigned v = vs->info.varyings.output_count;
                         unsigned f = fs->info.varyings.input_count;
@@ -3507,15 +3527,18 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                         unsigned size = slots * 16;
 
                         /* Assumes 16 byte slots. We could do better. */
+#if PAN_ARCH < 10
                         cfg.vertex_packet_stride = size + 16;
+#endif
                         cfg.vertex_attribute_stride = size;
                 } else {
                         /* Hardware requirement for "no varyings" */
+#if PAN_ARCH < 10
                         cfg.vertex_packet_stride = 16;
+#endif
                         cfg.vertex_attribute_stride = 0;
                 }
         }
-#endif
 
         pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, TILER, cfg) {
                 cfg.address = panfrost_batch_get_bifrost_tiler(batch, ~0);
@@ -3571,6 +3594,8 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                         vary.fau_count = cfg.fau_count;
                 }
         }
+
+        return secondary_shader;
 }
 #endif
 
@@ -3858,13 +3883,14 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 #if PAN_ARCH >= 9
         assert(idvs && "Memory allocated IDVS required on Valhall");
 
-        panfrost_emit_malloc_vertex(batch, info, draw, indices,
-                                    secondary_shader, tiler.cpu);
+        secondary_shader = panfrost_emit_malloc_vertex(
+           batch, info, draw, indices, secondary_shader, tiler.cpu);
 
 #if PAN_ARCH >= 10
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, cfg) {
                 cfg.draw_mode = pan_draw_mode(info->mode);
                 cfg.index_type = panfrost_translate_index_size(info->index_size);
+                cfg.varying = secondary_shader;
         }
         batch->scoreboard.first_job = 1;
         batch->scoreboard.first_tiler = NULL + 1;
@@ -4849,6 +4875,21 @@ init_batch(struct panfrost_batch *batch)
 
         batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
         batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
+
+        pan_pack_ins(&batch->cs_vertex, CS_SLOT, cfg) { cfg.index = 6; }
+        pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
+        //pan_pack_ins(&batch->cs_vertex, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
+        // TODO genxmlify
+        pan_emit_cs_ins(&batch->cs_vertex, 0x31, 0);
+
+        // UNK 00 31, #0x0 / UNK 00 09, #0x0 "wrapping" for vertex jobs
+
+        pan_pack_ins(&batch->cs_fragment, CS_SLOT, cfg) { cfg.index = 6; }
+        pan_pack_ins(&batch->cs_fragment, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
+        // sigh
+        pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
+
+        // UNK 00 27, #0x4c4e10000000 on x40/0x0 for fragment jobs
 #endif
 }
 

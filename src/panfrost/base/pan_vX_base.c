@@ -1069,6 +1069,73 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
         return true;
 }
 
+static void
+kbase_cs_timeout(kbase k)
+{
+        struct base_csf_notification event;
+        int ret = read(k->fd, &event, sizeof(event));
+
+        if (ret == -1) {
+                perror("read(mali_fd)");
+                return;
+        }
+
+        if (ret != sizeof(event)) {
+                fprintf(stderr, "read(mali_fd) returned %i, expected %i!\n",
+                        ret, (int) sizeof(event));
+                return;
+        }
+
+        switch (event.type) {
+        case BASE_CSF_NOTIFICATION_EVENT:
+                /* Not interesting */
+                return;
+
+        case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
+                break;
+
+        case BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP:
+                fprintf(stderr, "No event from mali_fd!\n");
+                return;
+
+        default:
+                fprintf(stderr, "Unknown event type!\n");
+                return;
+        }
+
+        struct base_gpu_queue_group_error e = event.payload.csg_error.error;
+
+        switch (e.error_type) {
+        case BASE_GPU_QUEUE_GROUP_ERROR_FATAL: {
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue group error: status 0x%x "
+                        "sideband 0x%"PRIx64"\n",
+                        e.payload.fatal_group.status,
+                        (uint64_t) e.payload.fatal_group.sideband);
+                break;
+        }
+        case BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL: {
+                unsigned queue = e.payload.fatal_queue.csi_index;
+
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue %i error: status 0x%x "
+                        "sideband 0x%"PRIx64"\n",
+                        queue, e.payload.fatal_queue.status,
+                        (uint64_t) e.payload.fatal_queue.sideband);
+                break;
+        }
+
+        case BASE_GPU_QUEUE_GROUP_ERROR_TIMEOUT:
+                fprintf(stderr, "Command stream timeout!\n");
+                break;
+        case BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM:
+                fprintf(stderr, "Command stream OOM!\n");
+                break;
+        default:
+                fprintf(stderr, "Unknown error type!\n");
+        }
+}
+
 static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 {
@@ -1092,6 +1159,8 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
                                 e, extract_offset, a);
 
                         cs->last_extract = e;
+
+                        kbase_cs_timeout(k);
 
                         return false;
                 }
