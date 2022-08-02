@@ -1124,11 +1124,25 @@ cs_test(struct state *s, struct test *t)
                                 line += read;
                                 fill[i] = val;
                         }
-                } else if (sscanf(line, "cs %u buf %u %u",
-                                  &iter, &dst, &size) == 2) {
+                } else if (sscanf(line, "exe %u %u %u",
+                                  &iter, &dst, &size) == 3) {
                         struct panfrost_ptr *d = buffers_elem(&buffers, dst);
 
+                        /* TODO: Check 'size' against buffer size */
+
                         pandecode_cs(d->gpu, size, s->gpu_id);
+
+                        if (iter > 3) {
+                                fprintf(stderr, "execute on out-of-bounds "
+                                        "iterator\n");
+                                continue;
+                        }
+
+                        memcpy(s->cs[iter].ptr, d->cpu, size);
+                        s->cs[iter].ptr += size / 8;
+
+                        submit_cs(s, iter);
+                        wait_cs(s, iter);
                 } else {
                         fprintf(stderr, "unknown command '%s'\n", line);
                 }

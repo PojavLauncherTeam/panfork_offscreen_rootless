@@ -32,18 +32,16 @@ def fmt_reloc(r):
     dst, offset, src = r
     return f"reloc {dst}+{offset} {src}"
 
-def fmt_cs(c):
-    buf, len = c
-    return f"cs {buf} {len}"
-
 def fmt_exe(e):
-    return f"!cs {buf} {len}"
+    cs, buf, len = e
+    return f"exe {cs} {buf} {len}"
 
 exe = []
 levels = []
 completed = []
 reloc = []
-cs = []
+
+is_call = False
 
 def pop_until(indent):
     while levels[-1].indent != indent:
@@ -56,17 +54,35 @@ def pop_until(indent):
             r = levels[-1]
             reloc.append([r.id, r.call_addr_offset * 8, l.id])
             r.buffer[r.call_len_offset] = (
-                r.buffer[r.call_len_offset] & (0xffff << 48) +
+                (r.buffer[r.call_len_offset] & (0xffff << 48)) +
                 buf_len)
             r.buffer[r.call_addr_offset] &= (0xffff << 48)
 
             r.call_addr_offset = None
             r.call_len_offset = None
 
-def add_cs():
-    l = levels.pop()
-    completed.append(l)
-    cs.append([l.id, len(l.buffer) * 8])
+def flush_exe():
+    ind = levels[0].indent
+
+    pop_until(ind)
+    if len(levels[0].buffer):
+        l = levels.pop()
+        completed.append(l)
+
+        levels.append(Level(ind))
+
+    if not len(exe):
+        return
+
+    if len(exe[-1]) != 1:
+        print("# Trying to add multiple CSs to an exe line, becoming confused")
+        return
+
+    if len(completed):
+        p = completed[-1]
+        assert(p.indent == ind)
+
+        exe[-1] = (exe[-1][0], p.id, len(p.buffer) * 8)
 
 def interpret(text):
     old_indent = None
@@ -85,11 +101,14 @@ def interpret(text):
             levels.append(Level(indent))
         elif indent != old_indent:
             if indent > old_indent:
+                assert(is_call)
+
                 levels.append(Level(indent))
             else:
                 pop_until(indent)
 
         old_indent = indent
+        is_call = False
 
         given_code = None
 
@@ -115,7 +134,8 @@ def interpret(text):
 
         if s[0] == "!cs":
             assert(len(s) == 2)
-            exe.append(int(s[1]))
+            flush_exe()
+            exe.append((int(s[1]), ))
             continue
         elif s[0] == "UNK":
             assert(len(s) == 4)
@@ -232,6 +252,8 @@ def interpret(text):
                     l.call_len_offset = ofs
             assert(l.call_addr_offset is not None)
             assert(l.call_len_offset is not None)
+
+            is_call = True
         else:
             print("unk", orig_line, file=sys.stderr)
             # TODO remove
@@ -256,9 +278,8 @@ def interpret(text):
 
 interpret(cmds.split("\n"))
 pop_until(levels[0].indent)
-add_cs()
+flush_exe()
 
 print("\n".join(str(x) for x in completed))
 print("\n".join(fmt_reloc(x) for x in reloc))
-print("\n".join(fmt_cs(c) for c in cs))
 print("\n".join(fmt_exe(x) for x in exe))
