@@ -1404,14 +1404,17 @@ pandecode_cs_command(uint64_t command,
                 break;
         }
         case 21: {
-                /* The offset must be 4-aligned (though actual stores may be
-                 * unaligned?) */
+                /* The immediate offset must be 4-aligned (though if the
+                 * address itself is unaligned, the bits will silently be
+                 * masked off).
+                 * Unlike most 64-bit instructions (or at least mov), the
+                 * source register may be odd! */
                 if (arg1 || (l >> 16) != 3)
-                        pandecode_log("str (unk %02x), x%02x, (unk %x), [x%02x, %x]\n",
-                                      arg1, addr, l >> 16, arg2, l & 0xffff);
+                        pandecode_log("str (unk %02x), x%02x, (unk %x), [x%02x, %i]\n",
+                                      arg1, addr, l >> 16, arg2, (int16_t) l);
                 else
-                        pandecode_log("str x%02x, [x%02x, %x]\n",
-                                      addr, arg2, l & 0xffff);
+                        pandecode_log("str x%02x, [x%02x, %i]\n",
+                                      addr, arg2, (int16_t) l);
                 break;
         }
         case 23: {
