@@ -132,7 +132,7 @@ pan_hexdump(FILE *fp, const uint8_t *hex, size_t cnt, bool with_strings)
                         fprintf(fp, " | ");
                         for (unsigned j = i & ~0xF; j <= i; ++j) {
                                 uint8_t c = hex[j];
-                                fputc((c < 32 || c > 128) ? '.' : c, fp);
+                                fputc((c < 32 || c > 126) ? '.' : c, fp);
                         }
                 }
 
