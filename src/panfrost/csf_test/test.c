@@ -1025,7 +1025,8 @@ wait_cs(struct state *s, unsigned i)
 
         while (CS_READ_REGISTER(s, i, CS_EXTRACT) != extract_offset) {
                 if (wait_event(s, timeout_ms)) {
-                        fprintf(stderr, "Event wait timeout!\n");
+                        if (pr)
+                                fprintf(stderr, "Event wait timeout!\n");
 
                         unsigned e = CS_READ_REGISTER(s, i, CS_EXTRACT);
                         unsigned a = CS_READ_REGISTER(s, i, CS_ACTIVE);
@@ -1560,7 +1561,8 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
                                 if (pr)
                                         printf("PASS\n");
                         } else {
-                                printf("FAIL\n");
+                                if (pr)
+                                        printf("FAIL\n");
                                 if (!getenv("TEST_KEEP_GOING"))
                                         return i + 1;
                         }
