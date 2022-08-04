@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import os
 import re
-import sys
 import subprocess
+import sys
 
 cmds = """
 !cs 0
@@ -352,5 +353,7 @@ def go(text):
 
     p = subprocess.run(["/tmp/mesa/build/src/panfrost/csf_test", "/dev/stdin"],
                        input=str(c), text=True)
+
+os.environ["CSF_QUIET"] = "1"
 
 go(cmds)

@@ -53,6 +53,7 @@
 /* TODO: Put this in v10.xml? */
 #define CS_EVENT_REGISTER 0x5A
 
+static bool pr = true;
 static bool colour_term = true;
 
 static void
@@ -245,7 +246,8 @@ get_version(struct state *s, struct test *t)
                 return false;
         }
 
-        printf("Major %i Minor %i: ", ver.major, ver.minor);
+        if (pr)
+                printf("Major %i Minor %i: ", ver.major, ver.minor);
         return true;
 }
 
@@ -352,7 +354,8 @@ get_gpu_id(struct state *s, struct test *t)
         if (!name)
                 name = "unknown";
 
-        printf("v%i.%i.%i Mali-%s (%i): ", maj, min, rev, name, product);
+        if (pr)
+                printf("v%i.%i.%i Mali-%s (%i): ", maj, min, rev, name, product);
 
         if (maj < 10) {
                 printf("not v10 or later: ");
@@ -376,7 +379,8 @@ get_coherency_mode(struct state *s, struct test *t)
         if (!name)
                 name = "Unknown";
 
-        printf("0x%"PRIx64" (%s): ", mode, name);
+        if (pr)
+                printf("0x%"PRIx64" (%s): ", mode, name);
         return true;
 }
 
@@ -395,9 +399,10 @@ get_csf_caps(struct state *s, struct test *t)
         int ver_min = (iface.out.glb_version >> 16) & 0xff;
         int ver_rev = iface.out.glb_version & 0xffff;
 
-        printf("v%i.%i.%i: feature mask 0x%x, %i groups, %i total: ",
-               ver_maj, ver_min, ver_rev, iface.out.features,
-               iface.out.group_num, iface.out.total_stream_num);
+        if (pr)
+                printf("v%i.%i.%i: feature mask 0x%x, %i groups, %i total: ",
+                       ver_maj, ver_min, ver_rev, iface.out.features,
+                       iface.out.group_num, iface.out.total_stream_num);
 
         unsigned group_num = iface.out.group_num;
         unsigned stream_num = iface.out.total_stream_num;
@@ -427,7 +432,10 @@ get_csf_caps(struct state *s, struct test *t)
                 return false;
         }
 
-        for (unsigned i = 0; i < group_num; ++i) {
+        unsigned print_groups = pr ? group_num : 0;
+        unsigned print_streams = pr ? stream_num : 0;
+
+        for (unsigned i = 0; i < print_groups; ++i) {
                 if (i && !memcmp(group_data + i, group_data + i - 1, sizeof(*group_data)))
                         continue;
 
@@ -435,7 +443,7 @@ get_csf_caps(struct state *s, struct test *t)
                         i, group_data[i].features, group_data[i].stream_num);
         }
 
-        for (unsigned i = 0; i < stream_num; ++i) {
+        for (unsigned i = 0; i < print_streams; ++i) {
                 if (i && !memcmp(stream_data + i, stream_data + i - 1, sizeof(*stream_data)))
                         continue;
 
@@ -608,7 +616,8 @@ cs_group_create(struct state *s, struct test *t)
         s->csg_handle = create.out.group_handle;
         s->csg_uid = create.out.group_uid;
 
-        printf("CSG handle: %i UID: %i: ", s->csg_handle, s->csg_uid);
+        if (pr)
+                printf("CSG handle: %i UID: %i: ", s->csg_handle, s->csg_uid);
 
         /* Should be at least 1 */
         if (!s->csg_uid)
@@ -865,10 +874,12 @@ submit_cs(struct state *s, unsigned i)
 
         // TODO: Handle wraparound
         // TODO: Provide a persistent buffer for pandecode to use?
-        dump_start(stderr);
-        pandecode_cs(s->cs_mem[i].gpu + last_offset,
-                     insert_offset - last_offset, s->gpu_id);
-        dump_end(stderr);
+        if (pr) {
+                dump_start(stderr);
+                pandecode_cs(s->cs_mem[i].gpu + last_offset,
+                             insert_offset - last_offset, s->gpu_id);
+                dump_end(stderr);
+        }
 
         cache_barrier();
 
@@ -1506,11 +1517,14 @@ cleanup_test_list(struct state *s, struct test *tests, unsigned length)
                 if (!t->cleanup)
                         continue;
 
-                printf("[CLEANUP %i] %s: ", n, t->label);
+                if (pr)
+                        printf("[CLEANUP %i] %s: ", n, t->label);
                 if (t->cleanup(s, t)) {
-                        printf("PASS\n");
+                        if (pr)
+                                printf("PASS\n");
                 } else {
-                        printf("FAIL\n");
+                        if (pr)
+                                printf("FAIL\n");
                 }
         }
 }
@@ -1521,10 +1535,12 @@ interpret_test_list(struct state *s, struct test *tests, unsigned length)
         for (unsigned i = 0; i < length; ++i) {
                 struct test *t = &tests[i];
 
-                printf("[TEST %i] %s: ", i, t->label);
+                if (pr)
+                        printf("[TEST %i] %s: ", i, t->label);
                 if (t->part) {
                         if (t->part(s, t)) {
-                                printf("PASS\n");
+                                if (pr)
+                                        printf("PASS\n");
                         } else {
                                 printf("FAIL\n");
                                 if (!getenv("TEST_KEEP_GOING"))
@@ -1553,6 +1569,9 @@ main(int argc, char *argv[])
                 .argc = argc,
                 .argv = argv,
         };
+
+        if (getenv("CSF_QUIET"))
+                pr = false;
 
         if (!strcmp(getenv("TERM"), "dumb"))
                 colour_term = false;
