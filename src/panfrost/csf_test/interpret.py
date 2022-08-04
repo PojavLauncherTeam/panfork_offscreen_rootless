@@ -8,17 +8,23 @@ cmds = """
 mov x48, #0x5ffba00040
 mov w4a, #0xc8
 job w4a (25 instructions), x48 (0x5ffba00040)
-  mov x56, #0x5fffa3d5c0
-  mov x48, #0x5fffa3d5c0
+  !alloc x 4096
+  mov x56, $x
+  mov x48, $x
   str x56, [x48, 18]
 """
 
-class Level:
+class Buffer:
     id = 0
 
+    def __init__(self):
+        self.id = Buffer.id
+        Buffer.id += 1
+
+class Level(Buffer):
     def __init__(self, indent):
-        self.id = Level.id
-        Level.id += 1
+        super().__init__()
+
         self.indent = indent
         self.buffer = []
         self.call_addr_offset = None
@@ -28,6 +34,16 @@ class Level:
         buf = " ".join(hex(x) for x in self.buffer)
         return f"buffer {self.id} {len(self.buffer) * 8} {buf}"
 
+class Alloc(Buffer):
+    def __init__(self, size, flags=0x200f):
+        super().__init__()
+
+        self.size = size
+        self.flags = flags
+
+    def __repr__(self):
+        return f"alloc {self.id} {self.size} {hex(self.flags)}"
+
 def fmt_reloc(r):
     dst, offset, src = r
     return f"reloc {dst}+{offset} {src}"
@@ -36,10 +52,12 @@ def fmt_exe(e):
     cs, buf, len = e
     return f"exe {cs} {buf} {len}"
 
-exe = []
 levels = []
+
+allocs = {}
 completed = []
 reloc = []
+exe = []
 
 is_call = False
 
@@ -52,7 +70,7 @@ def pop_until(indent):
             buf_len = len(l.buffer) * 8
 
             r = levels[-1]
-            reloc.append([r.id, r.call_addr_offset * 8, l.id])
+            reloc.append((r.id, r.call_addr_offset * 8, l.id))
             r.buffer[r.call_len_offset] = (
                 (r.buffer[r.call_len_offset] & (0xffff << 48)) +
                 buf_len)
@@ -119,6 +137,14 @@ def interpret(text):
 
         s = [x.strip(",") for x in line.split()]
 
+        l = levels[-1]
+
+        for i in range(len(s)):
+            if s[i].startswith("$"):
+                alloc_id = s[i][1:]
+                reloc.append((l.id, len(l.buffer) * 8, allocs[alloc_id].id))
+                s[i] = "#0x0"
+
         def hx(word):
             return int(word, 16)
 
@@ -136,6 +162,13 @@ def interpret(text):
             assert(len(s) == 2)
             flush_exe()
             exe.append((int(s[1]), ))
+            continue
+        elif s[0] == "!alloc":
+            # TODO: flags
+            assert(len(s) == 3)
+            alloc_id = s[1]
+            size = int(s[2])
+            allocs[alloc_id] = Alloc(size)
             continue
         elif s[0] == "UNK":
             assert(len(s) == 4)
@@ -280,6 +313,7 @@ interpret(cmds.split("\n"))
 pop_until(levels[0].indent)
 flush_exe()
 
+print("\n".join(str(allocs[x]) for x in allocs))
 print("\n".join(str(x) for x in completed))
 print("\n".join(fmt_reloc(x) for x in reloc))
 print("\n".join(fmt_exe(x) for x in exe))

@@ -1089,7 +1089,7 @@ cs_test(struct state *s, struct test *t)
                 if (getline(&line, &sz, f) == -1)
                         break;
 
-                unsigned src, dst, offset, size, iter;
+                unsigned src, dst, offset, size, iter, flags;
                 int read;
 
                 if (sscanf(line, "reloc %u+%u %u",
@@ -1124,6 +1124,16 @@ cs_test(struct state *s, struct test *t)
                                 line += read;
                                 fill[i] = val;
                         }
+
+                } else if (sscanf(line, "alloc %u %u %x",
+                                  &dst, &size, &flags) == 3) {
+
+                        struct panfrost_ptr buffer =
+                                alloc_mem(s, ALIGN_POT(size, s->page_size),
+                                          flags);
+
+                        *buffers_elem(&buffers, dst) = buffer;
+
                 } else if (sscanf(line, "exe %u %u %u",
                                   &iter, &dst, &size) == 3) {
                         struct panfrost_ptr *d = buffers_elem(&buffers, dst);
