@@ -1403,6 +1403,17 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
+        case 21: {
+                /* The offset must be 4-aligned (though actual stores may be
+                 * unaligned?) */
+                if (arg1 || (l >> 16) != 3)
+                        pandecode_log("str (unk %02x), x%02x, (unk %x), [x%02x, %x]\n",
+                                      arg1, addr, l >> 16, arg2, l & 0xffff);
+                else
+                        pandecode_log("str x%02x, [x%02x, %x]\n",
+                                      addr, arg2, l & 0xffff);
+                break;
+        }
         case 23: {
                 if (value >> 8 || addr)
                         pandecode_log("select (unk %02x), (unk %"PRIx64"), "

@@ -211,6 +211,13 @@ class Context:
                 cmd = { "x": 1, "w": 2 }[s[1][0]]
                 addr = reg(s[1])
                 value = val(s[2])
+            elif s[0] == "add":
+                assert(len(s) == 4)
+                assert(s[1][0] == "x")
+                assert(s[2][0] == "x")
+                cmd = 17
+                addr = reg(s[1])
+                value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
             elif s[0] == "iter":
                 assert(len(s) == 2)
                 types = {"compute": 1, "fragment": 2, "blit": 3, "vertex": 13}
