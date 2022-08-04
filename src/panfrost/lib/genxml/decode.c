@@ -1436,6 +1436,9 @@ pandecode_cs_command(uint64_t command,
                         pandecode_log("job w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
                                       arg1, instrs, arg2, target);
 
+                if (!target || !length)
+                        break;
+
                 uint64_t *t = pandecode_fetch_gpu_mem(target, length);
                 pandecode_indent++;
                 pandecode_cs_buffer(t, length, buffer, buffer_unk, gpu_id);
