@@ -34,7 +34,6 @@
 #include <unistd.h>
 
 #include "util/macros.h"
-#include "git_sha1.h"
 
 #include "mali_kbase_csf_ioctl.h"
 #include "mali_kbase_ioctl.h"
@@ -1551,7 +1550,7 @@ main(int argc, char *argv[])
                 .argv = argv,
         };
 
-        printf("Running Valhall CSF tests" MESA_GIT_SHA1 "\n");
+        printf("Running Valhall CSF tests\n");
 
         do_test_list(&s, kbase_main, ARRAY_SIZE(kbase_main));
 }
