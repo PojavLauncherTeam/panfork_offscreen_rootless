@@ -944,7 +944,7 @@ wait_event(struct state *s, unsigned timeout_ms)
 
         switch (event.type) {
         case BASE_CSF_NOTIFICATION_EVENT:
-                /* Not interesting */
+                fprintf(stderr, "Notification event!\n");
                 return false;
 
         case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
