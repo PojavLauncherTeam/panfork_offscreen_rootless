@@ -9,13 +9,15 @@ cmds = """
 !cs 0
 mov x48, #0x5ffba00040
 mov w4a, #0xc8
+!alloc x 4096
 job w4a (25 instructions), x48 (0x5ffba00040)
-  !alloc x 4096
   mov x56, 0x665544332211
   mov w57, 0x88776655
+  mov w58, 0xccbbaa99
   mov x48, $x
-  add x48, x48, #0x1c
-  str x56, [x48, 0x14]
+  add x48, x48, #0x0
+  str x5a, [x48, 0]
+@  strev(unk) x56, [x48, 0x8000]
 !dump x 0 4096
 """
 
@@ -202,6 +204,22 @@ class Context:
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size))
                 continue
+            elif s[0] == "regdump":
+                assert(len(s) == 2)
+                assert(s[1][0] == "x")
+                dest = reg(s[1])
+
+                cmd = 21
+                # 3 << 16 EHHH?
+                value = (dest << 40) | (3 << 16)
+
+                for i in range(0, 0x60, 2):
+                    code = (cmd << 56) | (i << 48) | value | (i << 2)
+                    self.l.buffer.append(code)
+
+                del cmd, value
+                continue
+
             elif s[0] == "UNK":
                 assert(len(s) == 4)
                 cmd = hx(s[2])
@@ -286,12 +304,12 @@ class Context:
                 assert(s[1][0] == "x")
                 assert(s[2][0] == "x")
 
-                val = reg(s[1])
+                src = reg(s[1])
                 dest = reg(s[2])
-                offset = hx(s[3])
+                offset = val(s[3])
 
                 cmd = 21
-                addr = val
+                addr = src
                 value = (dest << 40) | (offset & 0xffffffff) | (3 << 16)
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
