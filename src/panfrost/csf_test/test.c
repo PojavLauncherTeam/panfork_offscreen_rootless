@@ -700,6 +700,8 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
         p.cpu = ptr;
         p.gpu = gpu_va;
 
+        memset(p.cpu, 0, s->page_size * va_pages);
+
         return p;
 }
 
@@ -718,6 +720,18 @@ alloc_mem(struct state *s, uint64_t size, uint64_t flags)
         };
 
         return alloc_ioctl(s, &a);
+}
+
+static void
+alloc_redzone(struct state *s, struct panfrost_ptr p, uint64_t alloc_size)
+{
+        mmap(p.cpu - s->page_size, 1,
+             PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
+             -1, 0);
+
+        mmap(p.cpu + alloc_size, 1,
+             PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
+             -1, 0);
 }
 
 static bool
@@ -1127,6 +1141,8 @@ cs_test(struct state *s, struct test *t)
                                 alloc_mem(s, ALIGN_POT(size, s->page_size),
                                           0x200f);
 
+                        alloc_redzone(s, buffer, ALIGN_POT(size, s->page_size));
+
                         *buffers_elem(&buffers, dst) = buffer;
 
                         uint64_t *fill = buffer.cpu;
@@ -1145,6 +1161,8 @@ cs_test(struct state *s, struct test *t)
                         struct panfrost_ptr buffer =
                                 alloc_mem(s, ALIGN_POT(size, s->page_size),
                                           flags);
+
+                        alloc_redzone(s, buffer, ALIGN_POT(size, s->page_size));
 
                         *buffers_elem(&buffers, dst) = buffer;
 
