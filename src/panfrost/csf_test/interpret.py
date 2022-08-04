@@ -11,12 +11,21 @@ mov x48, #0x5ffba00040
 mov w4a, #0xc8
 !alloc x 4096
 job w4a (25 instructions), x48 (0x5ffba00040)
+  mov w50, 0x10101010
+  mov w51, 0x20202020
+  mov w52, 0x30303030
+  mov w53, 0x40404040
+  mov w54, 0x50505050
+  mov w55, 0x60606060
   mov x56, 0x665544332211
   mov w57, 0x88776655
   mov w58, 0xccbbaa99
+  mov w59, 0xffeeddcc
+  mov w5a, 0xf0e0d0c0
   mov x48, $x
   add x48, x48, #0x0
-  str x5a, [x48, 0]
+  str x51, [x48, 0]
+@  str x57, [x48, 0]
 @  strev(unk) x56, [x48, 0x8000]
 !dump x 0 4096
 """
@@ -310,6 +319,7 @@ class Context:
 
                 cmd = 21
                 addr = src
+                # TODO: Write masks other than 3 (write 8 bytes)
                 value = (dest << 40) | (offset & 0xffffffff) | (3 << 16)
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]

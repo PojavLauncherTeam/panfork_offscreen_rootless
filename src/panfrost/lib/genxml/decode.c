@@ -1409,12 +1409,20 @@ pandecode_cs_command(uint64_t command,
                  * masked off).
                  * Unlike most 64-bit instructions (or at least mov), the
                  * source register may be odd! */
-                if (arg1 || (l >> 16) != 3)
-                        pandecode_log("str (unk %02x), x%02x, (unk %x), [x%02x, %i]\n",
+
+                if (arg1)
+                        pandecode_log("str (unk %02x), x%02x, (mask %x), [x%02x, %i]\n",
                                       arg1, addr, l >> 16, arg2, (int16_t) l);
-                else
+                else if ((l >> 16) == 3)
                         pandecode_log("str x%02x, [x%02x, %i]\n",
                                       addr, arg2, (int16_t) l);
+                else if ((l >> 16) == 1)
+                        pandecode_log("str w%02x, [x%02x, %i]\n",
+                                      addr, arg2, (int16_t) l);
+                else
+                        pandecode_log("str x%02x (%i words 0x%x), [x%02x, %i]\n",
+                                      addr, util_bitcount(l >> 16), l >> 16,
+                                      arg2, (int16_t) l);
                 break;
         }
         case 23: {
