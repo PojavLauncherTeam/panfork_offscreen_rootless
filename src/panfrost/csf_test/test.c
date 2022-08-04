@@ -53,16 +53,20 @@
 /* TODO: Put this in v10.xml? */
 #define CS_EVENT_REGISTER 0x5A
 
+static bool colour_term = true;
+
 static void
 dump_start(FILE *f)
 {
-        fprintf(f, "\x1b[90m");
+        if (colour_term)
+                fprintf(f, "\x1b[90m");
 }
 
 static void
 dump_end(FILE *f)
 {
-        fprintf(f, "\x1b[39m");
+        if (colour_term)
+                fprintf(f, "\x1b[39m");
 }
 
 static void
@@ -1549,6 +1553,9 @@ main(int argc, char *argv[])
                 .argc = argc,
                 .argv = argv,
         };
+
+        if (!strcmp(getenv("TERM"), "dumb"))
+                colour_term = false;
 
         printf("Running Valhall CSF tests\n");
 
