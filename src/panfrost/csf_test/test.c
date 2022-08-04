@@ -45,6 +45,7 @@
 #include "genxml/gen_macros.h"
 
 #include "wrap.h"
+#include "decode.h"
 
 #include "pan_shader.h"
 #include "compiler/nir/nir_builder.h"
@@ -1186,6 +1187,16 @@ cs_test(struct state *s, struct test *t)
 
                         submit_cs(s, iter);
                         wait_cs(s, iter);
+
+                } else if (sscanf(line, "dump %u %u %u",
+                                  &src, &offset, &size) == 3) {
+
+                        struct panfrost_ptr *s = buffers_elem(&buffers, src);
+
+                        if (!s->gpu)
+                                fprintf(stderr, "dumping buffer that doesn't exist!\n");
+                        pan_hexdump(stdout, s->cpu + offset, size, true);
+
                 } else {
                         fprintf(stderr, "unknown command '%s'\n", line);
                 }

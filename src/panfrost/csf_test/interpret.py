@@ -11,9 +11,12 @@ mov x48, #0x5ffba00040
 mov w4a, #0xc8
 job w4a (25 instructions), x48 (0x5ffba00040)
   !alloc x 4096
-  mov x56, $x
+  mov x56, 0x665544332211
+  mov w57, 0x88776655
   mov x48, $x
-  str x56, [x48, 18]
+  add x48, x48, #0x1c
+  str x56, [x48, 0x14]
+!dump x 0 4096
 """
 
 class Buffer:
@@ -51,8 +54,7 @@ def fmt_reloc(r):
     return f"reloc {dst}+{offset} {src}"
 
 def fmt_exe(e):
-    cs, buf, len = e
-    return f"exe {cs} {buf} {len}"
+    return " ".join(str(x) for x in e)
 
 class Context:
     def __init__(self):
@@ -62,7 +64,9 @@ class Context:
         self.allocs = {}
         self.completed = []
         self.reloc = []
+
         self.exe = []
+        self.last_exe = None
 
         self.is_call = False
 
@@ -105,7 +109,7 @@ class Context:
         if not len(self.exe):
             return
 
-        if len(self.exe[-1]) != 1:
+        if self.last_exe is None:
             print("# Trying to add multiple CSs to an exe line, becoming confused")
             return
 
@@ -113,7 +117,10 @@ class Context:
             p = self.completed[-1]
             assert(p.indent == ind)
 
-            self.exe[-1] = (self.exe[-1][0], p.id, len(p.buffer) * 8)
+            self.exe[self.last_exe] = (
+                *self.exe[self.last_exe], p.id, len(p.buffer) * 8)
+
+        self.last_exe = None
 
     def interpret(self, text):
         text = text.split("\n")
@@ -177,7 +184,8 @@ class Context:
             if s[0] == "!cs":
                 assert(len(s) == 2)
                 self.flush_exe()
-                self.exe.append((int(s[1]), ))
+                self.last_exe = len(self.exe)
+                self.exe.append(("exe", int(s[1])))
                 continue
             elif s[0] == "!alloc":
                 # TODO: flags
@@ -185,6 +193,14 @@ class Context:
                 alloc_id = s[1]
                 size = int(s[2])
                 self.allocs[alloc_id] = Alloc(size)
+                continue
+            elif s[0] == "!dump":
+                assert(len(s) == 4)
+                alloc_id = s[1]
+                offset = val(s[2])
+                size = val(s[3])
+                self.exe.append(("dump", self.allocs[alloc_id].id,
+                                 offset, size))
                 continue
             elif s[0] == "UNK":
                 assert(len(s) == 4)
@@ -363,4 +379,5 @@ def go(text):
 
 os.environ["CSF_QUIET"] = "1"
 
+#interpret(cmds)
 go(cmds)
