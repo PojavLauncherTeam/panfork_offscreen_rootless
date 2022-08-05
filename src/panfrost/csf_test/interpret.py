@@ -7,13 +7,18 @@ import sys
 
 cmds = """
 !cs 0
+!alloc x 4096
+mov w50, 0x10101010
+mov w51, 0x20202020
+mov w52, 0x30303030
+
+mov x48, $x
+str x51, [x48, 0x190]
+add x20, x48, 0x200
+
 mov x48, #0x5ffba00040
 mov w4a, #0xc8
-!alloc x 4096
-job w4a (25 instructions), x48 (0x5ffba00040)
-  mov w50, 0x10101010
-  mov w51, 0x20202020
-  mov w52, 0x30303030
+job w4a, x48
   mov w53, 0x40404040
   mov w54, 0x50505050
   mov w55, 0x60606060
@@ -24,7 +29,13 @@ job w4a (25 instructions), x48 (0x5ffba00040)
   mov w5a, 0xf0e0d0c0
   mov x48, $x
   add x48, x48, #0x0
-  str x4c, [x48, 0]
+  str x53, [x48, 0]
+!dump x 0 4096
+!cs 0
+mov x48, #0x5ffba00040
+mov w4a, #0xc8
+job w4a, x48
+  mov x48, $x
   regdump x48
 @  str x57, [x48, 0]
 @  strev(unk) x56, [x48, 0x8000]
