@@ -1502,13 +1502,13 @@ pandecode_cs_command(uint64_t command,
                 pandecode_log("iter %s\n", name);
                 break;
         }
-        case 0x25: {
+        case 37: {
                 pandecode_log("str(unk) (unk %02x), w%02x, [x%02x, unk %x]\n",
                               addr, arg1, arg2, l);
                 break;
         }
-        case 0x26: {
-                pandecode_log("str (unk %02x), w%02x, [x%02x, unk %x]\n",
+        case 38: {
+                pandecode_log("str2 (unk %02x), w%02x, [x%02x, unk %x]\n",
                               addr, arg1, arg2, l);
                 break;
         }
