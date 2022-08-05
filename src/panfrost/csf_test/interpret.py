@@ -24,7 +24,8 @@ job w4a (25 instructions), x48 (0x5ffba00040)
   mov w5a, 0xf0e0d0c0
   mov x48, $x
   add x48, x48, #0x0
-  str x51, [x48, 0]
+  str x4c, [x48, 0]
+  regdump x48
 @  str x57, [x48, 0]
 @  strev(unk) x56, [x48, 0x8000]
 !dump x 0 4096
@@ -218,11 +219,13 @@ class Context:
                 assert(s[1][0] == "x")
                 dest = reg(s[1])
 
-                cmd = 21
-                # 3 << 16 EHHH?
-                value = (dest << 40) | (3 << 16)
+                # Number of registers to write per instruction
+                regs = 16
 
-                for i in range(0, 0x60, 2):
+                cmd = 21
+                value = (dest << 40) | (((1 << regs) - 1) << 16)
+
+                for i in range(0, 0x60, regs):
                     code = (cmd << 56) | (i << 48) | value | (i << 2)
                     self.l.buffer.append(code)
 

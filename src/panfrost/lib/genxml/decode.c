@@ -1410,19 +1410,53 @@ pandecode_cs_command(uint64_t command,
                  * Unlike most 64-bit instructions (or at least mov), the
                  * source register may be odd! */
 
-                if (arg1)
+                if (arg1) {
                         pandecode_log("str (unk %02x), x%02x, (mask %x), [x%02x, %i]\n",
                                       arg1, addr, l >> 16, arg2, (int16_t) l);
-                else if ((l >> 16) == 3)
+                } else if ((l >> 16) == 3) {
                         pandecode_log("str x%02x, [x%02x, %i]\n",
                                       addr, arg2, (int16_t) l);
-                else if ((l >> 16) == 1)
+                } else if ((l >> 16) == 1) {
                         pandecode_log("str w%02x, [x%02x, %i]\n",
                                       addr, arg2, (int16_t) l);
-                else
-                        pandecode_log("str x%02x (%i words 0x%x), [x%02x, %i]\n",
-                                      addr, util_bitcount(l >> 16), l >> 16,
-                                      arg2, (int16_t) l);
+                } else if ((l >> 16) == 0) {
+                        pandecode_log("str (invalid: %02x mask 0), [x%02x, %i]\n",
+                                      addr, arg2, (int16_t) l);
+                } else {
+                        unsigned mask = l >> 16;
+
+                        unsigned first = ffs(mask) - 1;
+                        if (first)
+                                pandecode_log("str {(+%i) ", first);
+                        else
+                                pandecode_log("str {");
+
+                        unsigned edges = mask ^ (mask << 1);
+
+                        const char *comma = "";
+
+                        bool outside = true;
+                        unsigned start;
+                        u_foreach_bit(i, edges) {
+                                if (outside)
+                                        start = i;
+                                else if (i == start + 1)
+                                        pandecode_log_cont("%sw%02x", comma,
+                                                           addr + start);
+                                else
+                                        pandecode_log_cont("%sw%02x-w%02x", comma,
+                                                           addr + start,
+                                                           addr + i - 1);
+                                outside = !outside;
+
+                                if (outside)
+                                        comma = ", ";
+                        }
+
+                        pandecode_log_cont("}, [x%02x, %i]\n",
+                                           arg2, (int16_t) l);
+                }
+
                 break;
         }
         case 23: {
