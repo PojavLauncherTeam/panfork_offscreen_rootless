@@ -8,13 +8,20 @@ import sys
 cmds = """
 !cs 0
 !alloc x 4096
-mov w50, 0x10101010
-mov w51, 0x20202020
-mov w52, 0x30303030
+!alloc ev 4096 0x8200f
 
-mov x48, $x
-str x51, [x48, 0x190]
-add x20, x48, 0x200
+mov x42, $x
+add x20, x42, 0x200
+
+mov x48, $ev
+mov w4a, 0
+
+mov x40, 1
+str x40, [x48]
+
+regdump x42
+UNK 00 27, #0x484a10000000
+regdump x20
 
 mov x48, #0x5ffba00040
 mov w4a, #0xc8
@@ -29,17 +36,14 @@ job w4a, x48
   mov w5a, 0xf0e0d0c0
   mov x48, $x
   add x48, x48, #0x0
-  str x53, [x48, 0]
-!dump x 0 4096
-!cs 0
-mov x48, #0x5ffba00040
-mov w4a, #0xc8
-job w4a, x48
+@  str x53, [x48, 0]
+
   mov x48, $x
-  regdump x48
+@  regdump x48
 @  str x57, [x48, 0]
 @  strev(unk) x56, [x48, 0x8000]
 !dump x 0 4096
+!dump ev 0 4096
 """
 
 class Buffer:
@@ -211,11 +215,11 @@ class Context:
                 self.exe.append(("exe", int(s[1])))
                 continue
             elif s[0] == "!alloc":
-                # TODO: flags
-                assert(len(s) == 3)
+                assert(len(s) == 3 or len(s) == 4)
                 alloc_id = s[1]
                 size = int(s[2])
-                self.allocs[alloc_id] = Alloc(size)
+                flags = val(s[3]) if len(s) == 4 else 0x200f
+                self.allocs[alloc_id] = Alloc(size, flags)
                 continue
             elif s[0] == "!dump":
                 assert(len(s) == 4)
@@ -320,16 +324,19 @@ class Context:
                 addr = 0
                 value = (r2 << 40) | (r1 << 32) | (index << 8) | mode
             elif s[0] == "str":
-                assert(len(s) == 4)
+                assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")
-                assert(s[3][-1] == "]")
+                assert(s[-1][-1] == "]")
                 s = [x.strip("[]") for x in s]
                 assert(s[1][0] == "x")
                 assert(s[2][0] == "x")
 
                 src = reg(s[1])
                 dest = reg(s[2])
-                offset = val(s[3])
+                if len(s) == 4:
+                    offset = val(s[3])
+                else:
+                    offset = 0
 
                 cmd = 21
                 addr = src
