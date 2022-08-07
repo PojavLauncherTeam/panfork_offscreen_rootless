@@ -1443,6 +1443,11 @@ pandecode_cs_command(uint64_t command,
                                 else if (i == start + 1)
                                         pandecode_log_cont("%sw%02x", comma,
                                                            addr + start);
+                                else if (i == start + 2)
+                                        pandecode_log_cont("%sw%02x, w%02x",
+                                                           comma,
+                                                           addr + start,
+                                                           addr + start + 1);
                                 else
                                         pandecode_log_cont("%sw%02x-w%02x", comma,
                                                            addr + start,
@@ -1503,12 +1508,12 @@ pandecode_cs_command(uint64_t command,
                 break;
         }
         case 37: {
-                pandecode_log("str(unk) (unk %02x), w%02x, [x%02x, unk %x]\n",
+                pandecode_log("strev(unk) (unk %02x), w%02x, [x%02x, unk %x]\n",
                               addr, arg1, arg2, l);
                 break;
         }
         case 38: {
-                pandecode_log("str2 (unk %02x), w%02x, [x%02x, unk %x]\n",
+                pandecode_log("strev (unk %02x), w%02x, [x%02x, unk %x]\n",
                               addr, arg1, arg2, l);
                 break;
         }
