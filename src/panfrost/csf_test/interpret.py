@@ -21,14 +21,9 @@ add x48, x5a, 0x400
 mov x4a, #0x112233445566
 
 regdump x50
-@UNK 01 26, 0x484a00fd0000 @ works
-UNK 01 26, 0x484a00fd0001 @ works
-@UNK 01 26, 0x484a00fd0004 @ stores, no notification
-@UNK 01 26, 0x484a00fd0005 @ stores, no notification
-@UNK 01 26, 0x484a00fd0008 @ works
-@UNK 01 26, 0x484a00fd0009 @ works
-@UNK 07 26, 0x484a01fd0001
-@strev (unk 01), w4a, [x48, unk 0x01000001]
+@  25014a4800f80005   strev(unk) (unk 01), w48, [x4a, unk f80005]
+@UNK 01 25, 0x484a00f80005
+UNK 01 25, 0x484a00f80001
 regdump x52
 
 !dump x 0 4096

@@ -1541,31 +1541,32 @@ pandecode_cs_command(uint64_t command,
                 pandecode_log("iter %s\n", name);
                 break;
         }
-        case 37: {
-                pandecode_log("strev(unk) (unk %02x), w%02x, [x%02x, unk %x]\n",
-                              addr, arg1, arg2, l);
-                break;
-        }
 
-        case 38: {
+        case 37: case 38: {
                 /*
-                 * 0b 10011000 -- opcode
+                 * 0b 00100101 / 00100110 -- opcode
                  *    ????0??? -- unk. usually 1, faults if "0" bit set
                  *    aaaaaaaa -- address register
                  *    vvvvvvvv -- 32-bit value register
                  *    00000000 -- seems to act as NOP if nonzero
-                 *    11111101 / 00000100 -- unk
+                 *    0xf8 (evstr0) / 0xfd / 0x4 (evstr1) -- unk
                  *    ???????? -- seems to have no effect
                  *    ?????s0u -- 's' disables signal to CPU,
                  *                'u' has unknown purpose (disable GPU signal?)
+                 *
+                 * The difference between the two opcodes is unknown.
                  */
 
+                const char *name = (op == 37) ? "evstr0" : "evstr1";
+
                 if (addr != 1 || l & 0xff00fffa)
-                        pandecode_log("evstr (unk %02x), w%02x, [x%02x, unk %x]\n",
-                                      addr, arg1, arg2, l);
+                        pandecode_log("%s (unk %02x), w%02x, [x%02x], "
+                                      "mode 0x%x, flags 0x%x\n",
+                                      name, addr, arg1, arg2,
+                                      l >> 16, (uint16_t) l);
                 else
-                        pandecode_log("evstr w%02x, [x%02x], mode 0x%x%s%s\n",
-                                      arg1, arg2, l >> 16,
+                        pandecode_log("%s w%02x, [x%02x], mode 0x%x%s%s\n",
+                                      name, arg1, arg2, l >> 16,
                                       l & 0x4 ? "" : ", irq",
                                       l & 0x1 ? ", nogpu?" : ", gpu?");
 
