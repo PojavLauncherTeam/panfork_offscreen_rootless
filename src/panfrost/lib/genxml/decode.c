@@ -1286,6 +1286,59 @@ pandecode_csf_dump_state(uint32_t *state)
 }
 
 static void
+pandecode_regmask(unsigned base, unsigned mask)
+{
+        switch (mask) {
+        case 0:
+                pandecode_log_cont("(invalid: %02x mask 0)", base);
+                return;
+        case 1:
+                pandecode_log_cont("w%02x", base);
+                return;
+        case 3:
+                pandecode_log_cont("x%02x", base);
+                return;
+        default:
+                break;
+        }
+
+        unsigned first = ffs(mask) - 1;
+        if (first)
+                pandecode_log_cont("{(+%i) ", first);
+        else
+                pandecode_log_cont("{");
+
+        unsigned edges = mask ^ (mask << 1);
+
+        const char *comma = "";
+
+        bool outside = true;
+        unsigned start;
+        u_foreach_bit(i, edges) {
+                if (outside)
+                        start = i;
+                else if (i == start + 1)
+                        pandecode_log_cont("%sw%02x", comma,
+                                           base + start);
+                else if (i == start + 2)
+                        pandecode_log_cont("%sw%02x, w%02x",
+                                           comma,
+                                           base + start,
+                                           base + start + 1);
+                else
+                        pandecode_log_cont("%sw%02x-w%02x", comma,
+                                           base + start,
+                                           base + i - 1);
+                outside = !outside;
+
+                if (outside)
+                        comma = ", ";
+        }
+
+        pandecode_log_cont("}");
+}
+
+static void
 pandecode_cs_buffer(uint64_t *commands, unsigned size,
                     uint32_t *buffer, uint32_t *buffer_unk,
                     unsigned gpu_id);
@@ -1323,11 +1376,25 @@ pandecode_cs_command(uint64_t command,
                 pandecode_log("mov w%02x, #0x%"PRIx64"\n", addr, value);
                 break;
         case 3:
-                if (l & 0xffff || h || addr)
-                        pandecode_log("state (unk %02x), (unk %04x), "
+                if (l & 0xff00ffff || h || addr) {
+                        pandecode_log("wait (unk %02x), (unk %04x), "
                                       "%i, (unk %04x)\n", addr, h, l >> 16, l);
-                else
-                        pandecode_log("state %i\n", l >> 16);
+                } else if (l >> 16 == 0xff) {
+                        pandecode_log("wait all\n");
+                } else {
+                        pandecode_log("wait");
+                        uint8_t jobs = l >> 16;
+                        bool pr = false;
+                        for (unsigned i = 0; i < 8; ++i) {
+                                if (jobs & (1 << i)) {
+                                        pandecode_log_cont("%s%i",
+                                                           pr ? "," : " ",
+                                                           i);
+                                        pr = true;
+                                }
+                        }
+                        pandecode_log_cont("\n");
+                }
                 break;
         case 4: {
                 uint32_t masked = l & 0xffff0000;
@@ -1403,7 +1470,10 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
-        case 21: {
+
+        case 20: case 21: {
+                const char *name = (op == 20) ? "ldr" : "str";
+
                 /* The immediate offset must be 4-aligned (though if the
                  * address itself is unaligned, the bits will silently be
                  * masked off).
@@ -1411,65 +1481,22 @@ pandecode_cs_command(uint64_t command,
                  * source register may be odd! */
 
                 if (arg1) {
-                        pandecode_log("str (unk %02x), x%02x, (mask %x), [x%02x, %i]\n",
-                                      arg1, addr, l >> 16, arg2, (int16_t) l);
-                } else if ((l >> 16) == 3) {
-                        pandecode_log("str x%02x, [x%02x, %i]\n",
-                                      addr, arg2, (int16_t) l);
-                } else if ((l >> 16) == 1) {
-                        pandecode_log("str w%02x, [x%02x, %i]\n",
-                                      addr, arg2, (int16_t) l);
-                } else if ((l >> 16) == 0) {
-                        pandecode_log("str (invalid: %02x mask 0), [x%02x, %i]\n",
-                                      addr, arg2, (int16_t) l);
+                        pandecode_log("%s (unk %02x), x%02x, (mask %x), [x%02x, %i]\n",
+                                      name, arg1, addr, l >> 16, arg2, (int16_t) l);
                 } else {
-                        unsigned mask = l >> 16;
-
-                        unsigned first = ffs(mask) - 1;
-                        if (first)
-                                pandecode_log("str {(+%i) ", first);
-                        else
-                                pandecode_log("str {");
-
-                        unsigned edges = mask ^ (mask << 1);
-
-                        const char *comma = "";
-
-                        bool outside = true;
-                        unsigned start;
-                        u_foreach_bit(i, edges) {
-                                if (outside)
-                                        start = i;
-                                else if (i == start + 1)
-                                        pandecode_log_cont("%sw%02x", comma,
-                                                           addr + start);
-                                else if (i == start + 2)
-                                        pandecode_log_cont("%sw%02x, w%02x",
-                                                           comma,
-                                                           addr + start,
-                                                           addr + start + 1);
-                                else
-                                        pandecode_log_cont("%sw%02x-w%02x", comma,
-                                                           addr + start,
-                                                           addr + i - 1);
-                                outside = !outside;
-
-                                if (outside)
-                                        comma = ", ";
-                        }
-
-                        pandecode_log_cont("}, [x%02x, %i]\n",
-                                           arg2, (int16_t) l);
+                        pandecode_log("%s ", name);
+                        pandecode_regmask(addr, l >> 16);
+                        pandecode_log_cont(", [x%02x, %i]\n", arg2, (int16_t) l);
                 }
-
                 break;
         }
+
         case 23: {
-                if (value >> 8 || addr)
-                        pandecode_log("select (unk %02x), (unk %"PRIx64"), "
-                                      "%i\n", addr, value >> 8, l & 0xff);
+                if (value >> 3 || addr)
+                        pandecode_log("slot (unk %02x), (unk %"PRIx64"), "
+                                      "%i\n", addr, value >> 3, l & 7);
                 else
-                        pandecode_log("select %i\n", l & 0xff);
+                        pandecode_log("slot %i\n", l);
                 break;
         }
         case 32: {
