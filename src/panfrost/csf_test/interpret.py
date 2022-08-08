@@ -323,13 +323,15 @@ class Context:
                 cmd = 6
                 addr = 0
                 value = (r2 << 40) | (r1 << 32) | (index << 8) | mode
-            elif s[0] == "str":
+            elif s[0] in ("ldr", "str"):
                 assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")
                 assert(s[-1][-1] == "]")
                 s = [x.strip("[]") for x in s]
-                assert(s[1][0] == "x")
+                assert(s[1][0] in "xw")
                 assert(s[2][0] == "x")
+
+                mask = 3 if s[1][0] == "x" else 1
 
                 src = reg(s[1])
                 dest = reg(s[2])
@@ -338,10 +340,9 @@ class Context:
                 else:
                     offset = 0
 
-                cmd = 21
+                cmd = 20 if s[0] == "ldr" else 21
                 addr = src
-                # TODO: Write masks other than 3 (write 8 bytes)
-                value = (dest << 40) | (offset & 0xffffffff) | (3 << 16)
+                value = (dest << 40) | (offset & 0xffffffff) | (mask << 16)
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
                 unk = int(s[2])
