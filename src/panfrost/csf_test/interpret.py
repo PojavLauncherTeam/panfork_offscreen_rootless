@@ -375,7 +375,7 @@ class Context:
 
                 cmd = 20 if s[0] == "ldr" else 21
                 addr = src
-                value = (dest << 40) | (offset & 0xffffffff) | (mask << 16)
+                value = (dest << 40) | (offset & 0xffff) | (mask << 16)
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
                 unk = int(s[2])

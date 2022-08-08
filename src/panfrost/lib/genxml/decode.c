@@ -1321,10 +1321,8 @@ pandecode_regmask(unsigned base, unsigned mask)
                         pandecode_log_cont("%sw%02x", comma,
                                            base + start);
                 else if (i == start + 2)
-                        pandecode_log_cont("%sw%02x, w%02x",
-                                           comma,
-                                           base + start,
-                                           base + start + 1);
+                        pandecode_log_cont("%sx%02x", comma,
+                                           base + start);
                 else
                         pandecode_log_cont("%sw%02x-w%02x", comma,
                                            base + start,
@@ -1477,8 +1475,17 @@ pandecode_cs_command(uint64_t command,
                 /* The immediate offset must be 4-aligned (though if the
                  * address itself is unaligned, the bits will silently be
                  * masked off).
-                 * Unlike most 64-bit instructions (or at least mov), the
-                 * source register may be odd! */
+                 *
+                 * Up to 16 32-bit registers can be read or written in a
+                 * single instruction, behaviour is similar to LDM or STM
+                 * except that a base register is specified.
+                 *
+                 * These instructions are high latency. Use WAIT 0 to wait for
+                 * the result of an LDR.
+                 *
+                 * For LDR, it is an error for the address register to be
+                 * included in the destination register set.
+                 */
 
                 if (arg1) {
                         pandecode_log("%s (unk %02x), x%02x, (mask %x), [x%02x, %i]\n",
