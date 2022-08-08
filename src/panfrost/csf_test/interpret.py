@@ -14,74 +14,23 @@ mov x50, $x
 add x52, x50, 0x200
 
 slot 2
-mov x48, $ev
-add x48, x48, 0x8
-str x42, [x48]
+mov x5a, $ev
 
-@ argument must be eight-byte aligned
-UNK 00 30, #0x480000000000
+wait 1
+add x48, x5a, 0x400
+mov x4a, #0x112233445566
 
-mov x48, 0
-mov w4a, 0
-job w4a, x48
-  slot 3
-  wait 3
-  UNK 00 31, 0
-  mov x4c, 0x10001
-  @ unk, takes a 32-bit imm
-  UNK 25 10, #0x380000000000
+regdump x50
+@UNK 01 26, 0x484a00fd0000 @ works
+UNK 01 26, 0x484a00fd0001 @ works
+@UNK 01 26, 0x484a00fd0004 @ stores, no notification
+@UNK 01 26, 0x484a00fd0005 @ stores, no notification
+@UNK 01 26, 0x484a00fd0008 @ works
+@UNK 01 26, 0x484a00fd0009 @ works
+@UNK 07 26, 0x484a01fd0001
+@strev (unk 01), w4a, [x48, unk 0x01000001]
+regdump x52
 
-  mov x48, 0
-  mov x4a, $x
-  add x4a, x4a, 0x400
-  mov x4e, 0x112233445566
-  @ unk
-  UNK 00 16, #0x4e000000000e
-
-  str x4e, [x4a]
-  str x4e, [x4a, 8]
-
-  add x48, x52, 0x200
-
-  regdump x50
-  UNK 00 08, #0x480000000000
-  UNK 4f 10, #0x4f00ffffffff
-  UNK 00 16,     #0x6000fff8
-  @UNK 4e 10, #0x4e00ffffffff
-  wait 0
-  regdump x52
-
-
-
-@mov x48, $ev
-@mov w4a, 0
-
-@mov x40, 1
-@str x40, [x48]
-
-@mov w54, 0xffffe0
-@UNK 00 24, #0x540000000233
-@wait all
-
-@mov x48, #0x5ffba00040
-@mov w4a, #0xc8
-@job w4a, x48
-@  mov w53, 0x40404040
-@  mov w54, 0x50505050
-@  mov w55, 0x60606060
-@  mov x56, 0x665544332211
-@  mov w57, 0x88776655
-@  mov w58, 0xccbbaa99
-@  mov w59, 0xffeeddcc
-@  mov w5a, 0xf0e0d0c0
-@  mov x48, $x
-@  add x48, x48, #0x0
-@  str x53, [x48, 0]
-
-@  mov x48, $x
-@  regdump x48
-@  str x57, [x48, 0]
-@  strev(unk) x56, [x48, 0x8000]
 !dump x 0 4096
 !dump ev 0 4096
 """

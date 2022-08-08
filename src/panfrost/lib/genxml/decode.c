@@ -1546,9 +1546,29 @@ pandecode_cs_command(uint64_t command,
                               addr, arg1, arg2, l);
                 break;
         }
+
         case 38: {
-                pandecode_log("strev (unk %02x), w%02x, [x%02x, unk %x]\n",
-                              addr, arg1, arg2, l);
+                /*
+                 * 0b 10011000 -- opcode
+                 *    ????0??? -- unk. usually 1, faults if "0" bit set
+                 *    aaaaaaaa -- address register
+                 *    vvvvvvvv -- 32-bit value register
+                 *    00000000 -- seems to act as NOP if nonzero
+                 *    11111101 / 00000100 -- unk
+                 *    ???????? -- seems to have no effect
+                 *    ?????s0u -- 's' disables signal to CPU,
+                 *                'u' has unknown purpose (disable GPU signal?)
+                 */
+
+                if (addr != 1 || l & 0xff00fffa)
+                        pandecode_log("evstr (unk %02x), w%02x, [x%02x, unk %x]\n",
+                                      addr, arg1, arg2, l);
+                else
+                        pandecode_log("evstr w%02x, [x%02x], mode 0x%x%s%s\n",
+                                      arg1, arg2, l >> 16,
+                                      l & 0x4 ? "" : ", irq",
+                                      l & 0x1 ? ", nogpu?" : ", gpu?");
+
                 break;
         }
         case 39: {
@@ -1565,6 +1585,13 @@ pandecode_cs_command(uint64_t command,
                 break;
         }
         default:
+                /*
+                 * UNK 00 30, #0x480000000000 -- takes an eight-byte aligned
+                 * memory address.
+                 *
+                 * UNK 25 10, #0x380000000000 -- takes a 32-bit immediate
+                 */
+
                 pandecode_log("UNK %02x %02x, #0x%"PRIx64"\n", addr, op, value);
                 break;
         }
