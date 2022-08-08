@@ -39,9 +39,16 @@ job w4a, x48
   UNK 00 16, #0x4e000000000e
 
   str x4e, [x4a]
+  str x4e, [x4a, 8]
+
+  add x48, x52, 0x200
 
   regdump x50
-  ldr w4f, [x4a, 0]
+  UNK 00 08, #0x480000000000
+  UNK 4f 10, #0x4f00ffffffff
+  UNK 00 16,     #0x6000fff8
+  @UNK 4e 10, #0x4e00ffffffff
+  wait 0
   regdump x52
 
 
