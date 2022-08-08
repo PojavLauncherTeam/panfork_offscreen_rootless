@@ -1456,15 +1456,22 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
-        case 17: {
+
+        case 16: case 17: {
+                char wid = (op == 16) ? 'w' : 'x';
+
                 if (arg1)
-                        pandecode_log("add x%02x, (unk %x), x%02x, #0x%x\n",
-                                      addr, arg1, arg2, l);
+                        pandecode_log("add %c%02x, (unk %x), %c%02x, #0x%x\n",
+                                      wid, addr, wid, arg1, arg2, l);
+                else if ((int32_t) l < 0)
+                        pandecode_log("add %c%02x, %c%02x, %i\n",
+                                      wid, addr, wid, arg2, (int32_t) l);
                 else if (l)
-                        pandecode_log("add x%02x, x%02x, #0x%x\n",
-                                      addr, arg2, l);
+                        pandecode_log("add %c%02x, %c%02x, #0x%x\n",
+                                      wid, addr, wid, arg2, l);
                 else
-                        pandecode_log("mov x%02x, x%02x\n", addr, arg2);
+                        pandecode_log("mov %c%02x, %c%02x\n",
+                                      wid, addr, wid, arg2);
 
                 break;
         }
@@ -1481,7 +1488,7 @@ pandecode_cs_command(uint64_t command,
                  * except that a base register is specified.
                  *
                  * These instructions are high latency. Use WAIT 0 to wait for
-                 * the result of an LDR.
+                 * the result of an LDR, or for a STR to finish.
                  *
                  * For LDR, it is an error for the address register to be
                  * included in the destination register set.

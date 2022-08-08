@@ -20,10 +20,10 @@ wait 1
 add x48, x5a, 0x400
 mov x4a, #0x112233445566
 
+mov x5e, 0x605040302010
+
 regdump x50
-@  25014a4800f80005   strev(unk) (unk 01), w48, [x4a, unk f80005]
-@UNK 01 25, 0x484a00f80005
-UNK 01 25, 0x484a00f80001
+add w5e, w5c, 0xf4332211
 regdump x52
 
 !dump x 0 4096
@@ -258,9 +258,9 @@ class Context:
                 value = val(s[2])
             elif s[0] == "add":
                 assert(len(s) == 4)
-                assert(s[1][0] == "x")
-                assert(s[2][0] == "x")
-                cmd = 17
+                assert(s[1][0] == s[2][0])
+                assert(s[1][0] in "wx")
+                cmd = 16 if s[1][0] == "w" else 17
                 addr = reg(s[1])
                 value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
             elif s[0] == "iter":
