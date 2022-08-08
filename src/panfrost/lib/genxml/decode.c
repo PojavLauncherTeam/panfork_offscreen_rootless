@@ -1517,6 +1517,19 @@ pandecode_cs_command(uint64_t command,
                               addr, arg1, arg2, l);
                 break;
         }
+        case 39: {
+                /* Wait until the value in the destination register is changed
+                 * to be *different* from the value using an evstr
+                 * instruction.
+                 */
+                if (addr || l != 0x10000000)
+                        pandecode_log("evwait (unk %02x), w%02x, "
+                                      "[x%02x, unk %x]\n",
+                                      addr, arg1, arg2, l);
+                else
+                        pandecode_log("evwait w%02x, [x%02x]\n", arg1, arg2);
+                break;
+        }
         default:
                 pandecode_log("UNK %02x %02x, #0x%"PRIx64"\n", addr, op, value);
                 break;

@@ -20,7 +20,7 @@ mov x40, 1
 str x40, [x48]
 
 regdump x42
-UNK 00 27, #0x484a10000000
+evwait w4a, [x48]
 regdump x20
 
 mov x48, #0x5ffba00040
@@ -352,6 +352,17 @@ class Context:
                 cmd = 37
                 addr = unk
                 value = (dest << 40) | (val << 32) | unk2
+            elif s[0] == "evwait":
+                assert(len(s) == 3)
+                assert(s[2][0] == "[")
+                assert(s[-1][-1] == "]")
+                s = [x.strip("[]()") for x in s]
+                src = reg(s[2])
+                val = reg(s[1])
+
+                cmd = 39
+                addr = 0
+                value = (src << 40) | (val << 32) | 0x10000000
             elif s[0] == "job":
                 ss = [x for x in s if x.find('(') == -1 and x.find(')') == -1]
                 assert(len(ss) == 3)
