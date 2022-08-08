@@ -1285,6 +1285,27 @@ pandecode_csf_dump_state(uint32_t *state)
         }
 }
 
+/* Assumes eight scoreboards */
+static void
+pandecode_scoreboard_mask(unsigned mask)
+{
+        if (mask == 0xff) {
+                pandecode_log_cont("all");
+                return;
+        } else if (!mask) {
+                pandecode_log_cont("none");
+                return;
+        }
+
+        const char *comma = "";
+        for (unsigned i = 0; i < 8; ++i) {
+                if (mask & (1 << i)) {
+                        pandecode_log_cont("%s%i", comma, i);
+                        comma = ",";
+                }
+        }
+}
+
 static void
 pandecode_regmask(unsigned base, unsigned mask)
 {
@@ -1377,20 +1398,9 @@ pandecode_cs_command(uint64_t command,
                 if (l & 0xff00ffff || h || addr) {
                         pandecode_log("wait (unk %02x), (unk %04x), "
                                       "%i, (unk %04x)\n", addr, h, l >> 16, l);
-                } else if (l >> 16 == 0xff) {
-                        pandecode_log("wait all\n");
                 } else {
-                        pandecode_log("wait");
-                        uint8_t jobs = l >> 16;
-                        bool pr = false;
-                        for (unsigned i = 0; i < 8; ++i) {
-                                if (jobs & (1 << i)) {
-                                        pandecode_log_cont("%s%i",
-                                                           pr ? "," : " ",
-                                                           i);
-                                        pr = true;
-                                }
-                        }
+                        pandecode_log("wait ");
+                        pandecode_scoreboard_mask(l >> 16);
                         pandecode_log_cont("\n");
                 }
                 break;
@@ -1590,26 +1600,32 @@ pandecode_cs_command(uint64_t command,
                  *    aaaaaaaa -- address register
                  *    vvvvvvvv -- 32-bit value register
                  *    00000000 -- seems to act as NOP if nonzero
-                 *    0xf8 (evstr0) / 0xfd / 0x4 (evstr1) -- unk
+                 *    mmmmmmmm -- scoreboard mask, unknown purpose
                  *    ???????? -- seems to have no effect
                  *    ?????s0u -- 's' disables signal to CPU,
                  *                'u' has unknown purpose (disable GPU signal?)
                  *
                  * The difference between the two opcodes is unknown.
+                 *
+                 * That the 'mmmmmmmm' byte is really a scoreboard mask is
+                 * unknown.
                  */
 
                 const char *name = (op == 37) ? "evstr0" : "evstr1";
 
-                if (addr != 1 || l & 0xff00fffa)
+                if (addr != 1 || l & 0xff00fffa) {
                         pandecode_log("%s (unk %02x), w%02x, [x%02x], "
-                                      "mode 0x%x, flags 0x%x\n",
+                                      "sb 0x%x, flags 0x%x\n",
                                       name, addr, arg1, arg2,
                                       l >> 16, (uint16_t) l);
-                else
-                        pandecode_log("%s w%02x, [x%02x], mode 0x%x%s%s\n",
-                                      name, arg1, arg2, l >> 16,
-                                      l & 0x4 ? "" : ", irq",
-                                      l & 0x1 ? ", nogpu?" : ", gpu?");
+                } else {
+                        pandecode_log("%s w%02x, [x%02x], sb ",
+                                      name, arg1, arg2);
+                        pandecode_scoreboard_mask(l >> 16);
+                        pandecode_log_cont("%s%s\n",
+                                           l & 0x4 ? "" : ", irq",
+                                           l & 0x1 ? ", nogpu?" : ", gpu?");
+                }
 
                 break;
         }
