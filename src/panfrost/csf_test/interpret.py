@@ -22,8 +22,28 @@ mov x4a, #0x112233445566
 
 mov x5e, 0x605040302010
 
+mov x00, 10
+mov x10, 1
+mov x20, 2
+mov x30, 3
+mov x40, 4
+
+@mov x4a, 0x100000000
+
+@mov x4a, 0xff000000
+@mov x4a, 0x100000
+@mov x4a, 0
+
 regdump x50
-add w5e, w5c, 0xf4332211
+
+mov w22, 5
+add x24, x52, 0x200
+
+str w22, [x24]
+add x24, x24, 4
+add w22, w22, -1
+b.ne w22, back 3
+
 regdump x52
 
 !dump x 0 4096
@@ -327,6 +347,29 @@ class Context:
                 cmd = 20 if s[0] == "ldr" else 21
                 addr = src
                 value = (dest << 40) | (offset & 0xffff) | (mask << 16)
+            elif s[0] == "b" or s[0].startswith("b."):
+                assert(len(s) == 4)
+                assert(s[1][0] == "w")
+                assert(s[2] in ("back", "skip"))
+
+                ops = {
+                    "b.gt": 0, "b.le": 1,
+                    "b.eq": 2, "b.ne": 3,
+                    "b.lt": 4, "b.ge": 5,
+                    "b": 6, "b.al": 6,
+                }
+
+                src = reg(s[1])
+                offset = val(s[3])
+                if s[2] == "back":
+                    offset = -1 - offset
+                assert(offset < 36768)
+                assert(offset >= -32768)
+
+                cmd = 22
+                addr = 0
+                value = (src << 40) | (ops[s[0]] << 28) | (offset & 0xffff)
+
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
                 unk = int(s[2])

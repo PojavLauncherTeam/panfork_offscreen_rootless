@@ -1505,6 +1505,40 @@ pandecode_cs_command(uint64_t command,
                 break;
         }
 
+        case 22: {
+                /* The signed 32-bit source register is compared against zero
+                 * for these comparisons. For example, .GT means that the
+                 * branch is taken if the signed register value is greater
+                 * than zero. */
+                const char *m = (const char *[]) {
+                        ".gt", ".le",
+                        ".eq", ".ne",
+                        ".lt", ".ge",
+                        "" /* always */, ".(invalid: never)",
+                }[(l >> 28) & 7];
+
+                int16_t offset = l;
+
+                bool forward = (offset >= 0);
+                if (!forward)
+                        offset = -1 - offset;
+
+                if (addr || arg1 || l & 0x8fff0000) {
+                        pandecode_log("b%s (unk %02x), w%02x, (unk %02x), "
+                                      "(unk 0x%x), %s %i\n",
+                                      m, addr, arg2, arg1, l & 0x8fff0000,
+                                      forward ? "skip" : "back",
+                                      offset);
+                } else {
+                        pandecode_log("b%s w%02x, %s %i\n",
+                                      m, arg2,
+                                      forward ? "skip" : "back",
+                                      offset);
+                }
+
+                break;
+        }
+
         case 23: {
                 if (value >> 3 || addr)
                         pandecode_log("slot (unk %02x), (unk %"PRIx64"), "
