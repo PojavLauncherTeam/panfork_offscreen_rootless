@@ -1102,6 +1102,29 @@ buffers_elem(struct util_dynarray *buffers, unsigned index)
         return util_dynarray_element(buffers, struct panfrost_ptr, index);
 }
 
+static void
+dump_times(FILE *fp, uint64_t *values, unsigned size)
+{
+        uint64_t old = 0;
+        bool zero = false;
+        bool el = false;
+        for (unsigned i = 0; i < size / 8; ++i) {
+                uint64_t val = values[i];
+                int64_t delta = val - old;
+
+                if (!zero || delta) {
+                        fprintf(fp, "%"PRIi64"\n", delta);
+                        el = false;
+                } else if (!el) {
+                        fprintf(fp, "...\n");
+                        el = true;
+                }
+
+                old = val;
+                zero = (delta == 0);
+        }
+}
+
 static bool
 cs_test(struct state *s, struct test *t)
 {
@@ -1121,6 +1144,7 @@ cs_test(struct state *s, struct test *t)
 
                 unsigned src, dst, offset, size, iter, flags;
                 int read;
+                char *mode;
 
                 if (sscanf(line, "reloc %u+%u %u",
                            &dst, &offset, &src) == 3) {
@@ -1188,15 +1212,20 @@ cs_test(struct state *s, struct test *t)
                         submit_cs(s, iter);
                         wait_cs(s, iter);
 
-                } else if (sscanf(line, "dump %u %u %u",
-                                  &src, &offset, &size) == 3) {
+                } else if (sscanf(line, "dump %u %u %u %ms",
+                                  &src, &offset, &size, &mode) == 4) {
 
                         struct panfrost_ptr *s = buffers_elem(&buffers, src);
 
                         if (!s->gpu)
                                 fprintf(stderr, "dumping buffer that doesn't exist!\n");
-                        pan_hexdump(stdout, s->cpu + offset, size, true);
 
+                        if (!strcmp(mode, "hex"))
+                                pan_hexdump(stdout, s->cpu + offset, size, true);
+                        else if (!strcmp(mode, "times"))
+                                dump_times(stdout, s->cpu + offset, size);
+
+                        free(mode);
                 } else {
                         fprintf(stderr, "unknown command '%s'\n", line);
                 }
@@ -1607,7 +1636,8 @@ main(int argc, char *argv[])
         if (!strcmp(getenv("TERM"), "dumb"))
                 colour_term = false;
 
-        printf("Running Valhall CSF tests\n");
+        if (pr)
+                printf("Running Valhall CSF tests\n");
 
         do_test_list(&s, kbase_main, ARRAY_SIZE(kbase_main));
 }

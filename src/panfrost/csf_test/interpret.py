@@ -225,13 +225,14 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x200f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] == "!dump":
+            elif s[0] in ("!dump", "!dumptimes"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
+                mode = "hex" if s[0] == "!dump" else "times"
                 self.exe.append(("dump", self.allocs[alloc_id].id,
-                                 offset, size))
+                                 offset, size, mode))
                 continue
             elif s[0] == "regdump":
                 assert(len(s) == 2)
@@ -258,12 +259,14 @@ class Context:
                 value = val(s[3])
             elif s[0] == "nop":
                 if len(s) == 1:
-                    code = 0
+                    addr = 0
+                    value = 0
+                    cmd = 0
                 else:
                     assert(len(s) == 3)
                     addr = hx(s[1])
                     value = val(s[2])
-                    code = (addr << 48) | value
+                    cmd = 0
             elif s[0] == "mov" and s[2][0] == "x":
                 # This is actually an addition command
                 assert(len(s) == 3)
@@ -327,6 +330,23 @@ class Context:
                 cmd = 6
                 addr = 0
                 value = (r2 << 40) | (r1 << 32) | (index << 8) | mode
+            elif s[0] == "str" and s[1] in ("cycles", "timestamp"):
+                assert(len(s) == 3 or len(s) == 4)
+                assert(s[2][0] == "[")
+                assert(s[-1][-1] == "]")
+                s = [x.strip("[]") for x in s]
+                assert(s[2][0] == "x")
+
+                type_ = 1 if s[1] == "cycles" else 0
+                dest = reg(s[2])
+                if len(s) == 4:
+                    offset = val(s[3])
+                else:
+                    offset = 0
+
+                cmd = 40
+                addr = 0
+                value = (dest << 40) | (type_ << 32) | (offset & 0xffff)
             elif s[0] in ("ldr", "str"):
                 assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")
@@ -337,6 +357,7 @@ class Context:
 
                 mask = 3 if s[1][0] == "x" else 1
 
+                # Names are correct for str, but inverted for ldr
                 src = reg(s[1])
                 dest = reg(s[2])
                 if len(s) == 4:
@@ -346,7 +367,7 @@ class Context:
 
                 cmd = 20 if s[0] == "ldr" else 21
                 addr = src
-                value = (dest << 40) | (offset & 0xffff) | (mask << 16)
+                value = (dest << 40) | (mask << 16) | (offset & 0xffff)
             elif s[0] == "b" or s[0].startswith("b."):
                 assert(len(s) == 4)
                 assert(s[1][0] == "w")
@@ -415,7 +436,7 @@ class Context:
 
                 self.is_call = True
             else:
-                print("unk", orig_line, file=sys.stderr)
+                print("Unknown command:", orig_line, file=sys.stderr)
                 # TODO remove
                 cmd = 0
                 addr = 0
