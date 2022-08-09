@@ -5,7 +5,8 @@ import re
 import subprocess
 import sys
 
-cmds = """
+def get_cmds(cmd):
+    return f"""
 !cs 2
 !alloc x 4096
 !alloc ev 4096 0x8200f
@@ -13,40 +14,57 @@ cmds = """
 mov x50, $x
 add x52, x50, 0x200
 
-slot 2
+@slot 2
 mov x5a, $ev
 
-wait 1
-add x48, x5a, 0x400
-mov x4a, #0x112233445566
+@wait 1
+@add x48, x5a, 0x400
+@mov x4a, #0x112233445566
 
-mov x5e, 0x605040302010
+@mov x5e, 0x605040302010
 
-mov x00, 10
-mov x10, 1
-mov x20, 2
-mov x30, 3
-mov x40, 4
+@mov x00, 10
+@mov x10, 1
+@mov x20, 2
+@mov x30, 3
+@mov x40, 4
 
-@mov x4a, 0x100000000
+@mov x20, 0x123456
 
-@mov x4a, 0xff000000
-@mov x4a, 0x100000
-@mov x4a, 0
+@regdump x50
 
-regdump x50
+@ 0x18 seems to be some sort of sync command?
 
-mov w22, 5
-add x24, x52, 0x200
+add x5c, x50, 0
 
-str w22, [x24]
-add x24, x24, 4
-add w22, w22, -1
-b.ne w22, back 3
+mov x20, 4
+@UNK 01 26, 0x5a2000040005
 
-regdump x52
+mov w10, 20
 
-!dump x 0 4096
+str cycles, [x5c]
+add x5c, x5c, 8
+add w10, w10, -1
+mov w11, 12345
+
+add w11, w11, -1
+b.ne w11, back 1
+
+b.ne w10, back 6
+
+{cmd}
+
+@mov w22, 5
+@add x24, x52, 0x200
+
+@str w22, [x24]
+@add x24, x24, 4
+@add w22, w22, -1
+@b.ne w22, back 3
+
+@regdump x52
+
+!dumptimes x 0 4096
 !dump ev 0 4096
 """
 
@@ -473,21 +491,38 @@ def interpret(text):
     c.interpret(text)
     print(c)
 
-def go(text):
-    try:
-        p = subprocess.run(["rebuild-mesa"])
-        if p.returncode != 0:
-            return
-    except FileNotFoundError:
-        pass
-
+def run(text):
     c = Context()
     c.interpret(text)
 
     p = subprocess.run(["csf_test", "/dev/stdin"],
                        input=str(c), text=True)
 
+def rebuild():
+    try:
+        p = subprocess.run(["rebuild-mesa"])
+        if p.returncode != 0:
+            return False
+    except FileNotFoundError:
+        pass
+    return True
+
+def go(text):
+    if not rebuild():
+        return
+
+    run(text)
+
 os.environ["CSF_QUIET"] = "1"
 
+go(get_cmds(""))
+
+#rebuild()
+#for c in range(256):
+#    print(c, end=":")
+#    sys.stdout.flush()
+#    cmd = f"UNK 00 {hex(c)[2:]} 0x00000000"
+#    run(get_cmds(cmd))
+
 #interpret(cmds)
-go(cmds)
+#go(cmds)
