@@ -1377,8 +1377,15 @@ pandecode_cs_command(uint64_t command,
         uint8_t arg1 = h & 0xff;
         uint8_t arg2 = h >> 8;
 
-	if (command)
-		pandecode_log("%016"PRIx64" ", command);
+        if (command)
+                pandecode_log("%016"PRIx64" ", command);
+
+        const char *comparisons[] = {
+                ".gt", ".le",
+                ".eq", ".ne",
+                ".lt", ".ge",
+                "" /* always */, ".(invalid: never)",
+        };
 
         switch (op) {
         case 0:
@@ -1520,12 +1527,7 @@ pandecode_cs_command(uint64_t command,
                  * for these comparisons. For example, .GT means that the
                  * branch is taken if the signed register value is greater
                  * than zero. */
-                const char *m = (const char *[]) {
-                        ".gt", ".le",
-                        ".eq", ".ne",
-                        ".lt", ".ge",
-                        "" /* always */, ".(invalid: never)",
-                }[(l >> 28) & 7];
+                const char *m = comparisons[(l >> 28) & 7];
 
                 int16_t offset = l;
 
@@ -1593,7 +1595,7 @@ pandecode_cs_command(uint64_t command,
                 break;
         }
 
-        case 37: case 38: {
+        case 37: case 38: case 51: case 52: {
                 /*
                  * 0b 00100101 / 00100110 -- opcode
                  *    ????0??? -- unk. usually 1, faults if "0" bit set
@@ -1611,16 +1613,17 @@ pandecode_cs_command(uint64_t command,
                  * unknown.
                  */
 
-                const char *name = (op == 37) ? "evadd" : "evstr";
+                const char *name = (op & 1) ? "evadd" : "evstr";
+                const char *type = (op > 50) ? "x" : "w";
 
                 if (addr != 1 || l & 0xff00fffa) {
-                        pandecode_log("%s (unk %02x), w%02x, [x%02x], "
+                        pandecode_log("%s (unk %02x), %s%02x, [x%02x], "
                                       "sb 0x%x, flags 0x%x\n",
-                                      name, addr, arg1, arg2,
+                                      name, addr, type, arg1, arg2,
                                       l >> 16, (uint16_t) l);
                 } else {
-                        pandecode_log("%s w%02x, [x%02x], sb ",
-                                      name, arg1, arg2);
+                        pandecode_log("%s %s%02x, [x%02x], sb ",
+                                      name, type, arg1, arg2);
                         pandecode_scoreboard_mask(l >> 16);
                         pandecode_log_cont("%s%s\n",
                                            l & 0x4 ? "" : ", irq",
@@ -1629,17 +1632,21 @@ pandecode_cs_command(uint64_t command,
 
                 break;
         }
-        case 39: {
+        case 39: case 53: {
+                const char *m = comparisons[(l >> 28) & 7];
+                const char *type = (op > 50) ? "x" : "w";
+
                 /* Wait until the value in the destination register is changed
-                 * to be *different* from the value using an evstr
-                 * instruction.
-                 */
-                if (addr || l != 0x10000000)
-                        pandecode_log("evwait (unk %02x), w%02x, "
+                 * to *fail* the comparison. For example, with .GT the value
+                 * in memory must *not* be greater than the reference to
+                 * continue execution. Think of it like B.<COMP> BACK 0. */
+                if (addr || l & ~0x70000000)
+                        pandecode_log("evwait%s (unk %02x), %s%02x, "
                                       "[x%02x, unk %x]\n",
-                                      addr, arg1, arg2, l);
+                                      m, addr, type, arg1, arg2, l);
                 else
-                        pandecode_log("evwait w%02x, [x%02x]\n", arg1, arg2);
+                        pandecode_log("evwait%s %s%02x, [x%02x]\n",
+                                      m, type, arg1, arg2);
                 break;
         }
 

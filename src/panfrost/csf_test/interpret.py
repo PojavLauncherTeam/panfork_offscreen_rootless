@@ -30,17 +30,29 @@ mov x5a, $ev
 
 @mov x20, 0x123456
 
-@regdump x50
 
 @ 0x18 seems to be some sort of sync command?
 
 add x5c, x50, 0
 
-mov x20, 4
-@UNK 01 26, 0x5a2000040005
+{cmd}
 
-mov w10, 20
+mov x40, 0x665544332211
+mov w41, 0x88776655
 
+regdump x50
+
+UNK 01 33, #0x5a4000000001
+add x40, x40, 1
+UNK 00 35, #0x5a4000000000
+
+regdump x52
+
+!dump x 0 4096
+!dump ev 0 4096
+"""
+
+cycletest = """
 1:
 str cycles, [x5c]
 add x5c, x5c, 8
@@ -52,13 +64,6 @@ add w11, w11, -1
 b.ne w11, inner
 
 b.ne w10, 1b
-
-{cmd}
-
-@regdump x52
-
-!dumptimes x 0 4096
-!dump ev 0 4096
 """
 
 def get_cmds(cmd):
