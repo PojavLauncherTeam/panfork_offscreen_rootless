@@ -41,25 +41,20 @@ mov x20, 4
 
 mov w10, 20
 
+1:
 str cycles, [x5c]
 add x5c, x5c, 8
 add w10, w10, -1
-mov w11, 12345
+mov w11, 10000
 
+inner:
+add w12, w12, -1
 add w11, w11, -1
-b.ne w11, back 1
+b.ne w11, inner
 
-b.ne w10, back 6
+b.ne w10, 1b
 
 {cmd}
-
-@mov w22, 5
-@add x24, x52, 0x200
-
-@str w22, [x24]
-@add x24, x24, 4
-@add w22, w22, -1
-@b.ne w22, back 3
 
 @regdump x52
 
@@ -77,6 +72,14 @@ class Buffer:
         self.id = Buffer.id
         Buffer.id += 1
 
+def resolve_rel(to, branch):
+    return (to - branch) // 8 - 1
+
+def to_int16(value):
+    assert(value < 36768)
+    assert(value >= -32768)
+    return value & 0xffff
+
 class Level(Buffer):
     def __init__(self, indent):
         super().__init__()
@@ -86,9 +89,36 @@ class Level(Buffer):
         self.call_addr_offset = None
         self.call_len_offset = None
 
+        self.labels = {}
+        self.label_refs = []
+        # Numeric labels can be reused, so have to be handled specially.
+        self.num_labels = {}
+        self.num_refs = {}
+
+    def offset(self):
+        return len(self.buffer) * 8
+
     def __repr__(self):
         buf = " ".join(hex(x) for x in self.buffer)
-        return f"buffer {self.id} {len(self.buffer) * 8} {buf}"
+        return f"buffer {self.id} {self.offset()} {buf}"
+
+    def buffer_add_value(self, offset, value):
+        self.buffer[offset // 8] += value
+
+    def process_relocs(self, refs, to=None):
+        for ref, offset, type_ in refs:
+            assert(type_ == "rel")
+
+            if to is None:
+                goto = self.labels[ref]
+            else:
+                goto = to
+
+            value = to_int16(resolve_rel(goto, offset))
+            self.buffer_add_value(offset, value)
+
+    def finish(self):
+        self.process_relocs(self.label_refs)
 
 class Alloc(Buffer):
     def __init__(self, size, flags=0x200f):
@@ -134,7 +164,7 @@ class Context:
             if not len(self.levels):
                 return
 
-            buf_len = len(l.buffer) * 8
+            buf_len = l.offset()
 
             r = self.l
             self.reloc.append((r.id, r.call_addr_offset * 8, l.id))
@@ -152,6 +182,7 @@ class Context:
         self.pop_until(ind)
         if len(self.levels[0].buffer):
             l = self.levels.pop()
+            l.finish()
             self.completed.append(l)
 
             self.levels.append(Level(ind))
@@ -169,7 +200,7 @@ class Context:
             assert(p.indent == ind)
 
             self.exe[self.last_exe] = (
-                *self.exe[self.last_exe], p.id, len(p.buffer) * 8)
+                *self.exe[self.last_exe], p.id, p.offset())
 
         self.last_exe = None
 
@@ -215,9 +246,26 @@ class Context:
             for i in range(len(s)):
                 if s[i].startswith("$"):
                     alloc_id = s[i][1:]
-                    self.reloc.append((self.l.id, len(self.l.buffer) * 8,
+                    self.reloc.append((self.l.id, self.l.offset(),
                                        self.allocs[alloc_id].id))
                     s[i] = "#0x0"
+
+            if s[0].endswith(":"):
+                label = s[0][:-1]
+                if re.fullmatch(r"[0-9]+", label):
+                    label = int(label)
+                    if label in self.l.num_refs:
+                        self.l.process_relocs(self.l.num_refs[label], self.l.offset())
+                        del self.l.num_refs[label]
+                    self.l.num_labels[label] = self.l.offset()
+                else:
+                    if label in self.l.labels:
+                        print("Label reuse is not supported for non-numeric labels")
+                    self.l.labels[label] = self.l.offset()
+
+                s = s[1:]
+                if not len(s):
+                    continue
 
             def hx(word):
                 return int(word, 16)
@@ -366,7 +414,7 @@ class Context:
 
                 cmd = 40
                 addr = 0
-                value = (dest << 40) | (type_ << 32) | (offset & 0xffff)
+                value = (dest << 40) | (type_ << 32) | to_int16(offset)
             elif s[0] in ("ldr", "str"):
                 assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")
@@ -387,11 +435,17 @@ class Context:
 
                 cmd = 20 if s[0] == "ldr" else 21
                 addr = src
-                value = (dest << 40) | (mask << 16) | (offset & 0xffff)
+                value = (dest << 40) | (mask << 16) | to_int16(offset)
             elif s[0] == "b" or s[0].startswith("b."):
-                assert(len(s) == 4)
+                # For unconditional jumps, use w00 as a source register if it
+                # is not specified
+                if s[0] == "b" and (len(s) == 2 or
+                                    (len(s) == 3 and
+                                     s[1] in ("back", "skip"))):
+                    s = [s[0], "w00", *s[1:]]
+
+                assert(len(s) == 3 or (len(s) == 4 and s[2] in ("back", "skip")))
                 assert(s[1][0] == "w")
-                assert(s[2] in ("back", "skip"))
 
                 ops = {
                     "b.gt": 0, "b.le": 1,
@@ -401,15 +455,31 @@ class Context:
                 }
 
                 src = reg(s[1])
-                offset = val(s[3])
-                if s[2] == "back":
-                    offset = -1 - offset
-                assert(offset < 36768)
-                assert(offset >= -32768)
+                if len(s) == 4:
+                    offset = val(s[3])
+                    if s[2] == "back":
+                        offset = -1 - offset
+                else:
+                    label = s[2]
+                    if re.fullmatch(r"[0-9]+b", label):
+                        label = int(label[:-1])
+                        assert(label in self.l.num_labels)
+                        offset = resolve_rel(self.l.num_labels[label],
+                                             self.l.offset())
+                    elif re.fullmatch(r"[0-9]+f", label):
+                        label = int(label[:-1])
+                        if label not in self.l.num_refs:
+                            self.l.num_refs[label] = []
+                        self.l.num_refs[label].append((label, self.l.offset(), "rel"))
+                        offset = 0
+                    else:
+                        assert(not re.fullmatch(r"[0-9]+", label))
+                        self.l.label_refs.append((label, self.l.offset(), "rel"))
+                        offset = 0
 
                 cmd = 22
                 addr = 0
-                value = (src << 40) | (ops[s[0]] << 28) | (offset & 0xffff)
+                value = (src << 40) | (ops[s[0]] << 28) | to_int16(offset)
 
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
