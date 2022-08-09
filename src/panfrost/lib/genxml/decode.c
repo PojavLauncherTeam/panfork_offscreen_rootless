@@ -1533,7 +1533,7 @@ pandecode_cs_command(uint64_t command,
                 if (!forward)
                         offset = -1 - offset;
 
-                if (addr || arg1 || l & 0x8fff0000 || !offset) {
+                if (addr || arg1 || l & 0x8fff0000) {
                         pandecode_log("b%s (unk %02x), w%02x, (unk %02x), "
                                       "(unk 0x%x), %s %i\n",
                                       m, addr, arg2, arg1, l & 0x8fff0000,

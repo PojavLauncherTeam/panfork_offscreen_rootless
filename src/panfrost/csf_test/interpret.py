@@ -45,10 +45,9 @@ mov w10, 20
 str cycles, [x5c]
 add x5c, x5c, 8
 add w10, w10, -1
-mov w11, 10000
+mov w11, 100000
 
 inner:
-add w12, w12, -1
 add w11, w11, -1
 b.ne w11, inner
 
@@ -250,9 +249,15 @@ class Context:
                                        self.allocs[alloc_id].id))
                     s[i] = "#0x0"
 
-            if s[0].endswith(":"):
-                label = s[0][:-1]
-                if re.fullmatch(r"[0-9]+", label):
+            def is_num(str):
+                return re.fullmatch(r"[0-9]+", str)
+
+            if s[0].endswith(":") or (len(s) == 1 and is_num(s[0])):
+                label = s[0]
+                if s[0].endswith(":"):
+                    label = label[:-1]
+
+                if is_num(label):
                     label = int(label)
                     if label in self.l.num_refs:
                         self.l.process_relocs(self.l.num_refs[label], self.l.offset())
