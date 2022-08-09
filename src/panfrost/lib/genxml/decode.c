@@ -1642,12 +1642,29 @@ pandecode_cs_command(uint64_t command,
                         pandecode_log("evwait w%02x, [x%02x]\n", arg1, arg2);
                 break;
         }
+
+        case 40: {
+                if (addr || l >> 16 || arg1 > 1) {
+                        pandecode_log("str type %02x, (unk %02x), "
+                                      "(unk %x), [x%02x, %i]\n",
+                                      addr, arg1,
+                                      l >> 16, arg2, (int16_t) l);
+                } else {
+                        const char *type = (const char *[]) {
+                                "timestamp",
+                                "cycles",
+                        }[arg1];
+
+                        pandecode_log("str %s, [x%02x, %i]\n",
+                                      type, arg2, (int16_t) l);
+                }
+                break;
+        }
+
         default:
                 /*
                  * UNK 00 30, #0x480000000000 -- takes an eight-byte aligned
                  * memory address.
-                 *
-                 * UNK 25 10, #0x380000000000 -- takes a 32-bit immediate
                  */
 
                 pandecode_log("UNK %02x %02x, #0x%"PRIx64"\n", addr, op, value);
