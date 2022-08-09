@@ -453,16 +453,17 @@ def interpret(text):
     print(c)
 
 def go(text):
-    p = subprocess.run(["mold", "--run", "ninja", "-C",
-                        "/tmp/mesa/build", "src/panfrost/csf_test"])
-
-    if p.returncode != 0:
-        return
+    try:
+        p = subprocess.run(["rebuild-mesa"])
+        if p.returncode != 0:
+            return
+    except FileNotFoundError:
+        pass
 
     c = Context()
     c.interpret(text)
 
-    p = subprocess.run(["/tmp/mesa/build/src/panfrost/csf_test", "/dev/stdin"],
+    p = subprocess.run(["csf_test", "/dev/stdin"],
                        input=str(c), text=True)
 
 os.environ["CSF_QUIET"] = "1"

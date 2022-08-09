@@ -23,12 +23,6 @@ repo, and placing it in ``/lib/firmware/``.
 Compiling
 ---------
 
-(Alternatively, a
-[binary](https://gitlab.freedesktop.org/icecream95/mesa/-/snippets/6805)
-tarball can be downloaded, which is self-contained and does not need
-any file from this repository. However, extracting it in the root
-`mesa/` directory allows debuggers to find source code.)
-
 .. code-block:: sh
 
   $ mkdir build
@@ -59,3 +53,36 @@ some problems should be easy to fix (wrong permissions on
 
 Include all output from running the test program. Including logs from
 ``strace`` might also help.
+
+Command stream test script
+--------------------------
+
+`src/panfrost/csf_test/interpret.py` is a test script for assembling
+and executing command streams.
+
+To use it, symlink the `csf_test` binary into `$PATH` and optionally
+also write a `rebuild-mesa` script which recompiles `csf_test`.
+
+Then running `interpret.py` will execute the `cmds` var, which is
+defined inside the script file.
+
+Example:
+
+```
+@ comments are started with '@'
+
+@ run on command stream 2
+!cs 2
+@ allocate some memory
+!alloc x 4096
+@ allocate event memory, for evstr instructions
+!alloc ev 4096 0x8200f
+
+mov x50, $x
+
+@ dump all registers to the memory starting at x50
+regdump x50
+
+@ dump the memory region named 'x'
+!dump x 0 4096
+```
