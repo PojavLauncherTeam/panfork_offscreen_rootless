@@ -5,8 +5,7 @@ import re
 import subprocess
 import sys
 
-def get_cmds(cmd):
-    return f"""
+template = """
 !cs 2
 !alloc x 4096
 !alloc ev 4096 0x8200f
@@ -67,6 +66,9 @@ b.ne w10, back 6
 !dumptimes x 0 4096
 !dump ev 0 4096
 """
+
+def get_cmds(cmd):
+    return template.format(cmd=cmd)
 
 class Buffer:
     id = 0
