@@ -50,8 +50,6 @@ struct pandecode_mapped_memory *pandecode_find_mapped_gpu_mem_containing(uint64_
 
 void pandecode_map_read_write(void);
 
-void pandecode_dump_mappings(void);
-
 static inline void *
 __pandecode_fetch_gpu_mem(uint64_t gpu_va, size_t size,
                           int line, const char *filename)
