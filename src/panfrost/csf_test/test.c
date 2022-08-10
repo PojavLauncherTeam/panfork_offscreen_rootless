@@ -1103,7 +1103,7 @@ buffers_elem(struct util_dynarray *buffers, unsigned index)
 }
 
 static void
-dump_times(FILE *fp, uint64_t *values, unsigned size)
+dump_time(FILE *fp, uint64_t *values, unsigned size)
 {
         uint64_t old = 0;
         bool zero = false;
@@ -1222,8 +1222,8 @@ cs_test(struct state *s, struct test *t)
 
                         if (!strcmp(mode, "hex"))
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
-                        else if (!strcmp(mode, "times"))
-                                dump_times(stdout, s->cpu + offset, size);
+                        else if (!strcmp(mode, "time"))
+                                dump_time(stdout, s->cpu + offset, size);
 
                         free(mode);
                 } else {

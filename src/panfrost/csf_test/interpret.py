@@ -42,14 +42,69 @@ mov w41, 0x88776655
 
 regdump x50
 
-UNK 01 33, #0x5a4000000001
-add x40, x40, 1
-UNK 00 35, #0x5a4000000000
+str x40, [x5a]
+str x40, [x5a, 8]
+
+str cycles, [x5a, 0]
+str cycles, [x5a, 0]
+str cycles, [x5a, 0]
+
+add x5a, x5a, 0
+str cycles, [x5a, 0]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str cycles, [x5a, 8]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str cycles, [x5a, 16]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+@str cycles, [x5a, 24]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str timestamp, [x5a, 32]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str timestamp, [x5a, 40]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str timestamp, [x5a, 48]
+
+mov w00, 10000
+1: add w00, w00, -1
+b.ne w00, 1b
+
+str timestamp, [x5a, 56]
+
+@UNK 01 33, #0x5a4000000001
+@UNK 01 26, #0x5a4000000001
+
+@add x40, x40, 1
+@UNK 00 35, #0x5a4000000000
 
 regdump x52
 
 !dump x 0 4096
 !dump ev 0 4096
+!dumptime ev 0 4096
 """
 
 cycletest = """
@@ -303,12 +358,12 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x200f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] in ("!dump", "!dumptimes"):
+            elif s[0] in ("!dump", "!dumptime"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
-                mode = "hex" if s[0] == "!dump" else "times"
+                mode = "hex" if s[0] == "!dump" else "time"
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
                 continue
