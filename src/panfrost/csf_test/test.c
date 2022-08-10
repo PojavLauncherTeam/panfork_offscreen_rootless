@@ -1103,7 +1103,7 @@ buffers_elem(struct util_dynarray *buffers, unsigned index)
 }
 
 static void
-dump_time(FILE *fp, uint64_t *values, unsigned size)
+dump_delta(FILE *fp, uint64_t *values, unsigned size)
 {
         uint64_t old = 0;
         bool zero = false;
@@ -1142,12 +1142,12 @@ cs_test(struct state *s, struct test *t)
                 if (getline(&line, &sz, f) == -1)
                         break;
 
-                unsigned src, dst, offset, size, iter, flags;
+                unsigned src, dst, offset, src_offset, size, iter, flags;
                 int read;
                 char *mode;
 
-                if (sscanf(line, "reloc %u+%u %u",
-                           &dst, &offset, &src) == 3) {
+                if (sscanf(line, "reloc %u+%u %u+%u",
+                           &dst, &offset, &src, &src_offset) == 4) {
 
                         struct panfrost_ptr *s = buffers_elem(&buffers, src);
                         struct panfrost_ptr *d = buffers_elem(&buffers, dst);
@@ -1157,15 +1157,16 @@ cs_test(struct state *s, struct test *t)
                         }
 
                         uint64_t *dest = d->cpu + offset;
-                        *dest |= s->gpu;
+                        uint64_t value = s->gpu + src_offset;
+                        *dest |= value;
 
-                } else if (sscanf(line, "buffer %u %u %n",
-                                  &dst, &size, &read) == 2) {
+                } else if (sscanf(line, "buffer %u %u %x %n",
+                                  &dst, &size, &flags, &read) == 3) {
                         line += read;
 
                         struct panfrost_ptr buffer =
                                 alloc_mem(s, ALIGN_POT(size, s->page_size),
-                                          0x200f);
+                                          flags);
 
                         alloc_redzone(s, buffer, ALIGN_POT(size, s->page_size));
 
@@ -1176,21 +1177,11 @@ cs_test(struct state *s, struct test *t)
                         for (unsigned i = 0; i < size / 8; ++i) {
                                 read = 0;
                                 unsigned long long val = 0;
-                                sscanf(line, "%Lx %n", &val, &read);
+                                if (sscanf(line, "%Lx %n", &val, &read) != 1)
+                                        break;
                                 line += read;
                                 fill[i] = val;
                         }
-
-                } else if (sscanf(line, "alloc %u %u %x",
-                                  &dst, &size, &flags) == 3) {
-
-                        struct panfrost_ptr buffer =
-                                alloc_mem(s, ALIGN_POT(size, s->page_size),
-                                          flags);
-
-                        alloc_redzone(s, buffer, ALIGN_POT(size, s->page_size));
-
-                        *buffers_elem(&buffers, dst) = buffer;
 
                 } else if (sscanf(line, "exe %u %u %u",
                                   &iter, &dst, &size) == 3) {
@@ -1222,8 +1213,8 @@ cs_test(struct state *s, struct test *t)
 
                         if (!strcmp(mode, "hex"))
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
-                        else if (!strcmp(mode, "time"))
-                                dump_time(stdout, s->cpu + offset, size);
+                        else if (!strcmp(mode, "delta"))
+                                dump_delta(stdout, s->cpu + offset, size);
 
                         free(mode);
                 } else {

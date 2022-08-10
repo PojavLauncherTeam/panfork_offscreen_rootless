@@ -40,71 +40,38 @@ add x5c, x50, 0
 mov x40, 0x665544332211
 mov w41, 0x88776655
 
-regdump x50
+@regdump x50
 
 str x40, [x5a]
-str x40, [x5a, 8]
-
-str cycles, [x5a, 0]
-str cycles, [x5a, 0]
-str cycles, [x5a, 0]
-
-add x5a, x5a, 0
-str cycles, [x5a, 0]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str cycles, [x5a, 8]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str cycles, [x5a, 16]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-@str cycles, [x5a, 24]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str timestamp, [x5a, 32]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str timestamp, [x5a, 40]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str timestamp, [x5a, 48]
-
-mov w00, 10000
-1: add w00, w00, -1
-b.ne w00, 1b
-
-str timestamp, [x5a, 56]
+@str x40, [x5a, 8]
 
 @UNK 01 33, #0x5a4000000001
 @UNK 01 26, #0x5a4000000001
 
 @add x40, x40, 1
-@UNK 00 35, #0x5a4000000000
+UNK 00 35, #0x5a4010000000
 
-regdump x52
+@regdump x52
+
+mov w10, 10
+1:
+str cycles, [x5c]
+add x5c, x5c, 8
+add w10, w10, -1
+mov w11, 100000
+
+inner:
+
+
+
+add w11, w11, -1
+b.ne w11, inner
+
+b.ne w10, 1b
 
 !dump x 0 4096
 !dump ev 0 4096
-!dumptime ev 0 4096
+!delta x 0 4096
 """
 
 cycletest = """
@@ -159,7 +126,7 @@ class Level(Buffer):
 
     def __repr__(self):
         buf = " ".join(hex(x) for x in self.buffer)
-        return f"buffer {self.id} {self.offset()} {buf}"
+        return f"buffer {self.id} {self.offset()} 0x200f {buf}"
 
     def buffer_add_value(self, offset, value):
         self.buffer[offset // 8] += value
@@ -187,11 +154,11 @@ class Alloc(Buffer):
         self.flags = flags
 
     def __repr__(self):
-        return f"alloc {self.id} {self.size} {hex(self.flags)}"
+        return f"buffer {self.id} {self.size} {hex(self.flags)}"
 
 def fmt_reloc(r):
-    dst, offset, src = r
-    return f"reloc {dst}+{offset} {src}"
+    dst, offset, src, src_offset = r
+    return f"reloc {dst}+{offset} {src}+{src_offset}"
 
 def fmt_exe(e):
     return " ".join(str(x) for x in e)
@@ -226,7 +193,7 @@ class Context:
             buf_len = l.offset()
 
             r = self.l
-            self.reloc.append((r.id, r.call_addr_offset * 8, l.id))
+            self.reloc.append((r.id, r.call_addr_offset * 8, l.id, 0))
             r.buffer[r.call_len_offset] = (
                 (r.buffer[r.call_len_offset] & (0xffff << 48)) +
                 buf_len)
@@ -306,7 +273,7 @@ class Context:
                 if s[i].startswith("$"):
                     alloc_id = s[i][1:]
                     self.reloc.append((self.l.id, self.l.offset(),
-                                       self.allocs[alloc_id].id))
+                                       self.allocs[alloc_id].id, 0))
                     s[i] = "#0x0"
 
             def is_num(str):
@@ -358,12 +325,12 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x200f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] in ("!dump", "!dumptime"):
+            elif s[0] in ("!dump", "!delta"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
-                mode = "hex" if s[0] == "!dump" else "time"
+                mode = "hex" if s[0] == "!dump" else "delta"
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
                 continue
