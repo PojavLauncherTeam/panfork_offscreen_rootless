@@ -1034,8 +1034,8 @@ wait_cs(struct state *s, unsigned i)
 
                         if (e != extract_offset) {
                                 fprintf(stderr, "CS_EXTRACT (%i) != %i, "
-                                        "CS_ACTIVE (%i):",
-                                        e, extract_offset, a);
+                                        "CS_ACTIVE (%i) on queue %i:",
+                                        e, extract_offset, a, i);
                                 /* Decode two instructions instead? */
                                 pandecode_cs(s->cs_mem[i].gpu + e, 8, s->gpu_id);
 
@@ -1183,25 +1183,44 @@ cs_test(struct state *s, struct test *t)
                                 fill[i] = val;
                         }
 
-                } else if (sscanf(line, "exe %u %u %u",
-                                  &iter, &dst, &size) == 3) {
-                        struct panfrost_ptr *d = buffers_elem(&buffers, dst);
+                } else if (sscanf(line, "exe %n %u %u %u",
+                                  &read, &iter, &dst, &size) == 3) {
+                        line += read;
 
-                        /* TODO: Check 'size' against buffer size */
+                        unsigned iter_mask = 0;
 
-                        pandecode_cs(d->gpu, size, s->gpu_id);
+                        for (;;) {
+                                read = 0;
+                                if (sscanf(line, "%u %u %u %n",
+                                           &iter, &dst, &size, &read) != 3)
+                                        break;
+                                line += read;
 
-                        if (iter > 3) {
-                                fprintf(stderr, "execute on out-of-bounds "
-                                        "iterator\n");
-                                continue;
+                                struct panfrost_ptr *d =
+                                        buffers_elem(&buffers, dst);
+
+                                /* TODO: Check 'size' against buffer size */
+
+                                pandecode_cs(d->gpu, size, s->gpu_id);
+
+                                if (iter > 3) {
+                                        fprintf(stderr,
+                                                "execute on out-of-bounds "
+                                                "iterator\n");
+                                        continue;
+                                }
+
+                                memcpy(s->cs[iter].ptr, d->cpu, size);
+                                s->cs[iter].ptr += size / 8;
+
+                                iter_mask |= (1 << iter);
                         }
 
-                        memcpy(s->cs[iter].ptr, d->cpu, size);
-                        s->cs[iter].ptr += size / 8;
+                        u_foreach_bit(i, iter_mask)
+                                submit_cs(s, i);
 
-                        submit_cs(s, iter);
-                        wait_cs(s, iter);
+                        u_foreach_bit(i, iter_mask)
+                                wait_cs(s, i);
 
                 } else if (sscanf(line, "dump %u %u %u %ms",
                                   &src, &offset, &size, &mode) == 4) {

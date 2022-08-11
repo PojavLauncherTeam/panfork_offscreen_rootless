@@ -1360,10 +1360,10 @@ pandecode_regmask(unsigned base, unsigned mask)
 static void
 pandecode_cs_buffer(uint64_t *commands, unsigned size,
                     uint32_t *buffer, uint32_t *buffer_unk,
-                    unsigned gpu_id);
+                    unsigned gpu_id, mali_ptr va);
 
 static void
-pandecode_cs_command(uint64_t command,
+pandecode_cs_command(uint64_t command, mali_ptr va,
                      uint32_t *buffer, uint32_t *buffer_unk,
                      unsigned gpu_id)
 {
@@ -1378,7 +1378,7 @@ pandecode_cs_command(uint64_t command,
         uint8_t arg2 = h >> 8;
 
         if (command)
-                pandecode_log("%016"PRIx64" ", command);
+                pandecode_log("%"PRIx64" %016"PRIx64" ", va, command);
 
         const char *comparisons[] = {
                 ".gt", ".le",
@@ -1578,7 +1578,8 @@ pandecode_cs_command(uint64_t command,
 
                 uint64_t *t = pandecode_fetch_gpu_mem(target, length);
                 pandecode_indent++;
-                pandecode_cs_buffer(t, length, buffer, buffer_unk, gpu_id);
+                pandecode_cs_buffer(t, length, buffer, buffer_unk, gpu_id,
+                                    target);
                 pandecode_indent--;
                 break;
         }
@@ -1679,15 +1680,18 @@ pandecode_cs_command(uint64_t command,
         }
 }
 
+// TODO: reorder args
 static void
 pandecode_cs_buffer(uint64_t *commands, unsigned size,
                     uint32_t *buffer, uint32_t *buffer_unk,
-                    unsigned gpu_id)
+                    unsigned gpu_id, mali_ptr va)
 {
         uint64_t *end = (uint64_t *)((uint8_t *) commands + size);
 
         for (uint64_t c = *commands; commands < end; c = *(++commands)) {
-                pandecode_cs_command(c, buffer, buffer_unk, gpu_id);
+                pandecode_cs_command(c, va,
+                                     buffer, buffer_unk, gpu_id);
+                va += 8;
         }
 }
 
@@ -1705,7 +1709,8 @@ GENX(pandecode_cs)(mali_ptr cs_gpu_va, unsigned size, unsigned gpu_id)
 
         pandecode_log("\n");
 
-        pandecode_cs_buffer(commands, size, buffer, buffer_unk, gpu_id);
+        pandecode_cs_buffer(commands, size, buffer, buffer_unk, gpu_id,
+                            cs_gpu_va);
 
         fflush(pandecode_dump_stream);
         pandecode_map_read_write();

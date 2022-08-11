@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 template = """
-!cs 2
+!cs 3
 !alloc x 4096
 !alloc ev 4096 0x8200f
 
@@ -49,7 +49,7 @@ str x40, [x5a]
 @UNK 01 26, #0x5a4000000001
 
 @add x40, x40, 1
-UNK 00 35, #0x5a4010000000
+@UNK 00 35, #0x5a4010000000
 
 @regdump x52
 
@@ -58,12 +58,52 @@ mov w10, 10
 str cycles, [x5c]
 add x5c, x5c, 8
 add w10, w10, -1
-mov w11, 100000
+mov w11, 10000
 
 inner:
+add w11, w11, -1
+add w16, w16, 1
+b.ne w11, inner
+
+b.ne w10, 1b
+
+!parallel 1
+
+mov x5c, $x
+add x5c, x5c, 256
+nop
+nop
+mov w10, 10
+
+1:
+str cycles, [x5c]
+add x5c, x5c, 8
+add w10, w10, -1
+mov w11, 10000
+
+inner:
+add w11, w11, -1
+add w16, w16, 1
+b.ne w11, inner
+
+b.ne w10, 1b
 
 
+!parallel 4 @ 2
 
+mov x5c, $x
+add x5c, x5c, 512
+nop
+nop
+mov w10, 10
+
+1:
+str cycles, [x5c]
+add x5c, x5c, 8
+add w10, w10, -1
+mov w11, 10000
+
+inner:
 add w11, w11, -1
 b.ne w11, inner
 
@@ -225,8 +265,7 @@ class Context:
             p = self.completed[-1]
             assert(p.indent == ind)
 
-            self.exe[self.last_exe] = (
-                *self.exe[self.last_exe], p.id, p.offset())
+            self.exe[self.last_exe] += [p.id, p.offset()]
 
         self.last_exe = None
 
@@ -316,7 +355,13 @@ class Context:
                 assert(len(s) == 2)
                 self.flush_exe()
                 self.last_exe = len(self.exe)
-                self.exe.append(("exe", int(s[1])))
+                self.exe.append(["exe", int(s[1])])
+                continue
+            elif s[0] == "!parallel":
+                assert(len(s) == 2)
+                self.flush_exe()
+                self.last_exe = len(self.exe) - 1
+                self.exe[-1] += [int(s[1])]
                 continue
             elif s[0] == "!alloc":
                 assert(len(s) == 3 or len(s) == 4)
