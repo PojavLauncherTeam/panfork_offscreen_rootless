@@ -2783,7 +2783,7 @@ wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
 {
         assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
 
-        if (s->ptr == bo->ptr.cpu + bo->size)
+        if ((void *)s->ptr >= bo->ptr.cpu + bo->size / 2)
                 s->ptr = bo->ptr.cpu;
 }
 
@@ -2806,14 +2806,14 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 cs->init = true;
         }
 
-        pan_emit_cs_ins(&s, 9, 0);
+        //pan_emit_cs_ins(&s, 9, 0);
         pan_pack_ins(&s, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
-        pan_emit_cs_ins(&s, 0x31, 0x1ULL << 32);
+        //pan_emit_cs_ins(&s, 0x31, 0x1ULL << 32);
         pan_pack_ins(&s, CS_ADD_IMM, cfg) {
-                cfg.dest = 0x4a;
+                cfg.dest = 0x48;
                 cfg.src = 0x40;
         }
-        pan_emit_cs_32(&cs->cs, 0x48, 1);
+        pan_emit_cs_32(&cs->cs, 0x4a, 1);
         // TODO genxmlify
         pan_emit_cs_ins(&s, 0x26, 0x01484a00040001);
 
@@ -2826,9 +2826,13 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // 0xff for vertex jobs
         pan_pack_ins(&cs->cs, CS_WAIT, cfg) { cfg.slots = (1 << 0); }
 
-        pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
-        pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
-        pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
+        unsigned length = (void *)s.ptr - bo->ptr.cpu;
+        memcpy(cs->cs.ptr, bo->ptr.cpu, length);
+        cs->cs.ptr += length / 8;
+
+        //pan_emit_cs_48(&cs->cs, 0x48, bo->ptr.gpu); W;
+        //pan_emit_cs_32(&cs->cs, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
+        //pan_pack_ins(&cs->cs, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 
         /* Fragment jobs should emit an event here; we can "use" the result as
          * soon as the job is underway?.. I think. */
@@ -4880,7 +4884,8 @@ init_batch(struct panfrost_batch *batch)
         pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
         //pan_pack_ins(&batch->cs_vertex, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
         // TODO genxmlify
-        pan_emit_cs_ins(&batch->cs_vertex, 0x31, 0);
+        //pan_emit_cs_ins(&batch->cs_vertex, 0x31, 0);
+        pan_emit_cs_ins(&batch->cs_vertex, 0, 0);
 
         // UNK 00 31, #0x0 / UNK 00 09, #0x0 "wrapping" for vertex jobs
 

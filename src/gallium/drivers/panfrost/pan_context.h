@@ -119,14 +119,14 @@ struct panfrost_streamout {
 
 /* TODO this struct is a mess */
 struct panfrost_cs {
-	struct kbase_cs base;
-	struct panfrost_bo *bo;
-	pan_command_stream cs;
-	unsigned size;
-	unsigned mask;
-	bool init;
-	mali_ptr event_base;
-	mali_ptr event_ptr;
+        struct kbase_cs base;
+        struct panfrost_bo *bo;
+        pan_command_stream cs;
+        unsigned size;
+        unsigned mask;
+        bool init;
+        mali_ptr event_base;
+        mali_ptr event_ptr;
 };
 
 struct panfrost_context {

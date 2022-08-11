@@ -83,6 +83,8 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
                         cpu = p.cpu;
                         create_bo.offset = p.gpu;
                         create_bo.handle = kbase_alloc_gem_handle(&dev->mali, p.gpu, -1);
+                        if (!cpu)
+                                abort();
                         ret = 0;
                 } else {
                         ret = -1;

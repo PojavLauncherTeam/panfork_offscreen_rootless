@@ -6,116 +6,76 @@ import subprocess
 import sys
 
 template = """
-!cs 3
+!cs 0
+!alloc x 4096
+
+mov x48, 0
+mov w4a, 0
+job w4a, x48
+  nop
+  nop
+  nop
+  mov x20, $.
+  movw x22, 0x0124000044332211
+  str x22, [x20, 64]
+  1: nop
+  b 1b
+
+  mov x40, $x
+  str x24, [x40]
+
+!dump x 0 4
+
+"""
+
+atemplate = """
+!cs 0
 !alloc x 4096
 !alloc ev 4096 0x8200f
 
-mov x50, $x
-add x52, x50, 0x200
+iter vertex
+slot 2
 
-@slot 2
-mov x5a, $ev
+mov x40, $x
+mov w10, 1
+mov x48, 0
+mov w4a, 0
+job w4a, x48
+  nop
+  nop
+  nop
+  mov x20, $.
+@  movw x22, 0x0126000011223344
+  movw x22, 0x1600000060000001
+  str x22, [x20, 56]
+  1: nop
+  b 1b
+  nop
+  add x40, x40, #256
+  regdump x40
 
-@wait 1
-@add x48, x5a, 0x400
-@mov x4a, #0x112233445566
-
-@mov x5e, 0x605040302010
-
-@mov x00, 10
-@mov x10, 1
-@mov x20, 2
-@mov x30, 3
-@mov x40, 4
-
-@mov x20, 0x123456
-
-
-@ 0x18 seems to be some sort of sync command?
-
-add x5c, x50, 0
-
-{cmd}
-
-mov x40, 0x665544332211
-mov w41, 0x88776655
-
-@regdump x50
-
-str x40, [x5a]
-@str x40, [x5a, 8]
-
-@UNK 01 33, #0x5a4000000001
-@UNK 01 26, #0x5a4000000001
-
-@add x40, x40, 1
-@UNK 00 35, #0x5a4010000000
-
-@regdump x52
-
-mov w10, 10
-1:
-str cycles, [x5c]
-add x5c, x5c, 8
-add w10, w10, -1
-mov w11, 10000
-
-inner:
-add w11, w11, -1
-add w16, w16, 1
-b.ne w11, inner
-
-b.ne w10, 1b
-
-!parallel 1
-
-mov x5c, $x
-add x5c, x5c, 256
-nop
-nop
-mov w10, 10
-
-1:
-str cycles, [x5c]
-add x5c, x5c, 8
-add w10, w10, -1
-mov w11, 10000
-
-inner:
-add w11, w11, -1
-add w16, w16, 1
-b.ne w11, inner
-
-b.ne w10, 1b
-
-
-!parallel 4 @ 2
-
-mov x5c, $x
-add x5c, x5c, 512
-nop
-nop
-mov w10, 10
-
-1:
-str cycles, [x5c]
-add x5c, x5c, 8
-add w10, w10, -1
-mov w11, 10000
-
-inner:
-add w11, w11, -1
-b.ne w11, inner
-
-b.ne w10, 1b
+mov x5a, #0x5ff7fd6000
+mov x48, $ev
+mov x40, #0x5ff7fd6000
+mov w54, #0x1
+UNK 00 24, #0x540000000233
+wait 0
+slot 6
+@UNK 00 31, #0x0
+UNK 00 09, #0x0
+wait 6
+@UNK 00 31, #0x100000000
+mov x4a, x40
+UNK 01 26, 0x484a00040001
 
 !dump x 0 4096
-!dump ev 0 4096
-!delta x 0 4096
+@!dump ev 0 4096
+@!delta x 0 4096
 """
 
 cycletest = """
 1:
+mov w10, 10
 str cycles, [x5c]
 add x5c, x5c, 8
 add w10, w10, -1
@@ -310,9 +270,13 @@ class Context:
 
             for i in range(len(s)):
                 if s[i].startswith("$"):
-                    alloc_id = s[i][1:]
+                    if s[i] == "$.":
+                        buf = self.l
+                    else:
+                        alloc_id = s[i][1:]
+                        buf = self.allocs[alloc_id]
                     self.reloc.append((self.l.id, self.l.offset(),
-                                       self.allocs[alloc_id].id, 0))
+                                       buf.id, 0))
                     s[i] = "#0x0"
 
             def is_num(str):
@@ -378,6 +342,17 @@ class Context:
                 mode = "hex" if s[0] == "!dump" else "delta"
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
+                continue
+            elif s[0] == "movw":
+                assert(len(s) == 3)
+                assert(s[1][0] == "x")
+                addr = reg(s[1])
+                # Can't use val() as that has a max of 48 bits
+                value = int(s[2].strip("#"), 0)
+
+                self.l.buffer.append((2 << 56) | (addr << 48) | (value & 0xffffffff))
+                self.l.buffer.append((2 << 56) | ((addr + 1) << 48)
+                                       | ((value >> 32) & 0xffffffff))
                 continue
             elif s[0] == "regdump":
                 assert(len(s) == 2)

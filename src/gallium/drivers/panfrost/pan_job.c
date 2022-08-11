@@ -766,18 +766,8 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                         drmSyncobjWait(dev->fd, &out_sync, 1,
                                        INT64_MAX, 0, NULL);
 
-                if (dev->debug & PAN_DBG_TRACE) {
-			// TODO: Remove CSF code
-                        if (dev->arch < 10) {
-                                pandecode_jc(submit.jc, dev->gpu_id);
-                        } else if (reqs & PANFROST_JD_REQ_FS) {
-                                pandecode_cs_bo(batch->cs_fragment_bo,
-                                                dev->gpu_id);
-                        } else {
-                                pandecode_cs_bo(batch->cs_vertex_bo,
-                                                dev->gpu_id);
-                        }
-                }
+                if (dev->debug & PAN_DBG_TRACE)
+                        pandecode_jc(submit.jc, dev->gpu_id);
 
                 if (dev->debug & PAN_DBG_DUMP)
                         pandecode_dump_mappings();
@@ -868,9 +858,9 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         }
 
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL);
-        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+        //dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
 
-        if (ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
+        if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +
                         ctx->kbase_cs_vertex.base.last_extract;
                 uint64_t *a = x;
@@ -881,7 +871,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL);
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
-        if (ctx->kbase_cs_fragment.base.last_extract != vs_offset) {
+        if (false && ctx->kbase_cs_fragment.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_fragment.bo->ptr.cpu +
                         ctx->kbase_cs_fragment.base.last_extract;
                 uint64_t *a = x;
