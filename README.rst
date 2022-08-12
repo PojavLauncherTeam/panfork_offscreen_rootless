@@ -57,32 +57,32 @@ Include all output from running the test program. Including logs from
 Command stream test script
 --------------------------
 
-`src/panfrost/csf_test/interpret.py` is a test script for assembling
+``src/panfrost/csf_test/interpret.py`` is a test script for assembling
 and executing command streams.
 
-To use it, symlink the `csf_test` binary into `$PATH` and optionally
-also write a `rebuild-mesa` script which recompiles `csf_test`.
+To use it, symlink the ``csf_test`` binary into ``$PATH`` and optionally
+also write a ``rebuild-mesa`` script which recompiles ``csf_test``.
 
-Then running `interpret.py` will execute the `cmds` var, which is
+Then running ``interpret.py`` will execute the ``cmds`` var, which is
 defined inside the script file.
 
 Example:
 
-```
-@ comments are started with '@'
+.. code-block:: txt
 
-@ run on command stream 2
-!cs 2
-@ allocate some memory
-!alloc x 4096
-@ allocate event memory, for evstr instructions
-!alloc ev 4096 0x8200f
+  @ comments are started with '@'
 
-mov x50, $x
+  @ run on command stream 2
+  !cs 2
+  @ allocate some memory
+  !alloc x 4096
+  @ allocate event memory, for evstr instructions
+  !alloc ev 4096 0x8200f
 
-@ dump all registers to the memory starting at x50
-regdump x50
+  mov x50, $x
 
-@ dump the memory region named 'x'
-!dump x 0 4096
-```
+  @ dump all registers to the memory starting at x50
+  regdump x50
+
+  @ dump the memory region named 'x'
+  !dump x 0 4096
