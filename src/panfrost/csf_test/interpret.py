@@ -5,71 +5,99 @@ import re
 import subprocess
 import sys
 
+try:
+    py_path = os.path.dirname(os.path.realpath(__file__)) + "/../bifrost/valhall"
+except:
+    py_path = "../bifrost/valhall"
+
+if py_path not in sys.path:
+    sys.path.insert(0, py_path)
+
+import asm
+import struct
+
+shaders = {
+    "compute":
+    """
+IADD_IMM.i32.reconverge r0, 0x0, #0x0
+NOP.wait0
+ICMP.u32.ge.m1 r1, r0, u2, 0x0
+BRANCHZ.eq.reconverge ^r1.h0, offset:1
+BRANCHZ.eq 0x0, offset:3
+ATOM1_RETURN.i32.slot0.ainc @r1, u0, offset:0x0
+IADD_IMM.i32 r0, ^r0, #0x1
+BRANCHZ.eq.reconverge 0x0, offset:-7
+NOP.end
+"""
+}
+
 template = """
 !cs 0
 !alloc x 4096
-!alloc ev 4096 0x8200f
+!alloc y 4096
+!alloc ev 4096
 
-mov x4c, $ev
+endpt 0
 mov x48, $x
-mov x4e, 2
-@mov w4f, 0x1236
-@str w4f, [x4c]
 
-evwait.hi x4e, [x48]
+mov w21, 0x80000000
+mov w25, 1
+mov w26, 1
+mov w27, 1
 
-ldr w20, [x48]
+add x0e, x48, 64
+mov x50, $ev
+str x50, [x0e]
+mov x30, 10
+str x30, [x0e, 8]
+add w0f, w0f, 0x02000000
+
+add x16, x48, 128
+mov x30, 0x118
+str x30, [x16]
+mov x30, $compute
+str x30, [x16, 8]
+
+add x1e, x48, 192
+
+mov x30, $y
+@regdump x30
+mov x30, 0
+
+mov w40, 100
+1: add w40, w40, -1
+str cycles, [x50, 32]
+b.ne w40, 1b
+
+@ 1 560 560
+@ 5 686 681
+@ 10 822
+@ 15 958
+mov w42, 200
+mov w40, 100
+1: add w40, w40, -1
+endpt 1
+UNK 0400ff0000008001
+UNK 2501504200000004
+@UNK 3 24, #0x4a0000000211
+
+@wait all
+b.ne w40, 1b
+
+UNK 2601504200000004
+
+str cycles, [x50, 40]
+str cycles, [x50, 48]
+UNK 02 24, #0x4a0000000211
 wait 0
-str w20, [x48, 16]
 
-!parallel 1
-mov x4c, $ev
-mov x48, $x
-
-mov w0, 100000
-1: add w0, w0, -1
-b.ne w0, 1b
-
-mov w20, 3
-str w20, [x48]
-
-mov w4e, 0x1234
-@UNK 01 26, 0x4c4e00000005
-mov w20, 4
-str w20, [x48]
-
-mov w4e, 0x1234
-@UNK 01 26, 0x4c4e00000005
-mov w20, 5
-str w20, [x48]
-
-mov w4e, 0x1235
-@UNK 01 26, 0x4c4e00000005
-mov w20, 6
-str w20, [x48]
-
-mov w0, 100
-1: add w0, w0, -1
-b.ne w0, 1b
-
-!parallel 2
-mov x4c, $ev
-mov x48, $x
-
-mov w0, 200000
-1: add w0, w0, -1
-b.ne w0, 1b
-
-add x40, x48, 64
-str x40, [x40]
-str x40, [x40, 8]
-mov x4e, 0x54321
-
-@UNK 01 26, 0x404e00000000
-@str w0, [x48]
+add x5c, x50, 64
+UNK 25015c5e00fd0004
+UNK 25015c5e00fd0001
 
 !dump x 0 4096
-!dump ev 0 4096
+!dump y 0 384
+!delta ev 0 4096
 """
 
 atemplate = """
@@ -146,7 +174,7 @@ mov x40, $x
 mov w10, 1
 mov x48, 0
 mov w4a, 0
-job w4a, x48
+call w4a, x48
   nop
   nop
   nop
@@ -196,6 +224,11 @@ b.ne w10, 1b
 
 def get_cmds(cmd):
     return template.format(cmd=cmd)
+
+def assemble_shader(text):
+    lines = text.strip().split("\n")
+    lines = [l for l in lines if len(l) > 0 and l[0] not in "#@"]
+    return [asm.parse_asm(ln) for ln in lines]
 
 class Buffer:
     id = 0
@@ -258,9 +291,11 @@ class Alloc(Buffer):
 
         self.size = size
         self.flags = flags
+        self.buffer = []
 
     def __repr__(self):
-        return f"buffer {self.id} {self.size} {hex(self.flags)}"
+        buf = " ".join(hex(x) for x in self.buffer)
+        return f"buffer {self.id} {self.size} {hex(self.flags)} {buf}"
 
 def fmt_reloc(r):
     dst, offset, src, src_offset = r
@@ -334,6 +369,15 @@ class Context:
             self.exe[self.last_exe] += [p.id, p.offset()]
 
         self.last_exe = None
+
+    def add_shaders(self, shaders):
+        for sh in shaders:
+            qwords = assemble_shader(shaders[sh])
+            sh = sh.lower()
+
+            a = Alloc(len(qwords) * 8, flags=0x2017)
+            a.buffer = qwords
+            self.allocs[sh] = a
 
     def interpret(self, text):
         text = text.split("\n")
@@ -518,7 +562,7 @@ class Context:
                 cmd = 16 if s[1][0] == "w" else 17
                 addr = reg(s[1])
                 value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
-            elif s[0] == "iter":
+            elif s[0] == "endpt":
                 assert(len(s) == 2)
                 types = {"compute": 1, "fragment": 2, "blit": 3, "vertex": 13}
                 name = s[1]
@@ -668,7 +712,7 @@ class Context:
                 cmd = 53 if s[1][0] == "x" else 39
                 addr = 0
                 value = (src << 40) | (val << 32) | (cond << 28)
-            elif s[0] == "job":
+            elif s[0] == "call":
                 ss = [x for x in s if x.find('(') == -1 and x.find(')') == -1]
                 assert(len(ss) == 3)
                 assert(ss[1][0] == "w")
@@ -726,12 +770,15 @@ class Context:
 
 def interpret(text):
     c = Context()
+    c.add_shaders(shaders)
     c.interpret(text)
     print(c)
 
 def run(text):
     c = Context()
+    c.add_shaders(shaders)
     c.interpret(text)
+    #print(c)
 
     p = subprocess.run(["csf_test", "/dev/stdin"],
                        input=str(c), text=True)

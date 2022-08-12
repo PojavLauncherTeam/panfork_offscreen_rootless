@@ -1610,7 +1610,6 @@ struct test kbase_main[] = {
         { cs_queue_register, cs_queue_term, "Register command stream queues" },
         { cs_init, NULL, "Initialise and start command stream queues" },
 
-        { compute_compile, NULL, "Compile a compute shader" },
         { cs_test, NULL, "Test command stream" },
 
         { cs_simple, NULL, "Execute MOV command" },
@@ -1623,6 +1622,7 @@ struct test kbase_main[] = {
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
+        { compute_compile, NULL, "Compile a compute shader" },
         { compute_execute, NULL, "Execute a compute shader" },
         { compute_execute, NULL, "Execute compute on blit queue", .blit = true },
 };

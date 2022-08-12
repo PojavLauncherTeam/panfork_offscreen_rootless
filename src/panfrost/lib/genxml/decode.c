@@ -1416,7 +1416,7 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 pandecode_indent++;
 
-                pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
+                //pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
 
                 /* The gallium driver emits this even for compute jobs */
                 pan_unpack_cs(buffer, buffer_unk, SCISSOR, unused_scissor);
@@ -1559,6 +1559,7 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                         pandecode_log("slot %i\n", l);
                 break;
         }
+
         case 32: {
                 unsigned length = buffer[arg1];
                 uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
@@ -1567,10 +1568,10 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 unsigned instrs = length / 8;
 
                 if (addr || l)
-                        pandecode_log("job (unk %02x), w%02x (%i instructions), x%02x (0x%"PRIx64"), (unk %x)\n",
+                        pandecode_log("call (unk %02x), w%02x (%i instructions), x%02x (0x%"PRIx64"), (unk %x)\n",
                                       addr, arg1, instrs, arg2, target, l);
                 else
-                        pandecode_log("job w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
+                        pandecode_log("call w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
                                       arg1, instrs, arg2, target);
 
                 if (!target || !length)
@@ -1583,16 +1584,16 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 pandecode_indent--;
                 break;
         }
+
         case 34: {
-                const char *name;
-                switch (l) {
-                case 1: name = "compute"; break;
-                case 2: name = "fragment"; break;
-                case 3: name = "blit"; break;
-                case 13: name = "vertex"; break;
-                default: name = "unk";
-                }
-                pandecode_log("iter %s\n", name);
+                if (l & ~0xf)
+                        pandecode_log("endpt 0x%x\n", l);
+                else
+                        pandecode_log("endpt%s%s%s%s\n",
+                                      (l & 1) ? " compute" : "",
+                                      (l & 2) ? " fragment" : "",
+                                      (l & 4) ? " vertex1" : "",
+                                      (l & 8) ? " vertex2" : "");
                 break;
         }
 

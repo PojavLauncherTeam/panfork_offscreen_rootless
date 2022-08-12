@@ -130,7 +130,7 @@ compile_shader(int stages, char **files)
                 shader_types[i] = filename_to_stage(files[i]);
 
         struct standalone_options options = {
-                .glsl_version = 300, /* ES - needed for precision */
+                .glsl_version = 460,
                 .do_link = true,
                 .lower_precision = true
         };
