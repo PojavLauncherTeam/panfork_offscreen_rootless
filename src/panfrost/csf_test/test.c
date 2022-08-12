@@ -51,7 +51,6 @@
 #include "compiler/nir/nir_builder.h"
 #include "bifrost/valhall/disassemble.h"
 
-/* TODO: Put this in v10.xml? */
 #define CS_EVENT_REGISTER 0x5A
 
 static bool pr = true;
@@ -1245,6 +1244,21 @@ cs_test(struct state *s, struct test *t)
         return false;
 }
 
+static void
+pan_cs_evadd(pan_command_stream *c, unsigned offset, unsigned value)
+{
+        pan_emit_cs_32(c, 0x5e, value);
+        pan_pack_ins(c, CS_ADD_IMM, cfg) {
+                cfg.value = offset;
+                cfg.src = 0x5a;
+                cfg.dest = 0x5c;
+        }
+        pan_pack_ins(c, CS_EVADD, cfg) {
+                cfg.value = 0x5e;
+                cfg.addr = 0x5c;
+        }
+}
+
 static bool
 cs_simple(struct state *s, struct test *t)
 {
@@ -1255,6 +1269,8 @@ cs_simple(struct state *s, struct test *t)
         unsigned dest = t->invalid ? 0x65 : 0x48;
 
         pan_emit_cs_32(c, dest, 0x1234);
+        pan_cs_evadd(c, 0, 1);
+
         submit_cs(s, queue);
         return wait_cs(s, queue);
 }
@@ -1291,13 +1307,12 @@ cs_store(struct state *s, struct test *t)
                 value += add;
         }
 
-        pan_pack_ins(c, CS_STR_32, cfg) {
-                cfg.unk_1 = 1;
-                cfg.unk_2 = 4;
-                cfg.unk_3 = 1;
+        pan_pack_ins(c, CS_STR, cfg) {
                 cfg.addr = addr_reg;
-                cfg.value = value_reg;
+                cfg.register_base = value_reg;
+                cfg.register_mask = 1;
         }
+        pan_cs_evadd(c, 0, 1);
 
         submit_cs(s, 0);
         wait_cs(s, 0);
@@ -1349,12 +1364,25 @@ cs_sub(struct state *s, struct test *t)
 
         void *start = i->ptr;
 
+        pan_emit_cs_ins(c, 0x30, 0x5a0000000000);
+
         pan_pack_ins(i, CS_SLOT, cfg) { cfg.index = 3; }
         pan_pack_ins(i, CS_WAIT, cfg) { cfg.slots = (1 << 3); }
+        //pan_emit_cs_ins(i, 0x31, 0);
 
         pan_emit_cs_48(i, addr_reg, dest_va);
         pan_emit_cs_32(i, value_reg, value);
-        pan_emit_cs_ins(i, 0x25, 0x01484a00f80005ULL);
+        //pan_emit_cs_ins(i, 0x25, 0x01484a00000005ULL);
+        pan_pack_ins(i, CS_STR, cfg) {
+                cfg.addr = addr_reg;
+                cfg.register_base = value_reg;
+                cfg.register_mask = 1;
+        }
+        //pan_emit_cs_ins(i, 0x09, 0);
+        //pan_emit_cs_ins(i, 0x31, 0x100000000);
+
+        //pan_emit_cs_ins(i, 0x24, 0x024a0000f80211ULL);
+
         /*
         pan_pack_ins(i, CS_STR_32, cfg) {
                 cfg.unk_1 = 1;
@@ -1365,6 +1393,7 @@ cs_sub(struct state *s, struct test *t)
                 }*/
 
         emit_cs_call(c, cs_va, start, i->ptr);
+        pan_cs_evadd(c, 0, 1);
 
         submit_cs(s, 0);
         wait_cs(s, 0);
@@ -1458,15 +1487,15 @@ compute_execute(struct state *s, struct test *t)
         *(uint32_t *) dest.cpu = 0;
         cache_clean(dest.cpu);
 
-        struct panfrost_ptr fau = mem_offset(dest, 64);
+        struct panfrost_ptr fau = mem_offset(dest, 128);
         *(uint64_t *) fau.cpu = dest.gpu;
         cache_clean(fau.cpu);
 
-        struct panfrost_ptr local_storage = mem_offset(dest, 128);
+        struct panfrost_ptr local_storage = mem_offset(dest, 192);
         pan_pack(local_storage.cpu, LOCAL_STORAGE, _);
         cache_clean(local_storage.cpu);
 
-        struct panfrost_ptr shader_program = mem_offset(dest, 192);
+        struct panfrost_ptr shader_program = mem_offset(dest, 256);
         pan_pack(shader_program.cpu, SHADER_PROGRAM, cfg) {
                 cfg.stage = MALI_SHADER_STAGE_COMPUTE;
                 cfg.primary_shader = true;
@@ -1501,18 +1530,43 @@ compute_execute(struct state *s, struct test *t)
 
         //pan_emit_cs_32(c, 0x54, 1);
         //pan_emit_cs_ins(c, 0x24, 0x540000000233);
-        //pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 255; }
         emit_cs_call(c, cs_va, start, i->ptr);
+
+        pan_emit_cs_32(c, 0x4a, 0);
+        pan_emit_cs_ins(c, 0x24, 0x024a0000000211ULL);
+
+        pan_emit_cs_48(c, 0x48, dest.gpu);
+        pan_pack_ins(c, CS_LDR, cfg) {
+                cfg.offset = 0;
+                cfg.register_mask = 1;
+                cfg.addr = 0x48;
+                cfg.register_base = 0x20;
+        }
+        pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1; }
+        pan_pack_ins(c, CS_ADD_IMM, cfg) {
+                cfg.value = 1;
+                cfg.src = 0x20;
+                cfg.dest = 0x20;
+        }
+        pan_pack_ins(c, CS_STR, cfg) {
+                cfg.offset = 64;
+                cfg.register_mask = 1;
+                cfg.addr = 0x48;
+                cfg.register_base = 0x20;
+        }
+
+        pan_cs_evadd(c, 0, 1);
 
         submit_cs(s, queue);
         wait_cs(s, queue);
 
         cache_invalidate(dest.cpu);
         cache_barrier(); /* Just in case it's needed */
-        uint32_t result = *(uint32_t *)dest.cpu;
+        uint32_t result = ((uint32_t *)dest.cpu)[0];
+        uint32_t result2 = ((uint32_t *)dest.cpu)[16];
 
         if (result != value) {
-                printf("Got %i, expected %i: ", result, value);
+                printf("Got %i, %i, expected %i: ", result, result2, value);
                 return false;
         }
 
@@ -1556,6 +1610,7 @@ struct test kbase_main[] = {
         { cs_queue_register, cs_queue_term, "Register command stream queues" },
         { cs_init, NULL, "Initialise and start command stream queues" },
 
+        { compute_compile, NULL, "Compile a compute shader" },
         { cs_test, NULL, "Test command stream" },
 
         { cs_simple, NULL, "Execute MOV command" },
@@ -1568,7 +1623,6 @@ struct test kbase_main[] = {
         { cs_store, NULL, "Execute ADD command", .add = true },
         { cs_sub, NULL, "Execute STR on iterator" },
 
-        { compute_compile, NULL, "Compile a compute shader" },
         { compute_execute, NULL, "Execute a compute shader" },
         { compute_execute, NULL, "Execute compute on blit queue", .blit = true },
 };

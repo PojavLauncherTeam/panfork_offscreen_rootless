@@ -8,24 +8,63 @@ import sys
 template = """
 !cs 0
 !alloc x 4096
+!alloc ev 4096 0x8200f
+!alloc ev2 4096 0x8200f
 
+mov x10, $x
+UNK 00 30, #0x100000000000
+add x12, x10, 256
+str cycles, [x12]
+mov x5a, $ev2
 mov x48, 0
 mov w4a, 0
-job w4a, x48
-  nop
-  nop
-  nop
-  mov x20, $.
-  movw x22, 0x0124000044332211
-  str x22, [x20, 64]
-  1: nop
-  b 1b
+slot 3
+wait 3
+UNK 00 31, 0
+mov x48, $ev
+mov w4a, 0x4321
+add x46, x48, 64
+mov w42, 0
 
-  mov x40, $x
-  str x24, [x40]
+str cycles, [x12, 8]
+UNK 01 26, 0x484a00000005
+str cycles, [x12, 16]
+UNK 01 26, 0x484a00000005
+str cycles, [x12, 24]
 
-!dump x 0 4
+nop
 
+mov w10, 10000
+1:
+UNK 01 26, 0x484a00000005
+add w10, w10, -1
+b.ne w10, 1b
+str cycles, [x12, 32]
+
+mov w10, 10000
+1:
+UNK 01 26, 0x484a00000005
+@UNK 02 24, #0x420000000211
+add w10, w10, -1
+b.ne w10, 1b
+str cycles, [x12, 40]
+
+ldr x16, [x48, 0]
+wait 0
+str x16, [x48, 16]
+
+UNK 00 31, 0x100000000
+
+mov w4a, #0x0
+UNK 02 24, #0x4a0000000211
+
+mov w5e, 1
+add x5c, x5a, 0x100
+UNK 01 25, 0x5c5e00f80001
+
+!delta x 0 4096
+!dump ev 0 4096
+!dump ev2 0 4096
 """
 
 atemplate = """
@@ -387,11 +426,11 @@ class Context:
                     addr = hx(s[1])
                     value = val(s[2])
                     cmd = 0
-            elif s[0] == "mov" and s[2][0] == "x":
+            elif s[0] == "mov" and s[2][0] in "xw":
                 # This is actually an addition command
                 assert(len(s) == 3)
-                assert(s[1][0] == "x")
-                cmd = 17
+                assert(s[1][0] == s[2][0])
+                cmd = { "x": 17, "w": 16 }[s[1][0]]
                 addr = reg(s[1])
                 value = reg(s[2]) << 40
             elif s[0] == "mov":

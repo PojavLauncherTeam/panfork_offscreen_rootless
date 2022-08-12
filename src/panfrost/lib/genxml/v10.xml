@@ -1507,8 +1507,33 @@
     <field name="Dest" start="48" size="8" type="register"/>
   </struct>
 
-  <struct name="CS Str 32" layout="ins" op="38">
-    <field name="Unk 1" start="0" size="16" type="hex" default="1"/>
+  <struct name="CS LDR" layout="ins" op="20">
+      <field name="Offset" start="0" size="16" type="int"/>
+      <field name="Register Mask" start="16" size="16" type="hex"/>
+      <field name="Addr" start="40" size="8" type="register"/>
+      <field name="Register Base" start="48" size="8" type="register"/>
+  </struct>
+
+  <struct name="CS STR" layout="ins" op="21">
+      <field name="Offset" start="0" size="16" type="int"/>
+      <field name="Register Mask" start="16" size="16" type="hex"/>
+      <field name="Addr" start="40" size="8" type="register"/>
+      <field name="Register Base" start="48" size="8" type="register"/>
+  </struct>
+
+  <struct name="CS EVADD" layout="ins" op="37">
+    <field name="Unk Flag" start="0" size="1" type="bool" default="true"/>
+    <field name="No IRQ" start="2" size="1" type="bool" default="false"/>
+    <field name="Unk 2" start="16" size="16" type="hex" default="253"/>
+    <!-- TODO: Separate types for 32-bit and 64-bit registers -->
+    <field name="Value" start="32" size="8" type="register"/>
+    <field name="Addr" start="40" size="8" type="register"/>
+    <field name="Unk 3" start="48" size="8" type="hex" default="1"/>
+  </struct>
+
+  <struct name="CS EVSTR" layout="ins" op="38">
+    <field name="Unk Flag" start="0" size="1" type="bool" default="true"/>
+    <field name="No IRQ" start="2" size="1" type="bool" default="false"/>
     <field name="Unk 2" start="16" size="16" type="hex" default="253"/>
     <!-- TODO: Separate types for 32-bit and 64-bit registers -->
     <field name="Value" start="32" size="8" type="register"/>
