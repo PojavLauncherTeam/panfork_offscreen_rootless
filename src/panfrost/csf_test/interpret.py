@@ -12,11 +12,11 @@ template = """
 
 mov x4c, $ev
 mov x48, $x
-mov w4e, 0x1234
-mov w4f, 0x1236
-str w4f, [x4c]
+mov x4e, 2
+@mov w4f, 0x1236
+@str w4f, [x4c]
 
-evwait.hi w4e, [x4c]
+evwait.hi x4e, [x48]
 
 ldr w20, [x48]
 wait 0
@@ -34,17 +34,17 @@ mov w20, 3
 str w20, [x48]
 
 mov w4e, 0x1234
-UNK 01 26, 0x4c4e00000005
+@UNK 01 26, 0x4c4e00000005
 mov w20, 4
 str w20, [x48]
 
 mov w4e, 0x1234
-UNK 01 26, 0x4c4e00000005
+@UNK 01 26, 0x4c4e00000005
 mov w20, 5
 str w20, [x48]
 
 mov w4e, 0x1235
-UNK 01 26, 0x4c4e00000005
+@UNK 01 26, 0x4c4e00000005
 mov w20, 6
 str w20, [x48]
 
@@ -52,9 +52,21 @@ mov w0, 100
 1: add w0, w0, -1
 b.ne w0, 1b
 
-mov w20, 0
-str w20, [x48]
+!parallel 2
+mov x4c, $ev
+mov x48, $x
 
+mov w0, 200000
+1: add w0, w0, -1
+b.ne w0, 1b
+
+add x40, x48, 64
+str x40, [x40]
+str x40, [x40, 8]
+mov x4e, 0x54321
+
+@UNK 01 26, 0x404e00000000
+@str w0, [x48]
 
 !dump x 0 4096
 !dump ev 0 4096
@@ -139,8 +151,8 @@ job w4a, x48
   nop
   nop
   mov x20, $.
-@  movw x22, 0x0126000011223344
-  movw x22, 0x1600000060000001
+@  movp x22, 0x0126000011223344
+  movp x22, 0x1600000060000001
   str x22, [x20, 56]
   1: nop
   b 1b
@@ -331,7 +343,7 @@ class Context:
         for orig_line in text:
             #print(orig_line, file=sys.stderr)
 
-            line = orig_line.split("@")[0].expandtabs().rstrip()
+            line = orig_line.split("@")[0].expandtabs().rstrip().lower()
             if not line:
                 continue
 
@@ -356,7 +368,7 @@ class Context:
             given_code = None
 
             # TODO: Check against this to test the disassembler?
-            if re.match(r"[0-9a-fA-F]{16} ", line):
+            if re.match(r"[0-9a-f]{16} ", line):
                 given_code = int(line[:16], 16)
                 line = line[16:].lstrip()
 
@@ -437,7 +449,7 @@ class Context:
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
                 continue
-            elif s[0] == "movw":
+            elif s[0] == "movp":
                 assert(len(s) == 3)
                 assert(s[1][0] == "x")
                 addr = reg(s[1])
@@ -466,11 +478,17 @@ class Context:
                 del cmd, value
                 continue
 
-            elif s[0] == "UNK":
-                assert(len(s) == 4)
-                cmd = hx(s[2])
-                addr = hx(s[1])
-                value = val(s[3])
+            elif s[0] == "unk":
+                if len(s) == 2:
+                    h = hx(s[1])
+                    cmd = h >> 56
+                    addr = (h >> 48) & 0xff
+                    value = h & 0xffffffffffff
+                else:
+                    assert(len(s) == 4)
+                    cmd = hx(s[2])
+                    addr = hx(s[1])
+                    value = val(s[3])
             elif s[0] == "nop":
                 if len(s) == 1:
                     addr = 0
@@ -639,6 +657,7 @@ class Context:
                 value = (dest << 40) | (val << 32) | unk2
             elif s[0] in ("evwait.ls", "evwait.hi"):
                 assert(len(s) == 3)
+                assert(s[1][0] in "wx")
                 assert(s[2][0] == "[")
                 assert(s[-1][-1] == "]")
                 s = [x.strip("[]()") for x in s]
@@ -646,7 +665,7 @@ class Context:
                 val = reg(s[1])
                 cond = 1 if s[0] == "evwait.hi" else 0
 
-                cmd = 39
+                cmd = 53 if s[1][0] == "x" else 39
                 addr = 0
                 value = (src << 40) | (val << 32) | (cond << 28)
             elif s[0] == "job":

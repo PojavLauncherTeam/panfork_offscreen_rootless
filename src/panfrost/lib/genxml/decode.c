@@ -1603,15 +1603,15 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                  *    aaaaaaaa -- address register
                  *    vvvvvvvv -- 32-bit value register
                  *    00000000 -- seems to act as NOP if nonzero
-                 *    mmmmmmmm -- scoreboard mask, unknown purpose
+                 *    mmmmmmmm -- some sort of mask, unknown purpose
                  *    ???????? -- seems to have no effect
                  *    ?????s0u -- 's' disables signal to CPU,
                  *                'u' has unknown purpose (disable GPU signal?)
                  *
                  * The difference between the two opcodes is unknown.
                  *
-                 * That the 'mmmmmmmm' byte is really a scoreboard mask is
-                 * unknown.
+                 * That the 'mmmmmmmm' byte is somehow a scoreboard mask is
+                 * a possibility.
                  */
 
                 const char *name = (op & 1) ? "evadd" : "evstr";
@@ -1619,16 +1619,14 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 if (addr != 1 || l & 0xff00fffa) {
                         pandecode_log("%s (unk %02x), %s%02x, [x%02x], "
-                                      "sb 0x%x, flags 0x%x\n",
+                                      "unk 0x%x, flags 0x%x\n",
                                       name, addr, type, arg1, arg2,
                                       l >> 16, (uint16_t) l);
                 } else {
-                        pandecode_log("%s %s%02x, [x%02x], sb ",
-                                      name, type, arg1, arg2);
-                        pandecode_scoreboard_mask(l >> 16);
-                        pandecode_log_cont("%s%s\n",
-                                           l & 0x4 ? "" : ", irq",
-                                           l & 0x1 ? ", unk0" : "");
+                        pandecode_log("%s %s%02x, [x%02x], unk 0x%x%s%s\n",
+                                      name, type, arg1, arg2, l >> 16,
+                                      l & 0x4 ? "" : ", irq",
+                                      l & 0x1 ? ", unk0" : "");
                 }
 
                 break;
