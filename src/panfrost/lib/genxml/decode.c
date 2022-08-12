@@ -1380,13 +1380,6 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
         if (command)
                 pandecode_log("%"PRIx64" %016"PRIx64" ", va, command);
 
-        const char *comparisons[] = {
-                ".gt", ".le",
-                ".eq", ".ne",
-                ".lt", ".ge",
-                "" /* always */, ".(invalid: never)",
-        };
-
         switch (op) {
         case 0:
                 if (addr || value)
@@ -1527,6 +1520,13 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                  * for these comparisons. For example, .GT means that the
                  * branch is taken if the signed register value is greater
                  * than zero. */
+                const char *comparisons[] = {
+                        ".gt", ".le",
+                        ".eq", ".ne",
+                        ".lt", ".ge",
+                        "" /* always */, ".(invalid: never)",
+                };
+
                 const char *m = comparisons[(l >> 28) & 7];
 
                 int16_t offset = l;
@@ -1628,20 +1628,23 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                         pandecode_scoreboard_mask(l >> 16);
                         pandecode_log_cont("%s%s\n",
                                            l & 0x4 ? "" : ", irq",
-                                           l & 0x1 ? ", nogpu?" : ", gpu?");
+                                           l & 0x1 ? ", unk0" : "");
                 }
 
                 break;
         }
         case 39: case 53: {
-                const char *m = comparisons[(l >> 28) & 7];
+                const char *m = (const char *[]){
+                        ".ls",
+                        ".hi",
+                }[(l >> 28) & 1];
                 const char *type = (op > 50) ? "x" : "w";
 
                 /* Wait until the value in the destination register is changed
-                 * to *fail* the comparison. For example, with .GT the value
-                 * in memory must *not* be greater than the reference to
-                 * continue execution. Think of it like B.<COMP> BACK 0. */
-                if (addr || l & ~0x70000000)
+                 * to pass the comparison. For example, with .LS the value
+                 * in memory must be less than or same as the reference to
+                 * continue execution. */
+                if (addr || l & ~(1 << 28))
                         pandecode_log("evwait%s (unk %02x), %s%02x, "
                                       "[x%02x, unk %x]\n",
                                       m, addr, type, arg1, arg2, l);

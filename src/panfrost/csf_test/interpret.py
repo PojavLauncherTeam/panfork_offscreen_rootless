@@ -9,6 +9,61 @@ template = """
 !cs 0
 !alloc x 4096
 !alloc ev 4096 0x8200f
+
+mov x4c, $ev
+mov x48, $x
+mov w4e, 0x1234
+mov w4f, 0x1236
+str w4f, [x4c]
+
+evwait.hi w4e, [x4c]
+
+ldr w20, [x48]
+wait 0
+str w20, [x48, 16]
+
+!parallel 1
+mov x4c, $ev
+mov x48, $x
+
+mov w0, 100000
+1: add w0, w0, -1
+b.ne w0, 1b
+
+mov w20, 3
+str w20, [x48]
+
+mov w4e, 0x1234
+UNK 01 26, 0x4c4e00000005
+mov w20, 4
+str w20, [x48]
+
+mov w4e, 0x1234
+UNK 01 26, 0x4c4e00000005
+mov w20, 5
+str w20, [x48]
+
+mov w4e, 0x1235
+UNK 01 26, 0x4c4e00000005
+mov w20, 6
+str w20, [x48]
+
+mov w0, 100
+1: add w0, w0, -1
+b.ne w0, 1b
+
+mov w20, 0
+str w20, [x48]
+
+
+!dump x 0 4096
+!dump ev 0 4096
+"""
+
+atemplate = """
+!cs 0
+!alloc x 4096
+!alloc ev 4096 0x8200f
 !alloc ev2 4096 0x8200f
 
 mov x10, $x
@@ -582,17 +637,18 @@ class Context:
                 cmd = 37
                 addr = unk
                 value = (dest << 40) | (val << 32) | unk2
-            elif s[0] == "evwait":
+            elif s[0] in ("evwait.ls", "evwait.hi"):
                 assert(len(s) == 3)
                 assert(s[2][0] == "[")
                 assert(s[-1][-1] == "]")
                 s = [x.strip("[]()") for x in s]
                 src = reg(s[2])
                 val = reg(s[1])
+                cond = 1 if s[0] == "evwait.hi" else 0
 
                 cmd = 39
                 addr = 0
-                value = (src << 40) | (val << 32) | 0x10000000
+                value = (src << 40) | (val << 32) | (cond << 28)
             elif s[0] == "job":
                 ss = [x for x in s if x.find('(') == -1 and x.find(')') == -1]
                 assert(len(ss) == 3)
