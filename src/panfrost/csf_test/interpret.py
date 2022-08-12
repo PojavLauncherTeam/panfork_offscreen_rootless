@@ -31,7 +31,7 @@ NOP.end
 """
 }
 
-template = """
+cmds = """
 !cs 0
 !alloc x 4096
 !alloc y 4096
@@ -100,7 +100,7 @@ UNK 25015c5e00fd0001
 !delta ev 0 4096
 """
 
-atemplate = """
+altcmds = """
 !cs 0
 !alloc x 4096
 !alloc ev 4096 0x8200f
@@ -162,7 +162,7 @@ UNK 01 25, 0x5c5e00f80001
 !dump ev2 0 4096
 """
 
-atemplate = """
+altcmds = """
 !cs 0
 !alloc x 4096
 !alloc ev 4096 0x8200f
@@ -208,8 +208,8 @@ UNK 01 26, 0x484a00040001
 """
 
 cycletest = """
-1:
 mov w10, 10
+1:
 str cycles, [x5c]
 add x5c, x5c, 8
 add w10, w10, -1
@@ -223,7 +223,7 @@ b.ne w10, 1b
 """
 
 def get_cmds(cmd):
-    return template.format(cmd=cmd)
+    return cmds.format(cmd=cmd)
 
 def assemble_shader(text):
     lines = text.strip().split("\n")

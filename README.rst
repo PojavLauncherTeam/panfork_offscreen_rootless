@@ -63,8 +63,8 @@ and executing command streams.
 To use it, symlink the ``csf_test`` binary into ``$PATH`` and optionally
 also write a ``rebuild-mesa`` script which recompiles ``csf_test``.
 
-Then running ``interpret.py`` will execute the ``cmds`` var, which is
-defined inside the script file.
+Then running ``interpret.py`` will execute the ``cmds`` variable,
+which is defined inside the script file.
 
 Example:
 
