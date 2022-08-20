@@ -1418,7 +1418,8 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 //pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
 
-                /* The gallium driver emits this even for compute jobs */
+                /* The gallium driver emits this even for compute jobs, clear
+                 * it from unknown state */
                 pan_unpack_cs(buffer, buffer_unk, SCISSOR, unused_scissor);
 
                 pandecode_csf_dump_state(buffer_unk);
@@ -1564,7 +1565,7 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 unsigned length = buffer[arg1];
                 uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
 
-                // TODO: Assert no remainder?
+                assert(!(length & 7));
                 unsigned instrs = length / 8;
 
                 if (addr || l)
