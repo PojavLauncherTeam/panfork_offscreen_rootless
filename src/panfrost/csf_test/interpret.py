@@ -45,6 +45,7 @@ mov w25, 1
 mov w26, 1
 mov w27, 1
 
+@ Write FAUs
 add x0e, x48, 64
 mov x50, $ev
 str x50, [x0e]
@@ -52,6 +53,7 @@ mov x30, 10
 str x30, [x0e, 8]
 add w0f, w0f, 0x02000000
 
+@ Write shader descriptor
 add x16, x48, 128
 mov x30, 0x118
 str x30, [x16]
@@ -69,10 +71,6 @@ mov w40, 100
 str cycles, [x50, 32]
 b.ne w40, 1b
 
-@ 1 560 560
-@ 5 686 681
-@ 10 822
-@ 15 958
 mov w42, 200
 mov w40, 100
 1: add w40, w40, -1
@@ -92,8 +90,8 @@ UNK 02 24, #0x4a0000000211
 wait 0
 
 add x5c, x50, 64
-UNK 25015c5e00fd0004
-UNK 25015c5e00fd0001
+evadd w5e, [x5c], unk 0xfd
+evadd w5e, [x5c], unk 0xfd, irq, unk0
 
 !dump x 0 4096
 !dump y 0 384
@@ -689,6 +687,27 @@ class Context:
                 addr = 0
                 value = (src << 40) | (ops[s[0]] << 28) | to_int16(offset)
 
+            elif s[0] in ("evadd", "evstr"):
+                assert(len(s) in range(5, 8))
+                assert(s[1][0] in "wx")
+                assert(s[2].startswith("[x"))
+                assert(s[2][-1] == "]")
+                assert(s[3] == "unk")
+                s = [x.strip("[]()") for x in s]
+
+                val = reg(s[1])
+                dst = reg(s[2])
+                mask = hx(s[4])
+                irq = "irq" not in s
+                unk0 = "unk0" in s
+
+                if s[1][0] == "w":
+                    cmd = 37 if s[0] == "evadd" else 38
+                else:
+                    cmd = 51 if s[0] == "evadd" else 52
+                addr = 1
+                value = ((dst << 40) | (val << 32) | (mask << 16) |
+                         (irq << 2) | unk0)
             elif s[0] == "strev(unk)":
                 s = [x.strip("[]()") for x in s]
                 unk = int(s[2])
