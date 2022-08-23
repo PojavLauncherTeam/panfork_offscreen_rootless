@@ -1141,12 +1141,18 @@ cs_test(struct state *s, struct test *t)
                 if (getline(&line, &sz, f) == -1)
                         break;
 
-                unsigned src, dst, offset, src_offset, size, iter, flags;
+                unsigned long src, dst, offset, src_offset, size, iter, flags;
                 int read;
                 char *mode;
 
-                if (sscanf(line, "reloc %u+%u %u+%u",
-                           &dst, &offset, &src, &src_offset) == 4) {
+                if (sscanf(line, "rel%ms %lu+%lu %lu+%lu",
+                           &mode, &dst, &offset, &src, &src_offset) == 5) {
+
+                        if (strcmp(mode, "oc") && strcmp(mode, "split")) {
+                                fprintf(stderr, "Unknown relocation mode 'rel%s'\n", mode);
+                        }
+                        bool split = (mode[0] == 's');
+                        free(mode);
 
                         struct panfrost_ptr *s = buffers_elem(&buffers, src);
                         struct panfrost_ptr *d = buffers_elem(&buffers, dst);
@@ -1157,9 +1163,14 @@ cs_test(struct state *s, struct test *t)
 
                         uint64_t *dest = d->cpu + offset;
                         uint64_t value = s->gpu + src_offset;
-                        *dest |= value;
+                        if (split) {
+                                dest[0] |= (uint32_t) value;
+                                dest[1] |= (uint32_t) (value >> 32);
+                        } else {
+                                *dest |= value;
+                        }
 
-                } else if (sscanf(line, "buffer %u %u %x %n",
+                } else if (sscanf(line, "buffer %lu %lu %lx %n",
                                   &dst, &size, &flags, &read) == 3) {
                         line += read;
 
@@ -1182,7 +1193,7 @@ cs_test(struct state *s, struct test *t)
                                 fill[i] = val;
                         }
 
-                } else if (sscanf(line, "exe %n %u %u %u",
+                } else if (sscanf(line, "exe %n %lu %lu %lu",
                                   &read, &iter, &dst, &size) == 3) {
                         line += read;
 
@@ -1190,7 +1201,7 @@ cs_test(struct state *s, struct test *t)
 
                         for (;;) {
                                 read = 0;
-                                if (sscanf(line, "%u %u %u %n",
+                                if (sscanf(line, "%lu %lu %lu %n",
                                            &iter, &dst, &size, &read) != 3)
                                         break;
                                 line += read;
@@ -1221,7 +1232,7 @@ cs_test(struct state *s, struct test *t)
                         u_foreach_bit(i, iter_mask)
                                 wait_cs(s, i);
 
-                } else if (sscanf(line, "dump %u %u %u %ms",
+                } else if (sscanf(line, "dump %lu %lu %lu %ms",
                                   &src, &offset, &size, &mode) == 4) {
 
                         struct panfrost_ptr *s = buffers_elem(&buffers, src);

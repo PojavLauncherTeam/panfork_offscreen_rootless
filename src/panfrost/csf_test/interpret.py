@@ -31,13 +31,54 @@ NOP.end
 """
 }
 
+memory = {
+    "ev": 4096,
+    "x": 4096,
+    "y": 4096,
+    "ts": 4096,
+}
+
+# Words are 32-bit, apart from address references
+descriptors = {
+    "shader": [0x118, 0, "compute"],
+    "fau": [("ev", 16), 10, 0]
+}
+
 cmds = """
 !cs 0
-!alloc x 4096
-!alloc y 4096
-!alloc ev 4096
 
-endpt 0
+@ Workgroup size 1x1x1, merging allowed
+mov w21, 0x80000000
+
+@ Workgroup count 1x1x1
+mov w25, 1
+mov w26, 1
+mov w27, 1
+
+@ TODO: offset x/y/z
+
+@ Resources
+mov x06, 0
+
+@ Shader
+mov x16, $shader
+
+@ Thread storage
+mov x1e, $ts
+
+@ FAU
+movp x0e, $fau+0x0200000000000000
+
+UNK 0400ff0000008200
+
+!dump x 0 4096
+!dump y 0 4096
+!delta ev 0 4096
+"""
+
+oldcmds = """
+!cs 0
+
 mov x48, $x
 
 mov w21, 0x80000000
@@ -45,28 +86,67 @@ mov w25, 1
 mov w26, 1
 mov w27, 1
 
+movp x0e, $fau+0x0200000000000000
+
 @ Write FAUs
-add x0e, x48, 64
-mov x50, $ev
-str x50, [x0e]
-mov x30, 10
-str x30, [x0e, 8]
-add w0f, w0f, 0x02000000
+@add x0e, x48, 64
+@mov x50, $ev
+@str x50, [x0e]
+@mov x30, 10
+@str x30, [x0e, 8]
+@add w0f, w0f, 0x02000000
 
 @ Write shader descriptor
-add x16, x48, 128
-mov x30, 0x118
-str x30, [x16]
-mov x30, $compute
-str x30, [x16, 8]
+@add x16, x48, 128
+@mov x30, 0x118
+@str x30, [x16]
+@mov x30, $compute
+@str x30, [x16, 8]
+
+wait 0
 
 add x1e, x48, 192
 
 mov x30, $y
 @regdump x30
-mov x30, 0
+@mov x30, 0
 
-mov w40, 100
+endpt 1
+slot 2
+mov w54, #0xffffe0
+UNK 00 24, #0x540000000233
+
+wait all
+
+mov x54, 0
+mov w56, 0
+mov w5d, 1
+
+slot 2
+wait 2
+wait 2
+regdump x30
+UNK 0400ff0000008200
+add x30, x30, 0x200
+regdump x30
+slot 2
+wait 2
+
+mov w40, 1000
+1: add w40, w40, -1
+str cycles, [x50, 32]
+b.ne w40, 1b
+
+wait 0
+wait all
+
+@ 6 / 10 / 14
+mov w40, 1
+1: add w40, w40, -1
+UNK 0400ff0000000200
+b.ne w40, 1b
+
+mov w40, 1000
 1: add w40, w40, -1
 str cycles, [x50, 32]
 b.ne w40, 1b
@@ -74,15 +154,17 @@ b.ne w40, 1b
 mov w42, 200
 mov w40, 100
 1: add w40, w40, -1
-endpt 1
-UNK 0400ff0000008001
-UNK 2501504200000004
+@wait all
+@UNK 0400ff0000008001 @ compute
+
+@UNK 0400ff0000000001
+@UNK 2501504200000004 @ evadd
 @UNK 3 24, #0x4a0000000211
 
 @wait all
 b.ne w40, 1b
 
-UNK 2601504200000004
+@UNK 2601504200000004
 
 str cycles, [x50, 40]
 str cycles, [x50, 48]
@@ -94,7 +176,7 @@ evadd w5e, [x5c], unk 0xfd
 evadd w5e, [x5c], unk 0xfd, irq, unk0
 
 !dump x 0 4096
-!dump y 0 384
+!dump y 0 4096
 !delta ev 0 4096
 """
 
@@ -295,9 +377,9 @@ class Alloc(Buffer):
         buf = " ".join(hex(x) for x in self.buffer)
         return f"buffer {self.id} {self.size} {hex(self.flags)} {buf}"
 
-def fmt_reloc(r):
+def fmt_reloc(r, name="reloc"):
     dst, offset, src, src_offset = r
-    return f"reloc {dst}+{offset} {src}+{src_offset}"
+    return f"{name} {dst}+{offset} {src}+{src_offset}"
 
 def fmt_exe(e):
     return " ".join(str(x) for x in e)
@@ -310,6 +392,7 @@ class Context:
         self.allocs = {}
         self.completed = []
         self.reloc = []
+        self.reloc_split = []
 
         self.exe = []
         self.last_exe = None
@@ -377,6 +460,40 @@ class Context:
             a.buffer = qwords
             self.allocs[sh] = a
 
+    def add_memory(self, memory):
+        for m in memory:
+            f = memory[m]
+            if isinstance(f, int):
+                size, flags = f, 0x200f
+            else:
+                size, flags = f
+            self.allocs[m] = Alloc(size, flags)
+
+    def add_descriptors(self, descriptors):
+        for d in descriptors:
+            words = descriptors[d]
+            a = Alloc(0)
+
+            buf = []
+            for w in words:
+                if isinstance(w, int):
+                    buf.append(w)
+                else:
+                    if isinstance(w, str):
+                        alloc, offset = w, 0
+                    else:
+                        alloc, offset = w
+                    ref = self.allocs[alloc]
+                    self.reloc.append((a.id, len(buf) * 4,
+                                       ref.id, offset))
+                    buf.append(0)
+                    buf.append(0)
+
+            it = iter(buf)
+            a.buffer = [x | (y << 32) for x, y in zip(it, it)]
+            a.size = len(a.buffer) * 8
+            self.allocs[d] = a
+
     def interpret(self, text):
         text = text.split("\n")
 
@@ -416,20 +533,6 @@ class Context:
 
             s = [x.strip(",") for x in line.split()]
 
-            for i in range(len(s)):
-                if s[i].startswith("$"):
-                    if s[i] == "$.":
-                        buf = self.l
-                    else:
-                        alloc_id = s[i][1:]
-                        buf = self.allocs[alloc_id]
-                    self.reloc.append((self.l.id, self.l.offset(),
-                                       buf.id, 0))
-                    s[i] = "#0x0"
-
-            def is_num(str):
-                return re.fullmatch(r"[0-9]+", str)
-
             if s[0].endswith(":") or (len(s) == 1 and is_num(s[0])):
                 label = s[0]
                 if s[0].endswith(":"):
@@ -449,6 +552,31 @@ class Context:
                 s = s[1:]
                 if not len(s):
                     continue
+
+            for i in range(len(s)):
+                if s[i].startswith("$"):
+                    name, *offset = s[i][1:].split("+")
+                    if name == ".":
+                        buf = self.l
+                    else:
+                        buf = self.allocs[name]
+                    if len(offset):
+                        assert(len(offset) == 1)
+                        offset = int(offset[0], 0)
+                    else:
+                        offset = 0
+
+                    if s[0] == "movp":
+                        rels = self.reloc_split
+                    else:
+                        rels = self.reloc
+
+                    rels.append((self.l.id, self.l.offset(),
+                                 buf.id, offset))
+                    s[i] = "#0x0"
+
+            def is_num(str):
+                return re.fullmatch(r"[0-9]+", str)
 
             def hx(word):
                 return int(word, 16)
@@ -746,9 +874,9 @@ class Context:
 
                 cur = len(l.buffer)
                 for ofs in range(cur - 2, cur):
-                    if l.buffer[ofs] >> 48 == 0x148:
+                    if l.buffer[ofs] >> 48 == 0x100 + target:
                         l.call_addr_offset = ofs
-                    if l.buffer[ofs] >> 48 == 0x24a:
+                    if l.buffer[ofs] >> 48 == 0x200 + num:
                         l.call_len_offset = ofs
                 assert(l.call_addr_offset is not None)
                 assert(l.call_len_offset is not None)
@@ -784,23 +912,21 @@ class Context:
         r += [str(self.allocs[x]) for x in self.allocs]
         r += [str(x) for x in self.completed]
         r += [fmt_reloc(x) for x in self.reloc]
+        r += [fmt_reloc(x, name="relsplit") for x in self.reloc_split]
         r += [fmt_exe(x) for x in self.exe]
         return "\n".join(r)
 
 def interpret(text):
     c = Context()
     c.add_shaders(shaders)
+    c.add_memory(memory)
+    c.add_descriptors(descriptors)
     c.interpret(text)
-    print(c)
+    return str(c)
 
 def run(text):
-    c = Context()
-    c.add_shaders(shaders)
-    c.interpret(text)
-    #print(c)
-
-    p = subprocess.run(["csf_test", "/dev/stdin"],
-                       input=str(c), text=True)
+    subprocess.run(["csf_test", "/dev/stdin"],
+                   input=interpret(text), text=True)
 
 def rebuild():
     try:
@@ -812,6 +938,9 @@ def rebuild():
     return True
 
 def go(text):
+    #print(interpret(text))
+    #return
+
     if not rebuild():
         return
 
