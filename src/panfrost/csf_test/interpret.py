@@ -134,9 +134,9 @@ mov w40, 60
 @UNK 02 24, #0x4a0000f80211
 @wait 1
 
-mov w54, #0
-UNK 00 24, #0x540000000233
-wait all
+@mov w54, #0
+@UNK 00 24, #0x540000000233
+@wait all
 
 slot 2
 wait 2
@@ -441,7 +441,7 @@ class Level(Buffer):
         self.process_relocs(self.label_refs)
 
 class Alloc(Buffer):
-    def __init__(self, size, flags=0x200f):
+    def __init__(self, size, flags=0x280f):
         super().__init__()
 
         self.size = size
@@ -539,7 +539,7 @@ class Context:
         for m in memory:
             f = memory[m]
             if isinstance(f, int):
-                size, flags = f, 0x200f
+                size, flags = f, 0x280f
             else:
                 size, flags = f
             self.allocs[m] = Alloc(size, flags)
@@ -682,7 +682,7 @@ class Context:
                 assert(len(s) == 3 or len(s) == 4)
                 alloc_id = s[1]
                 size = int(s[2])
-                flags = val(s[3]) if len(s) == 4 else 0x200f
+                flags = val(s[3]) if len(s) == 4 else 0x280f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
             elif s[0] in ("!dump", "!delta"):
