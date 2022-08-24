@@ -500,6 +500,11 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                         BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
                         BASE_MEM_SAME_VA;
 
+                /* Add COHERENT_LOCAL to keep GPU cores coherent with each
+                 * other. */
+                if (PAN_BASE_API >= 1)
+                        flags |= BASE_MEM_COHERENT_LOCAL;
+
                 /* TODO: What about heap BOs? */
                 /* ++difficulty_level */
                 //if (PAN_BASE_API >= 1)

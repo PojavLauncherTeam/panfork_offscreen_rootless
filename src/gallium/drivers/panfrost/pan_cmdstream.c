@@ -2806,21 +2806,28 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 cs->init = true;
         }
 
+        // TODO: Move the next block until after the memcpy?
+        // Or just go back to call instructions instead?
+
+        // This could I think be optimised to 0xf80211 rather than 0x233
+        pan_emit_cs_32(&cs->cs, 0x54, 0);
+        pan_emit_cs_ins(&cs->cs, 0x24, 0x540000000233ULL);
         //pan_emit_cs_ins(&s, 9, 0);
-        pan_pack_ins(&s, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
+        pan_pack_ins(&s, CS_WAIT, cfg) { cfg.slots = 0xff; }
         //pan_emit_cs_ins(&s, 0x31, 0x1ULL << 32);
         pan_pack_ins(&s, CS_ADD_IMM, cfg) {
                 cfg.dest = 0x48;
                 cfg.src = 0x40;
         }
-        pan_emit_cs_32(&cs->cs, 0x4a, 1);
-        // TODO genxmlify
+        // TODO: Don't we want to keep incrementing this for EVWAIT?
+        pan_emit_cs_32(&s, 0x4a, 1);
+        // TODO genxmlify...  this is an EVSTR instruction
         pan_emit_cs_ins(&s, 0x26, 0x01484a00040001);
 
         // Needs to be different if multiple jobs running at once?
         pan_emit_cs_48(&cs->cs, 0x40, cs->event_base);
-        // #0xffffe0, #0xffffe1 also seen
-        pan_emit_cs_32(&cs->cs, 0x54, 1);
+        // #0x1, #0xffffe0, #0xffffe1 also seen
+        pan_emit_cs_32(&cs->cs, 0x54, 0);
         // TODO genxmlify
         pan_emit_cs_ins(&cs->cs, 0x24, 0x540000000233ULL);
         // 0xff for vertex jobs
