@@ -109,15 +109,42 @@ mov x1e, $ls
 @ FAU
 movp x0e, $fau+0x0200000000000000
 
+slot 2
+wait 2
+
 UNK 0400ff0000008200
+
+mov x58, $fau
+ldr x56, [x58]
+wait 0
+
+@mov w4a, 0
+
+@slot 6
+@mov x54, $x
+@UNK 02 24, #0x4a0000f80211
+@ldr x52, [x56]
+@wait 0,1
+@str x52, [x54]
 
 mov w40, 60
 1: add w40, w40, -1
 
+@mov w4a, #0x0
+@UNK 02 24, #0x4a0000f80211
+@wait 1
+
+mov w54, #0
+UNK 00 24, #0x540000000233
+wait all
+
+slot 2
+wait 2
+
 add w22, w22, 1
 UNK 0400ff0000008200
 
-@b.ne w40, 1b
+b.ne w40, 1b
 
 !dump x 0 4096
 !dump y 0 4096
