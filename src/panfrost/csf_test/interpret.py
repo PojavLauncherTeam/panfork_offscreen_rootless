@@ -17,8 +17,7 @@ import asm
 import struct
 
 shaders = {
-    "compute":
-    """
+    "atomic": """
 IADD_IMM.i32.reconverge r0, 0x0, #0x0
 NOP.wait0
 ICMP.u32.ge.m1 r1, r0, u2, 0x0
@@ -28,20 +27,47 @@ ATOM1_RETURN.i32.slot0.ainc @r1, u0, offset:0x0
 IADD_IMM.i32 r0, ^r0, #0x1
 BRANCHZ.eq.reconverge 0x0, offset:-7
 NOP.end
-"""
+""",
+    "rmw": """
+IADD_IMM.i32.reconverge r0, 0x0, #0x0
+ICMP.u32.ge.m1 r1, r0, u2, 0x0
+BRANCHZ.eq.reconverge r1.h0, offset:1
+BRANCHZ.eq 0x0, offset:6
+NOP.wait1
+LOAD.i32.unsigned.slot0.wait0 @r1, u0, offset:0
+IADD_IMM.i32 r1, ^r1, #0x1
+STORE.i32.slot1 @r1, u0, offset:0
+IADD_IMM.i32 r0, ^r0, #0x1
+BRANCHZ.eq.reconverge 0x0, offset:-9
+NOP.end
+""",
+    "global_invocation": """
+IADD_IMM.i32 r0, ^r60, #0x1
+STORE.i32.slot0.end @r0, u0, offset:0
+""",
+    "invoc_offset": """
+LSHIFT_OR.i32 r0, ^r60, 0x3020100.b22, 0x0
+IADD.s32 r0, u0, ^r0
+ICMP.u32.lt.i1 r1, r0, u0, 0x0
+IADD.s32 r1, ^r1, u1
+MOV.i32 r2, u2
+STORE.i32.slot0.end @r2, ^r0, offset:0
+ """,
 }
 
 memory = {
-    "ev": 4096,
+    "ev": 8192,
     "x": 4096,
     "y": 4096,
-    "ts": 4096,
+    "ls_alloc": 4096,
 }
 
 # Words are 32-bit, apart from address references
 descriptors = {
-    "shader": [0x118, 0, "compute"],
-    "fau": [("ev", 16), 10, 0]
+    "shader": [0x118, 1 << 12, "invoc_offset"],
+    "ls": [3, 31, "ls_alloc"],
+    "fau": [("ev", 0), 10, 0],
+    "fau2": [("ev", 64 + 8 + (0 << 34)), 7, 0],
 }
 
 cmds = """
@@ -55,6 +81,11 @@ mov w25, 1
 mov w26, 1
 mov w27, 1
 
+@ Offset 0,0,0
+mov w22, 0
+mov w23, 0
+mov w24, 0
+
 @ TODO: offset x/y/z
 
 @ Resources
@@ -63,17 +94,23 @@ mov x06, 0
 @ Shader
 mov x16, $shader
 
-@ Thread storage
-mov x1e, $ts
+@ Local storage
+mov x1e, $ls
 
 @ FAU
 movp x0e, $fau+0x0200000000000000
 
 UNK 0400ff0000008200
 
+mov w40, 60
+1: add w40, w40, -1
+add w22, w22, 16
+UNK 0400ff0000008200
+b.ne w40, 1b
+
 !dump x 0 4096
 !dump y 0 4096
-!delta ev 0 4096
+!dump ev 0 4096
 """
 
 oldcmds = """
