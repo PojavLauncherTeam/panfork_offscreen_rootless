@@ -52,7 +52,16 @@ ICMP.u32.lt.i1 r1, r0, u0, 0x0
 IADD.s32 r1, ^r1, u1
 MOV.i32 r2, u2
 STORE.i32.slot0.end @r2, ^r0, offset:0
- """,
+""",
+    "invoc_rmw": """
+LSHIFT_OR.i32 r0, ^r60, 0x3020100.b22, 0x0
+IADD.s32 r0, u0, ^r0
+ICMP.u32.lt.i1 r1, r0, u0, 0x0
+IADD.s32 r1, ^r1, u1
+LOAD.i32.unsigned.slot0.wait0 @r2, r0, offset:0
+IADD.s32 r2, ^r2, u2
+STORE.i32.slot1.end @r2, ^r0, offset:0
+""",
 }
 
 memory = {
@@ -64,10 +73,10 @@ memory = {
 
 # Words are 32-bit, apart from address references
 descriptors = {
-    "shader": [0x118, 1 << 12, "invoc_offset"],
+    "shader": [0x118, 1 << 12, "invoc_rmw"],
     "ls": [3, 31, "ls_alloc"],
     "fau": [("ev", 0), 10, 0],
-    "fau2": [("ev", 64 + 8 + (0 << 34)), 7, 0],
+    "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 }
 
 cmds = """
@@ -104,9 +113,11 @@ UNK 0400ff0000008200
 
 mov w40, 60
 1: add w40, w40, -1
-add w22, w22, 16
+
+add w22, w22, 1
 UNK 0400ff0000008200
-b.ne w40, 1b
+
+@b.ne w40, 1b
 
 !dump x 0 4096
 !dump y 0 4096
