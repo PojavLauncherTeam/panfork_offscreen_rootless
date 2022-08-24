@@ -1148,11 +1148,11 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         // Clearly it's useless to check CS_EXTRACT... at least without the
         // necessary synchronisation commands?
-        usleep(100000);
+        //usleep(100000);
 
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
-                usleep(10000);
+                kbase_poll_event(k, 10);
                 ++count;
 
                 if (count > 200) {
