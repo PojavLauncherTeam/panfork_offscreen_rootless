@@ -81,6 +81,9 @@ struct kbase {
         void *tracking_region;
         void *csf_user_reg;
 
+        /* TODO: Make this per-queue */
+        uint64_t seqnum;
+
         uint8_t atom_number;
 
         pthread_mutex_t handle_lock;

@@ -508,7 +508,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 /* TODO: What about heap BOs? */
                 /* ++difficulty_level */
                 //if (PAN_BASE_API >= 1)
-                //        flags |= BASE_MEM_COHERENT_LOCAL | BASE_MEM_CACHED_CPU;
+                //        flags |= BASE_MEM_CACHED_CPU;
         }
 
         if (pan_flags & PANFROST_BO_HEAP) {
