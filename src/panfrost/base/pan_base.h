@@ -84,6 +84,8 @@ struct kbase {
         int fd;
         unsigned api;
         unsigned page_size;
+        // TODO: Actually we may want to try to pack multiple contexts / queue
+        // "sets" into a single group...
         unsigned cs_queue_count;
 
         unsigned gpuprops_size;
@@ -92,8 +94,10 @@ struct kbase {
         void *tracking_region;
         void *csf_user_reg;
         struct base_ptr event_mem;
-        /* TODO dynamically size */
+        // TODO: dynamically size
         struct kbase_event_slot event_slots[256];
+        // TODO: USe a bitset?
+        unsigned event_slot_usage;
 
         uint8_t atom_number;
 

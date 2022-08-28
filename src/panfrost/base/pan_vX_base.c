@@ -945,7 +945,8 @@ kbase_read_event(kbase k)
         int ret = read(k->fd, &event, sizeof(event));
 
         if (ret == -1) {
-                perror("read(mali_fd)");
+                if (errno != EAGAIN)
+                        perror("read(mali_fd)");
                 return false;
         }
 
@@ -1010,11 +1011,58 @@ kbase_read_event(kbase k)
         return true;
 }
 
+static bool
+kbase_update_syncobj(struct kbase_syncobj *o,
+                     uint64_t seqnum)
+{
+        // TODO !
+        return true;
+}
+
+static void
+kbase_update_syncobjs(struct kbase_sync_link **list,
+                      uint64_t seqnum)
+{
+        while (*list) {
+                struct kbase_sync_link *link = *list;
+
+                /* Remove the link if the syncobj is now signaled */
+                if (kbase_update_syncobj(link->o, seqnum)) {
+                        *list = link->next;
+                        free(link);
+                } else {
+                        // TODO: Assume that later syncobjs will have higher
+                        // values and so skip checking?
+                        list = &link->next;
+                }
+        }
+}
+
 static void
 kbase_handle_events(kbase k)
 {
-        while (kbase_read_event(k)) {
-                // todo update queues
+        /* This will continue until we get EAGAIN */
+        while (kbase_read_event(k))
+                ;
+
+        uint64_t *event_mem = k->event_mem.cpu;
+
+        /* TODO: Locking? */
+        for (unsigned i = 0; i < k->event_slot_usage; ++i) {
+                uint64_t seqnum = event_mem[i];
+                uint64_t cmp = k->event_slots[i].value;
+
+                if (seqnum < cmp) {
+                        fprintf(stderr, "seqnum at offset %i went backward "
+                                "from %"PRIu64" to %"PRIu64"!\n",
+                                i, cmp, seqnum);
+                } else if (seqnum > cmp) {
+                        /* TODO: Atomic operations? */
+                        k->event_slots[i].value = seqnum;
+
+                        kbase_update_syncobjs(&k->event_slots[i].syncobjs,
+                                              seqnum);
+                }
         }
 }
 #endif
@@ -1210,6 +1258,8 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
                 perror("mmap(CS USER IO)");
                 cs.user_io = NULL;
         }
+
+        cs.event_mem_offset = k->event_slot_usage++;
 
         return cs;
 }
