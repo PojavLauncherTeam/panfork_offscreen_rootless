@@ -35,6 +35,16 @@ struct base_ptr {
 
 struct kbase_syncobj;
 
+struct kbase_sync_link {
+        struct kbase_sync_link *next;
+        struct kbase_syncobj *o;
+};
+
+struct kbase_event_slot {
+        uint64_t value;
+        struct kbase_sync_link *syncobjs;
+};
+
 struct kbase_context {
         uint8_t csg_handle;
         uint32_t csg_uid;
@@ -49,6 +59,7 @@ struct kbase_cs {
         void *user_io;
         base_va va;
         unsigned size;
+        unsigned event_mem_offset;
 
         unsigned last_insert;
         unsigned last_extract;
@@ -63,7 +74,7 @@ typedef struct {
         base_va va;
         int fd;
         uint8_t use_count;
-        /* For emulating implicit sync */
+        /* For emulating implicit sync. TODO make this work on v10 */
         uint8_t last_access[KBASE_SLOT_COUNT];
 } kbase_handle;
 
@@ -80,9 +91,9 @@ struct kbase {
 
         void *tracking_region;
         void *csf_user_reg;
-
-        /* TODO: Make this per-queue */
-        uint64_t seqnum;
+        struct base_ptr event_mem;
+        /* TODO dynamically size */
+        struct kbase_event_slot event_slots[256];
 
         uint8_t atom_number;
 
@@ -124,7 +135,7 @@ struct kbase {
         void (*cs_term)(kbase k, struct kbase_cs *cs, base_va va);
 
         bool (*cs_submit)(kbase k, struct kbase_cs *cs, unsigned insert_offset,
-                          struct kbase_syncobj *o);
+                          struct kbase_syncobj *o, uint64_t seqnum);
         bool (*cs_wait)(kbase k, struct kbase_cs *cs, unsigned extract_offset);
 
         /* syncobj functions */

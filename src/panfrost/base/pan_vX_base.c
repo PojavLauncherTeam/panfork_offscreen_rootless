@@ -307,6 +307,30 @@ init_mem_jit(kbase k)
 #endif
 
 #if PAN_BASE_API >= 2
+static struct base_ptr
+kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags);
+
+static bool
+alloc_event_mem(kbase k)
+{
+        k->event_mem = kbase_alloc(k, k->page_size,
+                                   PANFROST_BO_NOEXEC,
+                                   BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |
+                                   BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
+                                   BASE_MEM_SAME_VA | BASE_MEM_CSF_EVENT);
+        return k->event_mem.cpu;
+}
+
+static bool
+free_event_mem(kbase k)
+{
+        if (k->event_mem.cpu)
+                return munmap(k->event_mem.cpu, k->page_size) == 0;
+        return true;
+}
+#endif
+
+#if PAN_BASE_API >= 2
 static bool
 cs_group_create(kbase k, struct kbase_context *c)
 {
@@ -432,6 +456,9 @@ static struct kbase_op kbase_main[] = {
 #if PAN_BASE_API >= 1
         { init_mem_exec, NULL, "Initialise EXEC_VA zone" },
         { init_mem_jit, NULL, "Initialise JIT allocator" },
+#endif
+#if PAN_BASE_API >= 2
+        { alloc_event_mem, free_event_mem, "Allocate event memory" },
 #endif
 };
 
@@ -908,11 +935,87 @@ kbase_handle_events(kbase k)
                 pthread_mutex_unlock(&k->handle_lock);
         }
 }
+
 #else
+
+static bool
+kbase_read_event(kbase k)
+{
+        struct base_csf_notification event;
+        int ret = read(k->fd, &event, sizeof(event));
+
+        if (ret == -1) {
+                perror("read(mali_fd)");
+                return false;
+        }
+
+        if (ret != sizeof(event)) {
+                fprintf(stderr, "read(mali_fd) returned %i, expected %i!\n",
+                        ret, (int) sizeof(event));
+                return true;
+        }
+
+        switch (event.type) {
+        case BASE_CSF_NOTIFICATION_EVENT:
+                fprintf(stderr, "Notification event!\n");
+                return true;
+
+        case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
+                break;
+
+        case BASE_CSF_NOTIFICATION_CPU_QUEUE_DUMP:
+                fprintf(stderr, "No event from mali_fd!\n");
+                return true;
+
+        default:
+                fprintf(stderr, "Unknown event type!\n");
+                return true;
+        }
+
+        struct base_gpu_queue_group_error e = event.payload.csg_error.error;
+
+        switch (e.error_type) {
+        case BASE_GPU_QUEUE_GROUP_ERROR_FATAL: {
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue group error: status 0x%x "
+                        "sideband 0x%"PRIx64"\n",
+                        e.payload.fatal_group.status,
+                        (uint64_t) e.payload.fatal_group.sideband);
+                break;
+        }
+        case BASE_GPU_QUEUE_GROUP_QUEUE_ERROR_FATAL: {
+                unsigned queue = e.payload.fatal_queue.csi_index;
+
+                // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
+                fprintf(stderr, "Queue %i error: status 0x%x "
+                        "sideband 0x%"PRIx64":",
+                        queue, e.payload.fatal_queue.status,
+                        (uint64_t) e.payload.fatal_queue.sideband);
+
+                /* TODO: Decode the instruct that it got stuck at */
+
+                break;
+        }
+
+        case BASE_GPU_QUEUE_GROUP_ERROR_TIMEOUT:
+                fprintf(stderr, "Command stream timeout!\n");
+                break;
+        case BASE_GPU_QUEUE_GROUP_ERROR_TILER_HEAP_OOM:
+                fprintf(stderr, "Command stream OOM!\n");
+                break;
+        default:
+                fprintf(stderr, "Unknown error type!\n");
+        }
+
+        return true;
+}
+
 static void
 kbase_handle_events(kbase k)
 {
-        // todo
+        while (kbase_read_event(k)) {
+                // todo update queues
+        }
 }
 #endif
 
@@ -1136,7 +1239,7 @@ kbase_cs_term(kbase k, struct kbase_cs *cs, base_va va)
 
 static bool
 kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
-                struct kbase_syncobj *o)
+                struct kbase_syncobj *o, uint64_t seqnum)
 {
         if (insert_offset == cs->last_insert)
                 return true;
@@ -1161,6 +1264,11 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
                 return false;
+        }
+
+        if (o) {
+                kbase_syncobj_ref(o);
+                kbase_syncobj_inc_jobs(o);
         }
 
         return true;
