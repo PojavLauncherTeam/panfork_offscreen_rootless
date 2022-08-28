@@ -744,6 +744,9 @@ kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
         return dup;
 }
 
+static void
+kbase_handle_events(kbase k);
+
 static bool
 kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 {
