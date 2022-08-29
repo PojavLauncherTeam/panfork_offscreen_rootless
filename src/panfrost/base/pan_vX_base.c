@@ -1256,7 +1256,10 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
                 cs.user_io = NULL;
         }
 
+        // TODO: This is a misnomer... it isn't a byte offset
         cs.event_mem_offset = k->event_slot_usage++;
+        k->event_slots[cs.event_mem_offset].back =
+                &k->event_slots[cs.event_mem_offset].syncobjs;
 
         return cs;
 }
@@ -1316,6 +1319,24 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
         if (o) {
                 kbase_syncobj_ref(o);
                 kbase_syncobj_inc_jobs(o);
+                // TODO: Don't add multiple links to one queue
+                struct kbase_sync_link *link = malloc(sizeof(*link));
+                *link = (struct kbase_sync_link) {
+                        .o = o,
+                        // TODO: Adjust this?
+                        .seqnum = seqnum,
+                        .next = NULL,
+                };
+
+                struct kbase_event_slot *slot =
+                        &k->event_slots[cs->event_mem_offset];
+
+                // TODO: Atomic operations?
+                struct kbase_sync_link **list = slot->back;
+                slot->back = &link->next;
+
+                assert(!*list);
+                *list = link;
         }
 
         return true;
