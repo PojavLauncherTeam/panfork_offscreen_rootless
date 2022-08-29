@@ -857,8 +857,18 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 pandecode_cs_bo(batch->cs_fragment_bo, dev->gpu_id);
         }
 
-        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, NULL, 0);
-        //dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+        // TODO: We need better synchronisation than a single fake syncobj!
+
+        printf("About to submit\n");
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset,
+                            ctx->syncobj_kbase, 0);
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset,
+                            ctx->syncobj_kbase, 0);
+
+        printf("Wait vertex\n");
+        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+        printf("Wait fragment\n");
+        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
         if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +
@@ -867,9 +877,6 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 // TODO: Avoid buffer overflows
                 fprintf(stderr, "V 0x%lx 0x%lx 0x%lx\n", a[-1], a[0], a[1]);
         }
-
-        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, NULL, 0);
-        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
         if (false && ctx->kbase_cs_fragment.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_fragment.bo->ptr.cpu +

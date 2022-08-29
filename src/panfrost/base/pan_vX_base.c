@@ -885,6 +885,8 @@ kbase_poll_event(kbase k, int64_t timeout_ns)
         if (ret == -1)
                 perror("poll(mali fd)");
 
+        printf("poll returned %i\n", pfd.revents);
+
         return;
 }
 
@@ -1021,12 +1023,15 @@ kbase_update_syncobjs(struct kbase_event_slot *slot,
         while (*list) {
                 struct kbase_sync_link *link = *list;
 
+                printf("seq %lx %lx\n", seqnum, link->seqnum);
+
                 /* Remove the link if the syncobj is now signaled */
                 if (seqnum > link->seqnum) {
+                        printf("syncobj %p done!\n", link->o);
                         kbase_syncobj_dec_jobs(link->o);
                         *list = link->next;
                         if (&link->next == back)
-                                back = list;
+                                slot->back = list;
                         free(link);
                 } else {
                         // TODO: Assume that later syncobjs will have higher
@@ -1039,16 +1044,18 @@ kbase_update_syncobjs(struct kbase_event_slot *slot,
 static void
 kbase_handle_events(kbase k)
 {
-        /* This will continue until we get EAGAIN */
-        while (kbase_read_event(k))
-                ;
+        /* This will clear the event count, so there's no need to do it in a
+         * loop. */
+        kbase_read_event(k);
 
         uint64_t *event_mem = k->event_mem.cpu;
 
         /* TODO: Locking? */
         for (unsigned i = 0; i < k->event_slot_usage; ++i) {
-                uint64_t seqnum = event_mem[i];
+                uint64_t seqnum = event_mem[i * 2];
                 uint64_t cmp = k->event_slots[i].last;
+
+                printf("MAIN SEQ %lx > %lx?\n", seqnum, cmp);
 
                 if (seqnum < cmp) {
                         fprintf(stderr, "seqnum at offset %i went backward "
@@ -1260,6 +1267,7 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         cs.event_mem_offset = k->event_slot_usage++;
         k->event_slots[cs.event_mem_offset].back =
                 &k->event_slots[cs.event_mem_offset].syncobjs;
+        *((uint64_t *)(k->event_mem.cpu + cs.event_mem_offset * 16)) = 1;
 
         return cs;
 }
@@ -1420,10 +1428,14 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
-                kbase_poll_event(k, 10);
+                printf("extract: %p %li\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT));
+
+                // TODO: Reduce timeout
+                kbase_poll_event(k, 200 * 1000000);
+                kbase_handle_events(k);
                 ++count;
 
-                if (count > 200) {
+                if (count > 10) {
                         unsigned e = CS_READ_REGISTER(cs, CS_EXTRACT);
                         unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 

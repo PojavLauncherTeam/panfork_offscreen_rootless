@@ -117,16 +117,16 @@ struct panfrost_streamout {
         unsigned num_targets;
 };
 
-/* TODO this struct is a mess */
+// TODO: This struct is a mess
 struct panfrost_cs {
         struct kbase_cs base;
         struct panfrost_bo *bo;
         pan_command_stream cs;
         unsigned size;
         unsigned mask;
-        bool init;
-        mali_ptr event_base;
         mali_ptr event_ptr;
+        uint64_t seqnum;
+        bool init;
 };
 
 struct panfrost_context {

@@ -909,6 +909,8 @@ panfrost_cs_create(struct panfrost_device *dev, struct kbase_context *kctx, unsi
         c.size = size;
         c.mask = mask;
 
+        c.event_ptr = dev->mali.event_mem.gpu + c.base.event_mem_offset * 16;
+
         return c;
 }
 
@@ -1008,21 +1010,10 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
         if (dev->kbase && dev->mali.context_create)
                 ctx->kbase_ctx = dev->mali.context_create(&dev->mali);
 
-	if (dev->arch >= 10) {
-		ctx->kbase_cs_vertex = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 13);
-		ctx->kbase_cs_fragment = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 2);
-
-		ctx->event_bo = panfrost_bo_create(dev, 4096, PAN_BO_EVENT, "Event BO");
-
-		uint64_t event_init[] = { 1, 1, 1 };
-		memcpy(ctx->event_bo->ptr.cpu, event_init, sizeof(event_init));
-
-		ctx->kbase_cs_vertex.event_base = ctx->event_bo->ptr.gpu;
-		ctx->kbase_cs_fragment.event_base = ctx->event_bo->ptr.gpu;
-		// These values are fairly arbitrary
-		ctx->kbase_cs_vertex.event_ptr = ctx->event_bo->ptr.gpu + 128;
-		ctx->kbase_cs_fragment.event_ptr = ctx->event_bo->ptr.gpu + 192;
-	}
+        if (dev->arch >= 10) {
+                ctx->kbase_cs_vertex = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 13);
+                ctx->kbase_cs_fragment = panfrost_cs_create(dev, ctx->kbase_ctx, 65536, 2);
+        }
 
         /* Prepare for render! */
 

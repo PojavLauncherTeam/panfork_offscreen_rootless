@@ -2778,6 +2778,7 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 }
 
 // TODO: Check that we don't go past CS_EXTRACT
+// TODO: Maybe we need an explicit jump back?
 static void
 wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
 {
@@ -2789,19 +2790,21 @@ wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
 
 #define W wrap_csf(cs->bo, &cs->cs)
 
+// TODO: Rewrite this!
 static void
 emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
 {
         // TODO clean up ifdef
 #if PAN_ARCH >= 10
         // Nothing to emit :: TODO this should not be like this
-        if (s.ptr == bo->ptr.cpu + 24)
+        if (s.ptr == bo->ptr.cpu)
                 return;
 
         if (!cs->init) {
                 pan_pack_ins(&cs->cs, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
                 pan_pack_ins(&cs->cs, CS_SLOT, cfg) { cfg.index = 2; } W;
-                pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
+                // TODO: This isn't needed, right?
+                //pan_emit_cs_48(&cs->cs, 0x5a, cs->event_base); W;
 
                 cs->init = true;
         }
@@ -2810,28 +2813,23 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // Or just go back to call instructions instead?
 
         // This could I think be optimised to 0xf80211 rather than 0x233
-        pan_emit_cs_32(&cs->cs, 0x54, 0);
-        pan_emit_cs_ins(&cs->cs, 0x24, 0x540000000233ULL);
+        pan_emit_cs_32(&s, 0x54, 0);
+        pan_emit_cs_ins(&s, 0x24, 0x540000000233ULL);
         //pan_emit_cs_ins(&s, 9, 0);
         pan_pack_ins(&s, CS_WAIT, cfg) { cfg.slots = 0xff; }
         //pan_emit_cs_ins(&s, 0x31, 0x1ULL << 32);
-        pan_pack_ins(&s, CS_ADD_IMM, cfg) {
-                cfg.dest = 0x48;
-                cfg.src = 0x40;
-        }
-        // TODO: Don't we want to keep incrementing this for EVWAIT?
-        pan_emit_cs_32(&s, 0x4a, 1);
-        // TODO genxmlify...  this is an EVSTR instruction
-        pan_emit_cs_ins(&s, 0x26, 0x01484a00040001);
+        pan_emit_cs_48(&s, 0x48, cs->event_ptr);
+        // TODO: What about overflow... just use EVADD instead?
+        pan_emit_cs_48(&s, 0x4a, ++cs->seqnum + 1);
+        // TODO genxmlify...  this is a 64-bit EVSTR instruction
+        pan_emit_cs_ins(&s, 52, 0x01484a00040001);
 
-        // Needs to be different if multiple jobs running at once?
-        pan_emit_cs_48(&cs->cs, 0x40, cs->event_base);
         // #0x1, #0xffffe0, #0xffffe1 also seen
         pan_emit_cs_32(&cs->cs, 0x54, 0);
         // TODO genxmlify
         pan_emit_cs_ins(&cs->cs, 0x24, 0x540000000233ULL);
-        // 0xff for vertex jobs
-        pan_pack_ins(&cs->cs, CS_WAIT, cfg) { cfg.slots = (1 << 0); }
+        // TODO: What does this need to be?
+        pan_pack_ins(&cs->cs, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
         unsigned length = (void *)s.ptr - bo->ptr.cpu;
         memcpy(cs->cs.ptr, bo->ptr.cpu, length);
@@ -2849,8 +2847,24 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
+#if PAN_ARCH >= 10
         emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
+
+        // TODO: this is duplicated from emit_csf_queue
+        if (batch->cs_fragment.ptr == batch->cs_fragment_bo->ptr.cpu)
+                return;
+
+        uint64_t vertex_seqnum = batch->ctx->kbase_cs_vertex.seqnum;
+        // TODO: this assumes SAME_VA
+        mali_ptr seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_vertex.event_ptr;
+
+        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x48, seqnum_ptr);
+        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x4a, vertex_seqnum);
+        // TODO genxmlify... this is a 64-bit EVWAIT instruction
+        pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 53, 0x484a10000000);
+
         emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
+#endif
 }
 
 #define DEFINE_CASE(c) case PIPE_PRIM_##c: return MALI_DRAW_MODE_##c;
@@ -4887,19 +4901,21 @@ init_batch(struct panfrost_batch *batch)
         batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
         batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
 
-        pan_pack_ins(&batch->cs_vertex, CS_SLOT, cfg) { cfg.index = 6; }
-        pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
+        // TODO: clean up this mess
+
+        //pan_pack_ins(&batch->cs_vertex, CS_SLOT, cfg) { cfg.index = 6; }
+        //pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
         //pan_pack_ins(&batch->cs_vertex, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
         // TODO genxmlify
         //pan_emit_cs_ins(&batch->cs_vertex, 0x31, 0);
-        pan_emit_cs_ins(&batch->cs_vertex, 0, 0);
+        //pan_emit_cs_ins(&batch->cs_vertex, 0, 0);
 
         // UNK 00 31, #0x0 / UNK 00 09, #0x0 "wrapping" for vertex jobs
 
-        pan_pack_ins(&batch->cs_fragment, CS_SLOT, cfg) { cfg.index = 6; }
-        pan_pack_ins(&batch->cs_fragment, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
+        //pan_pack_ins(&batch->cs_fragment, CS_SLOT, cfg) { cfg.index = 6; }
+        //pan_pack_ins(&batch->cs_fragment, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
         // sigh
-        pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
+        //pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
 
         // UNK 00 27, #0x4c4e10000000 on x40/0x0 for fragment jobs
 #endif

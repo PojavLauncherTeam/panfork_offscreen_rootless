@@ -1633,6 +1633,7 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 break;
         }
+
         case 39: case 53: {
                 const char *m = (const char *[]){
                         ".ls",
