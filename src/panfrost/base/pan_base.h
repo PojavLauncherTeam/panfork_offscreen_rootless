@@ -35,14 +35,17 @@ struct base_ptr {
 
 struct kbase_syncobj;
 
+/* The job is done when the queue seqnum > seqnum */
 struct kbase_sync_link {
-        struct kbase_sync_link *next;
+        struct kbase_sync_link *next; /* must be first */
         struct kbase_syncobj *o;
+        uint64_t seqnum;
 };
 
 struct kbase_event_slot {
-        uint64_t value;
         struct kbase_sync_link *syncobjs;
+        struct kbase_sync_link **back;
+        uint64_t last;
 };
 
 struct kbase_context {

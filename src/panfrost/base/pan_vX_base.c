@@ -1011,24 +1011,22 @@ kbase_read_event(kbase k)
         return true;
 }
 
-static bool
-kbase_update_syncobj(struct kbase_syncobj *o,
-                     uint64_t seqnum)
-{
-        // TODO !
-        return true;
-}
-
 static void
-kbase_update_syncobjs(struct kbase_sync_link **list,
+kbase_update_syncobjs(struct kbase_event_slot *slot,
                       uint64_t seqnum)
 {
+        struct kbase_sync_link **list = &slot->syncobjs;
+        struct kbase_sync_link **back = slot->back;
+
         while (*list) {
                 struct kbase_sync_link *link = *list;
 
                 /* Remove the link if the syncobj is now signaled */
-                if (kbase_update_syncobj(link->o, seqnum)) {
+                if (seqnum > link->seqnum) {
+                        kbase_syncobj_dec_jobs(link->o);
                         *list = link->next;
+                        if (&link->next == back)
+                                back = list;
                         free(link);
                 } else {
                         // TODO: Assume that later syncobjs will have higher
@@ -1050,7 +1048,7 @@ kbase_handle_events(kbase k)
         /* TODO: Locking? */
         for (unsigned i = 0; i < k->event_slot_usage; ++i) {
                 uint64_t seqnum = event_mem[i];
-                uint64_t cmp = k->event_slots[i].value;
+                uint64_t cmp = k->event_slots[i].last;
 
                 if (seqnum < cmp) {
                         fprintf(stderr, "seqnum at offset %i went backward "
@@ -1058,10 +1056,9 @@ kbase_handle_events(kbase k)
                                 i, cmp, seqnum);
                 } else if (seqnum > cmp) {
                         /* TODO: Atomic operations? */
-                        k->event_slots[i].value = seqnum;
+                        k->event_slots[i].last = seqnum;
 
-                        kbase_update_syncobjs(&k->event_slots[i].syncobjs,
-                                              seqnum);
+                        kbase_update_syncobjs(&k->event_slots[i], seqnum);
                 }
         }
 }
