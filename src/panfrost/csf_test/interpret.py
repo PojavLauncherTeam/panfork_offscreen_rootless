@@ -911,16 +911,6 @@ class Context:
                 addr = 1
                 value = ((dst << 40) | (val << 32) | (mask << 16) |
                          (irq << 2) | unk0)
-            elif s[0] == "strev(unk)":
-                s = [x.strip("[]()") for x in s]
-                unk = int(s[2])
-                val = reg(s[3])
-                dest = reg(s[4])
-                unk2 = hx(s[6])
-
-                cmd = 37
-                addr = unk
-                value = (dest << 40) | (val << 32) | unk2
             elif s[0] in ("evwait.ls", "evwait.hi"):
                 assert(len(s) == 3)
                 assert(s[1][0] in "wx")
