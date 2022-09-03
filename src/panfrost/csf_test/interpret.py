@@ -65,7 +65,7 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 }
 
 memory = {
-    "ev": 8192,
+    "ev": (8192, 0x8200f),
     "x": 4096,
     "y": 4096,
     "ls_alloc": 4096,
