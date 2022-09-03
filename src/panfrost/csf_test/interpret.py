@@ -82,6 +82,18 @@ descriptors = {
 cmds = """
 !cs 0
 
+mov x54, $x
+mov x58, $ev
+
+ldr {w20, x22, w25-w27}, [x58, 10]
+
+evstr w5f, [x58], unk 0xfd, irq
+
+"""
+
+oldcmds = """
+!cs 0
+
 @ Workgroup size 1x1x1, merging allowed
 mov w21, 0x80000000
 
@@ -825,17 +837,48 @@ class Context:
                 addr = 0
                 value = (dest << 40) | (type_ << 32) | to_int16(offset)
             elif s[0] in ("ldr", "str"):
+                reglist = s[1]
+                if reglist[0] == "{":
+                    end = [x[-1] for x in s].index("}")
+                    reglist = s[1:end + 1]
+                    s = s[:1] + s[end:]
+
                 assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")
                 assert(s[-1][-1] == "]")
                 s = [x.strip("[]") for x in s]
-                assert(s[1][0] in "xw")
                 assert(s[2][0] == "x")
 
-                mask = 3 if s[1][0] == "x" else 1
+                if isinstance(reglist, str):
+                    assert(reglist[0] in "xw")
+                    src = reg(reglist)
+                    mask = 3 if reglist[0] == "x" else 1
+                else:
+                    src = None
+                    mask = 0
 
-                # Names are correct for str, but inverted for ldr
-                src = reg(s[1])
+                    for r in ",".join(reglist).strip("{}").split(","):
+                        r = r.split("-")
+                        assert(len(r) in (1, 2))
+                        regno = [reg(x) for x in r]
+
+                        if src is None:
+                            src = regno[0]
+
+                        if len(r) == 1:
+                            assert(r[0][0] in "xw")
+                            new = 3 if r[0][0] == "x" else 1
+                            new = (new << regno[0]) >> src
+                        else:
+                            assert(regno[1] > regno[0])
+                            new = ((2 << regno[1]) - (1 << regno[0])) >> src
+
+                        assert(new < (1 << 16))
+                        assert(mask & new == 0)
+                        mask |= new
+
+                # Name is correct for str, but inverted for ldr
+                # (The same holds for src above)
                 dest = reg(s[2])
                 if len(s) == 4:
                     offset = val(s[3])
