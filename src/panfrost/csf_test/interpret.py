@@ -84,7 +84,29 @@ descriptors = {
     "ls": [3, 31, "ls_alloc"],
     "fau": [("ev", 0), 10, 0],
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
+
+    "framebuffer": [
+        0, 0, # Pre/post, downscale, layer index
+        0, 0, # Argument (TODO)
+        0, 0, # Sample locations
+        0, 0, # DCDs
+        0x000f000f, # width / height
+        0, 0x000f00f # bound min/max
+        # 16x16 tile size (I think.. is the field too small?)
+        # 1024 byte buffer allocation
+        (8 << 9) | (1 << 24),
+        0, # Disable S, ZS/CRC, Empty Tile, CRC
+        0, # Z Clear
+        0, 0, # Tiler
+
+        # Render target
+        # TODO
+    ],
 }
+
+cmds = """
+
+"""
 
 docopy = """
 ldr {w00-w0f}, [x52]
@@ -113,7 +135,7 @@ b.ne w50, loop
 b.ne w51, loop
 """
 
-cmds = f"""
+oldcmds = f"""
 !cs 0
 
 mov x50, 0x8000000
