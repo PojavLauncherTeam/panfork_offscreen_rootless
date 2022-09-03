@@ -1019,7 +1019,7 @@ wait_cs(struct state *s, unsigned i)
 {
         unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i].cpu;
 
-        unsigned timeout_ms = 100;
+        unsigned timeout_ms = 5000;
 
         bool done_kick = false;
 
