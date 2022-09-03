@@ -64,11 +64,18 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 }
 
+# Uncached!
+flg = 0x20000f
+
 memory = {
     "ev": (8192, 0x8200f),
     "x": 4096,
     "y": 4096,
     "ls_alloc": 4096,
+
+    # 512 MB
+    "from": (536870912 + 4096, flg),
+    "to": (536870912, flg),
 }
 
 # Words are 32-bit, apart from address references
@@ -82,13 +89,45 @@ descriptors = {
 cmds = """
 !cs 0
 
-mov x54, $x
+mov x50, 0x8000000
+
+mov x52, $from
+mov x54, $to
+mov x56, $x
 mov x58, $ev
 
-ldr {w20, x22, w25-w27}, [x58, 10]
+str cycles, [x56]
 
+ldr {w00-w0f}, [x52]
+ldr {w10-w1f}, [x52, 64]
+ldr {w20-w2f}, [x52, 128]
+ldr {w30-w3f}, [x52, 192]
+add x52, x52, 256
+
+loop:
+wait 0
+str {w00-w0f}, [x54]
+ldr {w00-w0f}, [x52]
+str {w10-w1f}, [x54, 64]
+ldr {w10-w1f}, [x52, 64]
+str {w20-w2f}, [x54, 128]
+ldr {w20-w2f}, [x52, 128]
+str {w30-w3f}, [x54, 192]
+ldr {w30-w3f}, [x52, 192]
+
+add x54, x54, 256
+add x52, x52, 256
+add x50, x50, -256
+
+b.ne w50, loop
+b.ne w51, loop
+
+str cycles, [x56, 8]
+
+UNK 00 24, #0x5f0000000233
 evstr w5f, [x58], unk 0xfd, irq
 
+!delta x 0 4096
 """
 
 oldcmds = """

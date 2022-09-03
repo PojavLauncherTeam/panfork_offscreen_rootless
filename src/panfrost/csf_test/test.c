@@ -1230,6 +1230,9 @@ cs_test(struct state *s, struct test *t)
                                 submit_cs(s, i);
 
                         u_foreach_bit(i, iter_mask)
+                                kick_queue(s, i);
+
+                        u_foreach_bit(i, iter_mask)
                                 wait_cs(s, i);
 
                 } else if (sscanf(line, "dump %lu %lu %lu %ms",
@@ -1619,10 +1622,10 @@ struct test kbase_main[] = {
         /* These three tests are run for every queue, but later ones are not */
         { cs_queue_create, cs_queue_free, "Create command stream queues" },
         { cs_queue_register, cs_queue_term, "Register command stream queues" },
-        { cs_init, NULL, "Initialise and start command stream queues" },
 
         { cs_test, NULL, "Test command stream" },
 
+        { cs_init, NULL, "Initialise and start command stream queues" },
         { cs_simple, NULL, "Execute MOV command" },
         { cs_simple, NULL, "Execute MOV command (again)" },
         { cs_simple, NULL, "Execute MOV command (vertex)", .vertex = true },
