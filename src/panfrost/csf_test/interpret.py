@@ -64,8 +64,8 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 }
 
-# Uncached!
-flg = 0x20000f
+flg = 0xf
+#flg = 0x20000f # Uncached!
 
 memory = {
     "ev": (8192, 0x8200f),
@@ -86,18 +86,7 @@ descriptors = {
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 }
 
-cmds = """
-!cs 0
-
-mov x50, 0x8000000
-
-mov x52, $from
-mov x54, $to
-mov x56, $x
-mov x58, $ev
-
-str cycles, [x56]
-
+docopy = """
 ldr {w00-w0f}, [x52]
 ldr {w10-w1f}, [x52, 64]
 ldr {w20-w2f}, [x52, 128]
@@ -106,6 +95,7 @@ add x52, x52, 256
 
 loop:
 wait 0
+
 str {w00-w0f}, [x54]
 ldr {w00-w0f}, [x52]
 str {w10-w1f}, [x54, 64]
@@ -121,7 +111,45 @@ add x50, x50, -256
 
 b.ne w50, loop
 b.ne w51, loop
+"""
 
+cmds = f"""
+!cs 0
+
+mov x50, 0x8000000
+
+mov x52, $from
+mov x54, $to
+mov x56, $x
+mov x58, $ev
+mov x5a, $y
+
+str cycles, [x56]
+{docopy}
+str cycles, [x56, 8]
+
+UNK 00 24, #0x5f0000000233
+evstr w5f, [x58], unk 0xfd, irq
+
+!cs 1
+
+mov x50, 0x8000000
+
+mov x52, $from
+mov x54, $to
+mov x56, $x
+mov x58, $ev
+mov x5a, $y
+
+add x52, x52, 0x8000000
+add x54, x54, 0x8000000
+add x56, x56, 32
+
+nop
+nop
+
+str cycles, [x56]
+{docopy}
 str cycles, [x56, 8]
 
 UNK 00 24, #0x5f0000000233
