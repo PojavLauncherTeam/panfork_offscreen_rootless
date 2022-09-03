@@ -390,7 +390,7 @@ b.ne w10, 1b
 """
 
 def get_cmds(cmd):
-    return cmds.format(cmd=cmd)
+    return cmds.replace("{cmd}", cmd)
 
 def assemble_shader(text):
     lines = text.strip().split("\n")
