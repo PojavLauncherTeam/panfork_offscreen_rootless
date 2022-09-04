@@ -73,7 +73,9 @@ memory = {
     "y": 4096,
     "ls_alloc": 4096,
 
-    "rt_buffer": 16 * 16 * 4 * 2,
+    "plane_0": 4096,
+    "plane_1": 4096,
+    "plane_2": 4096,
 }
 
 w = 0xffffffff
@@ -103,20 +105,31 @@ descriptors = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
         # Render target
-        (1 << 26), # R8G8B8A8 internal format
+        # R8G8B8A8 internal format
+        (1 << 24) | (1 << 26),
         # Write Enable
         # R8G8B8A8 colour format
         # Linear block format
         # 0123 swizzle
         # Clean pixel write enable
         1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
-        0, 0, 0, 0, 0, 0,
+
+        # YUV overlay
+        # YUVA, full range, no conversion, co-sited, signed
+        (0 << 16) | (1 << 20) | (1 << 21) | (0 << 25) | (0 << 28),
+        0,
+        "plane_0",
+        "plane_1",
+        "plane_2",
+        16, 16,
+
+        #0, 0, 0, 0, 0, 0,
         # RT Buffer
-        "rt_buffer", # Base address
-        16 * 4, # Row stride
-        16 * 4 * 4, # Surface stride
+        #"rt_buffer", # Base address
+        #16 * 4, # Row stride
+        #16 * 4 * 4, # Surface stride
         # RT Clear
-        0xff332211, 0xff332211, 0xff332211, 0xff332211,
+        0xffff, 0, 0, 0,
     ],
 }
 
@@ -139,7 +152,10 @@ fragment
 UNK 00 24, #0x5f0000000233
 evstr w5f, [x50], unk 0xfd, irq
 
-!dump rt_buffer 0 4096
+@!dump rt_buffer 0 4096
+!dump plane_0 0 4096
+!dump plane_1 0 4096
+!dump plane_2 0 4096
 """
 
 docopy = """
