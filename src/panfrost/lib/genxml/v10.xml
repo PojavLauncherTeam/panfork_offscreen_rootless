@@ -376,11 +376,12 @@
 
   <enum name="Block Format">
     <value name="Give me a GPU hang" value="0"/>
-    <!--- 16x16 block u-interleaved -->
+    <!-- 16x16 block u-interleaved -->
     <value name="Tiled U-Interleaved" value="1"/>
     <value name="Linear" value="2"/>
     <value name="Also Tiled" value="8"/>
     <value name="AFBC" value="12"/>
+    <!-- This seems to actually use a newer AFBC version -->
     <value name="AFBC Tiled" value="13"/>
   </enum>
 

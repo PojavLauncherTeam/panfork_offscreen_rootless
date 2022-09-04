@@ -112,21 +112,19 @@ descriptors = {
         # AFBC block format
         # 0123 swizzle
         # Clean pixel write enable
-        1 | (19 << 3) | (12 << 8) | (0o3210 << 16) | (1 << 31),
+        1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
 
         # AFBC overlay
         # No YTR, no split, no wide, no reverse, no front, no alpha
         # RGBA8 compression mode
         0 | (10 << 10),
         0, 0, 0, 0, 0,
-        "plane_0",
-        16, 0x400,
 
-        #0, 0, 0, 0, 0, 0,
         # RT Buffer
-        #"rt_buffer", # Base address
-        #16 * 4, # Row stride
-        #16 * 4 * 4, # Surface stride
+        "plane_0",
+        16, # Row stride
+        0x400, # Surface stride / Body offset
+
         # RT Clear
         0x2e234589, 0, 0, 0,
     ],
