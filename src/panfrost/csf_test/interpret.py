@@ -73,10 +73,10 @@ memory = {
     "y": 4096,
     "ls_alloc": 4096,
 
-    # 512 MB
-    "from": (536870912 + 4096, flg),
-    "to": (536870912, flg),
+    "rt_buffer": 16 * 16 * 4 * 2,
 }
+
+w = 0xffffffff
 
 # Words are 32-bit, apart from address references
 descriptors = {
@@ -87,11 +87,11 @@ descriptors = {
 
     "framebuffer": [
         0, 0, # Pre/post, downscale, layer index
-        0, 0, # Argument (TODO)
-        0, 0, # Sample locations
+        0x10000, 0, # Argument
+        "ls_alloc", # Sample locations
         0, 0, # DCDs
         0x000f000f, # width / height
-        0, 0x000f00f # bound min/max
+        0, 0x000f00f, # bound min/max
         # 16x16 tile size (I think.. is the field too small?)
         # 1024 byte buffer allocation
         (8 << 9) | (1 << 24),
@@ -99,13 +99,47 @@ descriptors = {
         0, # Z Clear
         0, 0, # Tiler
 
+        # Framebuffer padding
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+
         # Render target
-        # TODO
+        (1 << 26), # R8G8B8A8 internal format
+        # Write Enable
+        # R8G8B8A8 colour format
+        # Linear block format
+        # 0123 swizzle
+        # Clean pixel write enable
+        1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
+        0, 0, 0, 0, 0, 0,
+        # RT Buffer
+        "rt_buffer", # Base address
+        16 * 4, # Row stride
+        16 * 4 * 4, # Surface stride
+        # RT Clear
+        0xff332211, 0xff332211, 0xff332211, 0xff332211,
     ],
 }
 
 cmds = """
+!cs 0
 
+endpt fragment
+mov x50, $ev
+
+@ Bound min
+mov w2a, 0
+@ Bound max
+mov w2b, 0x000f000f
+mov x28, $framebuffer+1
+
+mov x2c, $x
+
+fragment
+
+UNK 00 24, #0x5f0000000233
+evstr w5f, [x50], unk 0xfd, irq
+
+!dump rt_buffer 0 4096
 """
 
 docopy = """
@@ -871,6 +905,10 @@ class Context:
                 cmd = 34
                 addr = 0
                 value = types[name] if name in types else int(name, 0)
+            elif s[0] == "fragment":
+                cmd = 7
+                addr = 0
+                value = 0
             elif s[0] == "wait":
                 assert(len(s) == 2)
                 cmd = 3
