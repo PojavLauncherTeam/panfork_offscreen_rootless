@@ -1262,18 +1262,20 @@
     <field name="Bound Min Y" size="12" start="0x2a:16" type="uint"/>
     <field name="Bound Max X" size="12" start="0x2b:0" type="uint"/>
     <field name="Bound Max Y" size="12" start="0x2b:16" type="uint"/>
-    <field name="Tile render order" size="3" start="0x2b:28" type="Tile Render Order" default="Z Order"/>
-    <field name="Has Tile Enable Map" size="1" start="0x2b:31" type="bool"/>
     <field name="Framebuffer" size="48" start="0x28:0" type="address"/>
-    <field name="Tile Enable Map" size="48" start="4:0" type="address"/>
-    <field name="Tile Enable Map Row Stride" size="8" start="6:0" type="uint"/>
+    <field name="Tile Enable Map" size="48" start="0x2c:0" type="address"/>
+    <field name="Tile Enable Map Row Stride" size="8" start="0x2e:0" type="uint"/>
   </struct>
 
   <aggregate name="Fragment Job" align="128">
     <section name="Payload" offset="32" type="Fragment Job Payload"/>
   </aggregate>
 
-  <struct name="Fragment launch" layout="ins" op="7"/>
+  <struct name="Fragment launch" layout="ins" op="7">
+    <field name="Has Tile Enable Map" size="1" start="0" type="bool"/>
+    <field name="Tile render order" size="3" start="4" type="Tile Render Order" default="Z Order"/>
+    <field name="Unk" size="1" start="32" type="bool"/>
+  </struct>
 
   <struct name="Shader Environment" size="16" align="64">
     <field name="Attribute offset" start="0:0" size="32" type="uint"/>

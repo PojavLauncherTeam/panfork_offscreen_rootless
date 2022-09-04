@@ -141,10 +141,13 @@ mov w2a, 0
 @ Bound max
 mov w2b, 0x000f000f
 mov x28, $framebuffer+1
-
 mov x2c, $x
+@ TODO: Is this the TEM row stride?
+mov x2e, 2
 
-fragment
+@ Use tile enable map
+UNK 00 07, 1
+@fragment
 
 UNK 00 24, #0x5f0000000233
 evstr w5f, [x50], unk 0xfd, irq
