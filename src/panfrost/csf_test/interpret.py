@@ -73,7 +73,7 @@ memory = {
     "y": 4096,
     "ls_alloc": 4096,
 
-    "plane_0": 4096,
+    "plane_0": 16384,
     "plane_1": 4096,
     "plane_2": 4096,
 }
@@ -106,22 +106,21 @@ descriptors = {
 
         # Render target
         # R8G8B8A8 internal format
-        (1 << 24) | (1 << 26),
+        (1 << 26),
         # Write Enable
         # R8G8B8A8 colour format
-        # Linear block format
+        # AFBC block format
         # 0123 swizzle
         # Clean pixel write enable
-        1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
+        1 | (19 << 3) | (12 << 8) | (0o3210 << 16) | (1 << 31),
 
-        # YUV overlay
-        # YUVA, full range, no conversion, co-sited, signed
-        (0 << 16) | (1 << 20) | (1 << 21) | (0 << 25) | (0 << 28),
-        0,
+        # AFBC overlay
+        # No YTR, no split, no wide, no reverse, no front, no alpha
+        # RGBA8 compression mode
+        0 | (10 << 10),
+        0, 0, 0, 0, 0,
         "plane_0",
-        "plane_1",
-        "plane_2",
-        16, 16,
+        16, 0x400,
 
         #0, 0, 0, 0, 0, 0,
         # RT Buffer
@@ -129,7 +128,7 @@ descriptors = {
         #16 * 4, # Row stride
         #16 * 4 * 4, # Surface stride
         # RT Clear
-        0xffff, 0, 0, 0,
+        0x2e234589, 0, 0, 0,
     ],
 }
 
@@ -153,7 +152,7 @@ UNK 00 24, #0x5f0000000233
 evstr w5f, [x50], unk 0xfd, irq
 
 @!dump rt_buffer 0 4096
-!dump plane_0 0 4096
+!dump plane_0 0 16384
 !dump plane_1 0 4096
 !dump plane_2 0 4096
 """

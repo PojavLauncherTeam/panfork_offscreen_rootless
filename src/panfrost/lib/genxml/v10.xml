@@ -375,10 +375,11 @@
   </enum>
 
   <enum name="Block Format">
-    <value name="No Write" value="0"/>
+    <value name="Give me a GPU hang" value="0"/>
     <!--- 16x16 block u-interleaved -->
     <value name="Tiled U-Interleaved" value="1"/>
     <value name="Linear" value="2"/>
+    <value name="Also Tiled" value="8"/>
     <value name="AFBC" value="12"/>
     <value name="AFBC Tiled" value="13"/>
   </enum>
@@ -740,16 +741,22 @@
 
   <enum name="AFBC Compression Mode">
     <value name="R8" value="0"/>
+    <value name="R8G8 alt" value="1"/>
     <value name="R8G8" value="3"/>
     <value name="R5G6B5" value="4"/>
     <value name="R4G4B4A4" value="5"/>
     <value name="R5G5B5A1" value="6"/>
+    <value name="R8G8B8A8 alt" value="8"/>
     <value name="R8G8B8" value="9"/>
     <value name="R8G8B8A8" value="10"/>
     <value name="R10G10B10A2" value="11"/>
     <value name="R11G11B10" value="12"/>
     <value name="S8" value="14"/>
     <value name="X24S8" value="15"/>
+
+    <!-- Subsampled maybe? -->
+    <value name="Unk 1" value="16"/>
+    <value name="Unk 2" value="17"/>
 
     <value name="YUV420 6c8" value="32"/>
     <value name="YUV420 2c8" value="34"/>
@@ -1118,6 +1125,8 @@
     <field name="Conversion Mode" size="4" start="2:21" type="YUV Conversion Mode"/>
     <field name="Cr Siting" size="3" start="2:25" type="YUV Cr Siting"/>
     <field name="Unsigned Cr Range" size="1" start="2:28" type="bool"/>
+    <!-- TODO: Is planar YUV even supported? Only "Plane 0" appears to
+         be used, and the stride gets ignored. -->
     <field name="Plane 0 Base" size="64" start="4:0" type="address"/>
     <field name="Plane 1 Base" size="64" start="6:0" type="address"/>
     <field name="Plane 2 Base" size="64" start="8:0" type="address"/>
@@ -1127,6 +1136,7 @@
 
   <struct name="Render Target AFBC Overlay" size="16">
     <field name="YUV Transform" size="1" start="2:0" type="bool"/>
+    <!-- Split each block into two half-height blocks -->
     <field name="Split block" size="1" start="2:1" type="bool"/>
     <field name="Wide block" size="1" start="2:2" type="bool"/>
     <field name="Reverse issue order" size="1" start="2:3" type="bool"/>
