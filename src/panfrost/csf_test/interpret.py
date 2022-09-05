@@ -62,6 +62,14 @@ LOAD.i32.unsigned.slot0.wait0 @r2, r0, offset:0
 IADD.s32 r2, ^r2, u2
 STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
+
+    "preframe": """
+IADD_IMM.i32 r0, 0x0, #0x3f800000
+IADD_IMM.i32 r1, 0x0, #0x3f000000
+IADD_IMM.i32 r2, 0x0, #0x3f333333
+IADD_IMM.i32 r3, 0x0, #0x3ecccccd
+BLEND.slot0.v4.f32.end @r0:r1:r2:r3, blend_descriptor_0.w0, r60, target:0x0
+"""
 }
 
 flg = 0xf
@@ -85,11 +93,57 @@ descriptors = {
     "fau": [("ev", 0), 10, 0],
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 
+    "preframe_shader": [0x128, 1 << 12, "preframe"],
+
+    "preframe_zs": [
+        0x70077, # Depth/stencil type, Always for stencil tests
+        0, 0, # Stencil state
+        0, # unk
+        # Depth source minimum, write disabled
+        # [0, 1] Depth clamp
+        # Depth function: Always
+        (1 << 23) | (7 << 29),
+        0, # Depth units
+        0, # Depth factor
+        0, # Depth bias clamp
+    ],
+
+    "preframe_blend": [
+        # Enable
+        (1 << 9),
+        0,
+        # Opaque blending
+        1, 0,
+    ],
+
+    "dcds": [
+        # Clean fragment write
+        (1 << 9),
+        # Sample mask of 0xffff, RT mask of 1
+        0x1ffff,
+        0, 0, # vertex array
+        0, 0, # unk
+        0, 0x3f800000, # min/max depth
+        0, 0, # unk
+        "preframe_zs", # depth/stencil
+        ("preframe_blend", 1), # blend (count == 1)
+        0, 0, # occlusion
+
+        # Shader environment:
+        0, # Attribute offset
+        0, # FAU count
+        0, 0, 0, 0, 0, 0, # unk
+        0, 0, # Resources
+        "preframe_shader", # Shader
+        0, 0, # Thread storage
+        0, 0, # FAU
+    ],
+
     "framebuffer": [
-        0, 0, # Pre/post, downscale, layer index
+        1, 0, # Pre/post, downscale, layer index
         0x10000, 0, # Argument
         "ls_alloc", # Sample locations
-        0, 0, # DCDs
+        "dcds", # DCDs
         0x007f007f, # width / height
         0, 0x007f007f, # bound min/max
         # 32x32 tile size
@@ -137,7 +191,7 @@ mov x50, $ev
 @ Bound min
 mov w2a, 0x00000000
 @ Bound max
-mov w2b, 0x00000000
+mov w2b, 0x007f007f
 mov x28, $framebuffer+1
 @ Tile enable map
 mov x2c, $x

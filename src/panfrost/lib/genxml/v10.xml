@@ -1455,8 +1455,8 @@
     <field name="Alpha-to-coverage Invert" size="1" start="0:21" type="bool"/>
     <field name="Alpha-to-coverage" size="1" start="0:22" type="bool"/>
     <field name="Scissor to bounding box" size="1" start="0:23" type="bool"/>
-    <field name="Render target mask" start="1:16" size="8" type="hex"/>
     <field name="Sample mask" size="16" start="1:0" type="uint"/>
+    <field name="Render target mask" start="1:16" size="8" type="hex"/>
     <!-- TODO v10 -->
     <!--<field name="Vertex array" start="2:0" size="96" type="Vertex Array"/>-->
     <field name="Minimum Z" start="6:0" size="32" type="float"/>
