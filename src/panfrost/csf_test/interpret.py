@@ -68,9 +68,7 @@ IADD_IMM.i32 r4, 0x0, #0x3f800000
 IADD_IMM.i32 r5, 0x0, #0x3f000000
 IADD_IMM.i32 r6, 0x0, #0x3f333333
 IADD_IMM.i32 r7, 0x0, #0x3ecccccd
-BLEND.slot0.v4.f32 @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
-NOP.wait0
-NOP.end
+BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 """
 }
 
@@ -116,10 +114,10 @@ descriptors = {
         # RGB/Alpha: Src + Zero * Src
         # All channels
         ((2 | (2 << 4) | (1 << 8)) * 0x1001) | (0xf << 28),
-        # Fixed function blending
-        2,
-        # RGBA8 pixel format / F32 register format
-        0 | (187 << 12) | (0 << 22) | (1 << 24),
+        # Fixed function blending, four components
+        2 | (3 << 3),
+        # RGBA8 TB pixel format / F32 register format
+        0 | (237 << 12) | (0 << 22) | (1 << 24),
     ],
 
     "dcds": [
@@ -154,7 +152,7 @@ descriptors = {
         0, 0x007f007f, # bound min/max
         # 32x32 tile size
         # 4096 byte buffer allocation (maybe?)
-        (10 << 9) | (1 << 24),
+        (10 << 9) | (4 << 24),
         0, # Disable S, ZS/CRC, Empty Tile, CRC
         0, # Z Clear
         0, 0, # Tiler
