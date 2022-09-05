@@ -1541,7 +1541,7 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                  * branch is taken if the signed register value is greater
                  * than zero. */
                 const char *comparisons[] = {
-                        ".gt", ".le",
+                        ".le", ".gt",
                         ".eq", ".ne",
                         ".lt", ".ge",
                         "" /* always */, ".(invalid: never)",

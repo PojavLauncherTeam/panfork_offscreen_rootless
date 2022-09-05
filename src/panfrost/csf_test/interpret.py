@@ -1159,7 +1159,7 @@ class Context:
                 assert(s[1][0] == "w")
 
                 ops = {
-                    "b.gt": 0, "b.le": 1,
+                    "b.le": 0, "b.gt": 1,
                     "b.eq": 2, "b.ne": 3,
                     "b.lt": 4, "b.ge": 5,
                     "b": 6, "b.al": 6,
