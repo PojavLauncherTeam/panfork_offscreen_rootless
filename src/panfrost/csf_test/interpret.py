@@ -69,7 +69,7 @@ flg = 0xf
 
 memory = {
     "ev": (8192, 0x8200f),
-    "x": 4096,
+    "x": 1024 * 1024,
     "y": 4096,
     "ls_alloc": 4096,
 
@@ -92,9 +92,9 @@ descriptors = {
         0, 0, # DCDs
         0x007f007f, # width / height
         0, 0x007f007f, # bound min/max
-        # 16x16 tile size (I think.. is the field too small?)
-        # 1024 byte buffer allocation
-        (8 << 9) | (1 << 24),
+        # 32x32 tile size
+        # 4096 byte buffer allocation (maybe?)
+        (10 << 9) | (1 << 24),
         0, # Disable S, ZS/CRC, Empty Tile, CRC
         0, # Z Clear
         0, 0, # Tiler
@@ -135,27 +135,53 @@ endpt fragment
 mov x50, $ev
 
 @ Bound min
-mov w2a, 0
+mov w2a, 0x00000000
 @ Bound max
-mov w2b, 0x007f007f
+mov w2b, 0x00000000
 mov x28, $framebuffer+1
+@ Tile enable map
 mov x2c, $x
-@ TODO: Is this the TEM row stride?
 mov x2e, 64
 
-mov w40, 1
+mov w40, 5
 str w40, [x2c]
+str w40, [x2c, 128]
 
+mov x52, $y
+mov x58, 0x17
+add x52, x52, -8
+mov x5a, 4
+
+frag:
 @ Use tile enable map
 UNK 00 07, 1
 @fragment
 
 UNK 00 24, #0x5f0000000233
+wait 1
+
+mov x54, $plane_0
+ldr x56, [x54]
+wait 0
+
+add x52, x52, 8
+str x58, [x52]
+
+@ Sometimes the fragment job doesn't seem to start at all
+@ When that happens, retry a number of times
+add x5a, x5a, -1
+b.eq w5a, skip
+b.eq w56, frag
+
+skip:
+str x56, [x52]
+
 evstr w5f, [x50], unk 0xfd, irq
 
 @!dump rt_buffer 0 4096
 @!dump plane_0 0 524288
-!heatmap plane_0 0 524288 gran 0x80 stride 0x200
+!dump y 0 4096
+!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
 """
 
 docopy = """
@@ -846,17 +872,19 @@ class Context:
                                  offset, size, mode))
                 continue
             elif s[0] == "!heatmap":
-                assert(len(s) == 8)
+                assert(len(s) == 10)
                 assert(s[4] == "gran")
-                assert(s[6] == "stride")
+                assert(s[6] == "len")
+                assert(s[8] == "stride")
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
                 granularity = val(s[5])
-                stride = val(s[7])
+                length = val(s[7])
+                stride = val(s[9])
                 mode = "heatmap"
                 self.exe.append(("heatmap", self.allocs[alloc_id].id,
-                                 offset, size, granularity, stride))
+                                 offset, size, granularity, length, stride))
                 continue
             elif s[0] == "movp":
                 assert(len(s) == 3)

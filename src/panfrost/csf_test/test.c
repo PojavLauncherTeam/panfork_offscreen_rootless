@@ -1019,7 +1019,7 @@ wait_cs(struct state *s, unsigned i)
 {
         unsigned extract_offset = (void *) s->cs[i].ptr - s->cs_mem[i].cpu;
 
-        unsigned timeout_ms = 5000;
+        unsigned timeout_ms = 500;
 
         bool done_kick = false;
 
@@ -1126,11 +1126,12 @@ dump_delta(FILE *fp, uint64_t *values, unsigned size)
 
 static void
 dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
-             unsigned gran, unsigned stride)
+             unsigned gran, unsigned length, unsigned stride)
 {
         unsigned sum = 0;
         unsigned gr = 0;
         unsigned st = 0;
+        unsigned ll = 0;
 
         while (size && !values[size - 1])
                 --size;
@@ -1142,6 +1143,13 @@ dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
                         fprintf(fp, " %02x", sum & 0xff);
                         gr = 0;
                         sum = 0;
+                }
+
+                if (++ll == length) {
+                        i += stride - length;
+                        fprintf(fp, "\n");
+                        st = 0;
+                        ll = 0;
                 }
 
                 if (++st == stride) {
@@ -1170,7 +1178,7 @@ cs_test(struct state *s, struct test *t)
                         break;
 
                 unsigned long src, dst, offset, src_offset, size, iter, flags;
-                unsigned long gran, stride;
+                unsigned long gran, stride, length;
                 int read;
                 char *mode;
 
@@ -1222,6 +1230,8 @@ cs_test(struct state *s, struct test *t)
                                 fill[i] = val;
                         }
 
+                        cache_clean_range(buffer.cpu, size);
+
                 } else if (sscanf(line, "exe %n %lu %lu %lu",
                                   &read, &iter, &dst, &size) == 3) {
                         line += read;
@@ -1272,8 +1282,6 @@ cs_test(struct state *s, struct test *t)
                         if (!s->gpu)
                                 fprintf(stderr, "dumping buffer that doesn't exist!\n");
 
-                        cache_invalidate_range(s->cpu + offset, size);
-
                         if (!strcmp(mode, "hex"))
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
                         else if (!strcmp(mode, "delta"))
@@ -1281,18 +1289,17 @@ cs_test(struct state *s, struct test *t)
 
                         free(mode);
 
-                } else if (sscanf(line, "heatmap %lu %lu %lu %lu %lu",
+                } else if (sscanf(line, "heatmap %lu %lu %lu %lu %lu %lu",
                                   &src, &offset, &size,
-                                  &gran, &stride) == 5) {
+                                  &gran, &length, &stride) == 6) {
 
                         struct panfrost_ptr *s = buffers_elem(&buffers, src);
 
                         if (!s->gpu)
                                 fprintf(stderr, "dumping buffer that doesn't exist!\n");
 
-                        cache_invalidate_range(s->cpu + offset, size);
-
-                        dump_heatmap(stdout, s->cpu + offset, size, gran, stride);
+                        dump_heatmap(stdout, s->cpu + offset, size,
+                                     gran, length, stride);
 
                 } else {
                         fprintf(stderr, "unknown command '%s'\n", line);
