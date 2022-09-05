@@ -1258,13 +1258,14 @@
   </aggregate>
 
   <struct name="Fragment Job Payload" layout="cs">
-    <field name="Bound Min X" size="12" start="0x2a:0" type="uint"/>
-    <field name="Bound Min Y" size="12" start="0x2a:16" type="uint"/>
-    <field name="Bound Max X" size="12" start="0x2b:0" type="uint"/>
-    <field name="Bound Max Y" size="12" start="0x2b:16" type="uint"/>
+    <field name="Bound Min X" size="16" start="0x2a:0" type="uint"/>
+    <field name="Bound Min Y" size="16" start="0x2a:16" type="uint"/>
+    <field name="Bound Max X" size="16" start="0x2b:0" type="uint"/>
+    <field name="Bound Max Y" size="16" start="0x2b:16" type="uint"/>
     <field name="Framebuffer" size="48" start="0x28:0" type="address"/>
     <field name="Tile Enable Map" size="48" start="0x2c:0" type="address"/>
-    <field name="Tile Enable Map Row Stride" size="8" start="0x2e:0" type="uint"/>
+    <!-- Must have 64-byte alignment -->
+    <field name="Tile Enable Map Row Stride" size="9" start="0x2e:0" type="uint"/>
   </struct>
 
   <aggregate name="Fragment Job" align="128">
