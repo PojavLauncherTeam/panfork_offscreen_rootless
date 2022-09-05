@@ -64,11 +64,13 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 
     "preframe": """
-IADD_IMM.i32 r0, 0x0, #0x3f800000
-IADD_IMM.i32 r1, 0x0, #0x3f000000
-IADD_IMM.i32 r2, 0x0, #0x3f333333
-IADD_IMM.i32 r3, 0x0, #0x3ecccccd
-BLEND.slot0.v4.f32.end @r0:r1:r2:r3, blend_descriptor_0.w0, r60, target:0x0
+IADD_IMM.i32 r4, 0x0, #0x3f800000
+IADD_IMM.i32 r5, 0x0, #0x3f000000
+IADD_IMM.i32 r6, 0x0, #0x3f333333
+IADD_IMM.i32 r7, 0x0, #0x3ecccccd
+BLEND.slot0.v4.f32 @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
+NOP.wait0
+NOP.end
 """
 }
 
@@ -109,16 +111,20 @@ descriptors = {
     ],
 
     "preframe_blend": [
-        # Enable
-        (1 << 9),
-        0,
-        # Opaque blending
-        1, 0,
+        # Load dest, enable
+        1 | (1 << 9),
+        # RGB/Alpha: Src + Zero * Src
+        # All channels
+        ((2 | (2 << 4) | (1 << 8)) * 0x1001) | (0xf << 28),
+        # Fixed function blending
+        2,
+        # RGBA8 pixel format / F32 register format
+        0 | (187 << 12) | (0 << 22) | (1 << 24),
     ],
 
     "dcds": [
-        # Clean fragment write
-        (1 << 9),
+        # Clean fragment write, primitive barrier
+        (1 << 9) | (1 << 10),
         # Sample mask of 0xffff, RT mask of 1
         0x1ffff,
         0, 0, # vertex array
@@ -174,7 +180,7 @@ descriptors = {
 
         # RT Buffer
         "plane_0",
-        128 * 4, # Row stride
+        128 * 4 // 4, # Row stride
         0x400, # Surface stride / Body offset
 
         # RT Clear
@@ -197,9 +203,9 @@ mov x28, $framebuffer+1
 mov x2c, $x
 mov x2e, 64
 
-mov w40, 5
+mov w40, 1
 str w40, [x2c]
-str w40, [x2c, 128]
+@str w40, [x2c, 128]
 
 mov x52, $y
 mov x58, 0x17
@@ -234,9 +240,9 @@ str x56, [x52]
 evstr w5f, [x50], unk 0xfd, irq
 
 @!dump rt_buffer 0 4096
-@!dump plane_0 0 524288
 !dump y 0 4096
-!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
+!dump plane_0 0 524288
+@!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
 """
 
 docopy = """
