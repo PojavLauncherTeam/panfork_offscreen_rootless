@@ -1451,11 +1451,30 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 break;
         }
         case 7: {
-                if (addr || value)
+                uint64_t masked = value & ~0x000100000071;
+                bool tem = value & 1;
+                bool unk = (value >> 32) & 1;
+
+                const char *order = (const char *[]){
+                        "z_order",
+                        "horizontal",
+                        "vertical",
+                        "invalid_3",
+                        "invalid_4",
+                        "reverse_horizontal",
+                        "reverse_vertical",
+                        "invalid_7",
+                }[(value >> 4) & 7];
+
+                if (addr || masked) {
                         pandecode_log("fragment (unk %02x), (unk %"PRIx64")\n\n",
                                       addr, value);
-                else
+                } else if (value) {
+                        pandecode_log("fragment tem %i, render %s, unk %i\n\n",
+                                      tem, order, unk);
+                } else {
                         pandecode_log("fragment\n\n");
+                }
 
                 pandecode_indent++;
 

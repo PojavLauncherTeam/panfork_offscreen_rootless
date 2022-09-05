@@ -154,7 +154,8 @@ mov x5a, 4
 
 frag:
 @ Use tile enable map
-UNK 00 07, 1
+fragment tem 1
+@UNK 00 07, 0x51
 @fragment
 
 UNK 00 24, #0x5f0000000233
@@ -966,6 +967,20 @@ class Context:
                 cmd = 7
                 addr = 0
                 value = 0
+                if len(s) != 1:
+                    arg_map = {
+                        "tem": {"0": 0, "1": 1},
+                        "render": {
+                            "z_order": 0,
+                            "horizontal": 0x10,
+                            "vertical": 0x20,
+                            "reverse_horizontal": 0x50,
+                            "reverse_vertical": 0x60,
+                        },
+                        "unk": {"0": 0, "1": 1 << 32},
+                    }
+                    for arg, val in zip(s[1::2], s[2::2]):
+                        value |= arg_map[arg][val]
             elif s[0] == "wait":
                 assert(len(s) == 2)
                 cmd = 3
