@@ -73,9 +73,7 @@ memory = {
     "y": 4096,
     "ls_alloc": 4096,
 
-    "plane_0": 16384,
-    "plane_1": 4096,
-    "plane_2": 4096,
+    "plane_0": 128 * 128 * 32, # 512 KiB
 }
 
 w = 0xffffffff
@@ -92,8 +90,8 @@ descriptors = {
         0x10000, 0, # Argument
         "ls_alloc", # Sample locations
         0, 0, # DCDs
-        0x000f000f, # width / height
-        0, 0x000f00f, # bound min/max
+        0x007f007f, # width / height
+        0, 0x007f007f, # bound min/max
         # 16x16 tile size (I think.. is the field too small?)
         # 1024 byte buffer allocation
         (8 << 9) | (1 << 24),
@@ -109,7 +107,7 @@ descriptors = {
         (1 << 26),
         # Write Enable
         # R8G8B8A8 colour format
-        # AFBC block format
+        # Linear block format
         # 0123 swizzle
         # Clean pixel write enable
         1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
@@ -122,7 +120,7 @@ descriptors = {
 
         # RT Buffer
         "plane_0",
-        16, # Row stride
+        128 * 4, # Row stride
         0x400, # Surface stride / Body offset
 
         # RT Clear
@@ -139,11 +137,14 @@ mov x50, $ev
 @ Bound min
 mov w2a, 0
 @ Bound max
-mov w2b, 0x000f000f
+mov w2b, 0x007f007f
 mov x28, $framebuffer+1
 mov x2c, $x
 @ TODO: Is this the TEM row stride?
-mov x2e, 2
+mov x2e, 64
+
+mov w40, 1
+str w40, [x2c]
 
 @ Use tile enable map
 UNK 00 07, 1
@@ -153,9 +154,8 @@ UNK 00 24, #0x5f0000000233
 evstr w5f, [x50], unk 0xfd, irq
 
 @!dump rt_buffer 0 4096
-!dump plane_0 0 16384
-!dump plane_1 0 4096
-!dump plane_2 0 4096
+@!dump plane_0 0 524288
+!heatmap plane_0 0 524288 gran 0x80 stride 0x200
 """
 
 docopy = """
@@ -844,6 +844,19 @@ class Context:
                 mode = "hex" if s[0] == "!dump" else "delta"
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
+                continue
+            elif s[0] == "!heatmap":
+                assert(len(s) == 8)
+                assert(s[4] == "gran")
+                assert(s[6] == "stride")
+                alloc_id = s[1]
+                offset = val(s[2])
+                size = val(s[3])
+                granularity = val(s[5])
+                stride = val(s[7])
+                mode = "heatmap"
+                self.exe.append(("heatmap", self.allocs[alloc_id].id,
+                                 offset, size, granularity, stride))
                 continue
             elif s[0] == "movp":
                 assert(len(s) == 3)
