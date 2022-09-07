@@ -1639,6 +1639,23 @@ compute_execute(struct state *s, struct test *t)
         return true;
 }
 
+static bool
+mmu_dump(struct state *s, struct test *t)
+{
+        unsigned size = 1024 * 1024;
+
+        void *mem = mmap(NULL, size, PROT_READ, MAP_SHARED,
+                         s->mali_fd, BASE_MEM_MMU_DUMP_HANDLE);
+        if (mem == MAP_FAILED) {
+                perror("mmap(BASE_MEM_MMU_DUMP_HANDLE)");
+                return false;
+        }
+
+        pan_hexdump(stdout, mem, size, true);
+
+        return true;
+}
+
 #define SUBTEST(s) { .label = #s, .subtests = s, .sub_length = ARRAY_SIZE(s) }
 
 #define STATE(item) .offset = offsetof(struct state, item)
@@ -1691,6 +1708,8 @@ struct test kbase_main[] = {
         { compute_compile, NULL, "Compile a compute shader" },
         { compute_execute, NULL, "Execute a compute shader" },
         { compute_execute, NULL, "Execute compute on blit queue", .blit = true },
+
+        { mmu_dump, NULL, "Dump MMU pagetables" },
 };
 
 static void
