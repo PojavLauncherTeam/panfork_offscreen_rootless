@@ -69,7 +69,16 @@ IADD_IMM.i32 r5, 0x0, #0x3f000000
 IADD_IMM.i32 r6, 0x0, #0x3f333333
 IADD_IMM.i32 r7, 0x0, #0x3ecccccd
 BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
-"""
+""",
+
+
+    "position": """
+
+""",
+    "fragment": """
+
+""",
+
 }
 
 flg = 0xf
@@ -95,6 +104,19 @@ descriptors = {
 
     "preframe_shader": [0x128, 1 << 12, "preframe"],
 
+    "idvs_zs": [
+        0x70077, # Depth/stencil type, Always for stencil tests
+        0, 0, # Stencil state
+        0, # unk
+        # Depth source minimum, write disabled
+        # [0, 1] Depth clamp
+        # Depth function: Always
+        (1 << 23) | (7 << 29),
+        0, # Depth units
+        0, # Depth factor
+        0, # Depth bias clamp
+    ],
+
     "preframe_zs": [
         0x70077, # Depth/stencil type, Always for stencil tests
         0, 0, # Stencil state
@@ -106,6 +128,18 @@ descriptors = {
         0, # Depth units
         0, # Depth factor
         0, # Depth bias clamp
+    ],
+
+    "idvs_blend": [
+        # Load dest, enable
+        1 | (1 << 9),
+        # RGB/Alpha: Src + Zero * Src
+        # All channels
+        ((2 | (2 << 4) | (1 << 8)) * 0x1001) | (0xf << 28),
+        # Fixed function blending, four components
+        2 | (3 << 3),
+        # RGBA8 TB pixel format / F32 register format
+        0 | (237 << 12) | (0 << 22) | (1 << 24),
     ],
 
     "preframe_blend": [
@@ -189,6 +223,52 @@ descriptors = {
 cmds = """
 !cs 0
 
+endpt vertex
+
+@ Base vertex count
+mov w24, 0
+@ Index count
+mov w21, 4
+@ Instance count
+mov w22, 1
+
+@ Vertex attribute stride
+mov x30, 0
+
+@ Primitive
+mov w38, 0
+@@ Draw
+@ Pixel kill etc.
+mov w39, 0
+@ Render target mask
+mov w26, 0x1000
+@ Sample mask / unk1
+mov w3a, 0x1ffff
+@ Min/max Z
+mov w2c, 0
+mov w2d, 0x3f800000
+@ Depth/stencil
+mov x34, $idvs_zs
+@ Blend
+mov x32, $idvs_blend+1
+@ Occlusion
+mov x2e, 0
+
+@ Fragment shader environment
+mov x14, $fragmentshaderTODO
+
+@ Position shader environment
+mov x10, $positionshaderTODO
+
+mov x1e, $threadstorageTODO
+mov x18, $threadstorageTODO
+
+@ TODO
+UNK 00 06, 0x0000
+
+"""
+
+oldcmds = """
 endpt fragment
 mov x50, $ev
 
@@ -239,8 +319,8 @@ evstr w5f, [x50], unk 0xfd, irq
 
 @!dump rt_buffer 0 4096
 !dump y 0 4096
-!dump plane_0 0 524288
-@!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
+@!dump plane_0 0 524288
+!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
 """
 
 docopy = """
@@ -1016,6 +1096,7 @@ class Context:
                 value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
             elif s[0] == "endpt":
                 assert(len(s) == 2)
+                # TODO: Decompose "blit"/"vertex" into individual bits
                 types = {"compute": 1, "fragment": 2, "blit": 3, "vertex": 13}
                 name = s[1]
                 cmd = 34
