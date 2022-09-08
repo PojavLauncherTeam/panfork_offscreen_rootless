@@ -189,47 +189,6 @@ descriptors = {
 cmds = """
 !cs 0
 
-mov x50, $ev
-
-mov w20, 0x8f4431e9
-evstr w20, [x50], unk 0xfd
-mov w21, 0x4567
-evstr w21, [x50], unk 0xfd
-mov w22, 0x5544
-evstr w22, [x50], unk 0xfd
-
-add x50, x50, 64
-
-mov w20, 0x8f4431e9
-evstr w20, [x50], unk 0xfd
-mov w21, 0x4567
-evstr w21, [x50], unk 0xfd
-mov w22, 0x5544
-evstr w22, [x50], unk 0xfd
-
-add x52, x50, 64
-
-mov w20, 0x8f4431e9
-evstr w20, [x52], unk 0xfd
-mov w21, 0x4567
-evstr w21, [x52], unk 0xfd
-mov w22, 0x5544
-evstr w22, [x52], unk 0xfd
-
-mov x50, $x
-
-str cycles, [x50]
-str timestamp, [x50, 8]
-str cycles, [x50, 16]
-str timestamp, [x50, 24]
-str cycles, [x50, 32]
-str timestamp, [x50, 40]
-
-"""
-
-oldcmds = """
-!cs 0
-
 endpt fragment
 mov x50, $ev
 
