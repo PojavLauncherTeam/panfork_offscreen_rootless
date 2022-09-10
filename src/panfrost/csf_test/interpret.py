@@ -73,7 +73,10 @@ BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 
 
     "position": """
-IADD_IMM.i32 r0, 0x0, #0x2
+LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
+#BRANCHZI.absolute 0x1000000, ^r4
+
+IADD_IMM.i32 r0, 0x0, #0x80
 LSHIFT_AND.i32 r0, r60, 0x07060504.b33, ^r0
 ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
 LSHIFT_OR.i32 r1, ^r1, 0x07060504.b33, 0x0
@@ -81,8 +84,8 @@ S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
 MOV.i32 r2, 0x3F800000
 MOV.i32 r3, 0x3F800000
-LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
-STORE.i128.istream.slot0.end @r0:r1:r2:r3, ^r4, offset:0
+STORE.i128.istream.slot0 @r0:r1:r2:r3, r4, offset:0
+STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
 
     "fragment": """
@@ -108,6 +111,7 @@ memory = {
 
     "plane_0": 128 * 128 * 32, # 512 KiB
 
+    "idk": HEAP_SIZE,
     "heap": HEAP_SIZE,
 }
 
@@ -134,7 +138,8 @@ descriptors = {
         # Layer
         0, 0,
         "tiler_heap",
-        ("tiler_heap", -0xfff0),
+        ("idk", 0x10),
+        #("tiler_heap", -0xfff0),
         # "Weights"
     ] + ([0] * (32 - 10)) + [
         # "State"
@@ -272,6 +277,9 @@ descriptors = {
     ],
 }
 
+# TODO: Use mako? Or just change the syntax for "LDM/STM"
+# and use f-strings again?
+
 cmds = """
 !cs 0
 
@@ -321,6 +329,16 @@ mov x28, $tiler_ctx
 @ Draw mode 8 -- Triangles
 @ Index type 0 -- None
 UNK 00 06, 0x4a4200000008
+
+UNK 00 24, #0x5f0000000233
+wait 1
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
+
+!dump tiler_heap 0 4096
+!dump heap 0 1048576
+!dump idk 0 1048576
 
 """
 
