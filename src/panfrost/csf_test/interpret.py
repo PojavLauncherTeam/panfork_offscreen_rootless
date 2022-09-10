@@ -144,6 +144,12 @@ descriptors = {
         0x10000000,
     ],
 
+    "thread_storage": [
+        0, 31,
+        0, 0,
+        0, 0,
+    ],
+
     "preframe_shader": [0x128, 1 << 12, "preframe"],
 
     # Preload r59/r60
@@ -306,8 +312,8 @@ mov x14, $fragment_shader
 @ Position shader environment
 mov x10, $position_shader
 
-mov x1e, 0 @$threadstorageTODO
-mov x18, 0 @$threadstorageTODO
+mov x1e, $thread_storage
+mov x18, $thread_storage
 
 @ Tiler
 mov x28, $tiler_ctx
