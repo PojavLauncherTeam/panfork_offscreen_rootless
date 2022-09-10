@@ -73,16 +73,32 @@ BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 
 
     "position": """
-
+IADD_IMM.i32 r0, 0x0, #0x2
+LSHIFT_AND.i32 r0, r60, 0x07060504.b33, ^r0
+ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
+LSHIFT_OR.i32 r1, ^r1, 0x07060504.b33, 0x0
+S32_TO_F32 r0, ^r0
+S32_TO_F32 r1, ^r1
+MOV.i32 r2, 0x3F800000
+MOV.i32 r3, 0x3F800000
+LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
+STORE.i128.istream.slot0.end @r0:r1:r2:r3, ^r4, offset:0
 """,
-    "fragment": """
 
+    "fragment": """
+IADD_IMM.i32 r4, 0x0, #0x3f000000
+IADD_IMM.i32 r5, 0x0, #0x3f400000
+IADD_IMM.i32 r6, 0x0, #0x3f800000
+IADD_IMM.i32 r7, 0x0, #0x3ecccccd
+BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 """,
 
 }
 
 flg = 0xf
 #flg = 0x20000f # Uncached!
+
+HEAP_SIZE = 1024 * 1024
 
 memory = {
     "ev": (8192, 0x8200f),
@@ -91,6 +107,8 @@ memory = {
     "ls_alloc": 4096,
 
     "plane_0": 128 * 128 * 32, # 512 KiB
+
+    "heap": HEAP_SIZE,
 }
 
 w = 0xffffffff
@@ -102,7 +120,35 @@ descriptors = {
     "fau": [("ev", 0), 10, 0],
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 
+    "tiler_heap": [
+        0x029, HEAP_SIZE,
+        "heap", ("heap", 64), ("heap", HEAP_SIZE),
+    ],
+
+    "tiler_ctx": [
+        0, 0,
+        # Hierarchy mask: 0x80
+        # Single-sampled
+        0x80,
+        0x007f007f,
+        # Layer
+        0, 0,
+        "tiler_heap",
+        ("tiler_heap", -0xfff0),
+        # "Weights"
+    ] + ([0] * (32 - 10)) + [
+        # "State"
+        0,
+        31,
+        0,
+        0x10000000,
+    ],
+
     "preframe_shader": [0x128, 1 << 12, "preframe"],
+
+    # Preload r59/r60
+    "position_shader": [0x138, 3 << 11, "position"],
+    "fragment_shader": [0x128, 1 << 12, "fragment"],
 
     "idvs_zs": [
         0x70077, # Depth/stencil type, Always for stencil tests
@@ -228,7 +274,7 @@ endpt vertex
 @ Base vertex count
 mov w24, 0
 @ Index count
-mov w21, 4
+mov w21, 3
 @ Instance count
 mov w22, 1
 
@@ -236,7 +282,7 @@ mov w22, 1
 mov x30, 0
 
 @ Primitive
-mov w38, 0
+mov w38, 0x430000
 @@ Draw
 @ Pixel kill etc.
 mov w39, 0
@@ -255,16 +301,20 @@ mov x32, $idvs_blend+1
 mov x2e, 0
 
 @ Fragment shader environment
-mov x14, $fragmentshaderTODO
+mov x14, $fragment_shader
 
 @ Position shader environment
-mov x10, $positionshaderTODO
+mov x10, $position_shader
 
-mov x1e, $threadstorageTODO
-mov x18, $threadstorageTODO
+mov x1e, 0 @$threadstorageTODO
+mov x18, 0 @$threadstorageTODO
 
-@ TODO
-UNK 00 06, 0x0000
+@ Tiler
+mov x28, $tiler_ctx
+
+@ Draw mode 8 -- Triangles
+@ Index type 0 -- None
+UNK 00 06, 0x4a4200000008
 
 """
 
