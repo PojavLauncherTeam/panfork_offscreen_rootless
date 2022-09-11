@@ -96,10 +96,10 @@ STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
 
     "fragment": """
-IADD_IMM.i32 r4, 0x0, #0x3f000000
+IADD_IMM.i32 r4, 0x0, #0x3f100000
 IADD_IMM.i32 r5, 0x0, #0x3f400000
-IADD_IMM.i32 r6, 0x0, #0x3f800000
-IADD_IMM.i32 r7, 0x0, #0x3ecccccd
+IADD_IMM.i32 r6, 0x0, #0x3f300000
+IADD_IMM.i32 r7, 0x0, #0x32cccccd
 BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 """,
 
@@ -253,7 +253,7 @@ descriptors = {
         (10 << 9) | (4 << 24),
         0, # Disable S, ZS/CRC, Empty Tile, CRC
         0, # Z Clear
-        0, 0, # Tiler
+        "tiler_ctx", # Tiler
 
         # Framebuffer padding
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -294,9 +294,7 @@ descriptors = {
 cmds = """
 !cs 0
 
-endpt 13
-
-UNK 0400ff0000008001
+endpt compute fragment tiler idvs
 
 @ Base vertex count
 mov w24, 0
@@ -347,33 +345,22 @@ mov x28, $tiler_ctx
 
 @ Draw mode 8 -- Triangles
 @ Index type 0 -- None
-@UNK 00 06, 0x4a4200000008
+UNK 00 06, 0x4a4200000008
 @ Draw mode 1 -- Points
 @UNK 00 06, 0x4a4200000001
 @ Draw mode 6 -- Line loop
 @UNK 00 06, 0x4a4200000006
 
-@UNK 00 05, 0x0001ffffffff
-
-@UNK 00 05, 4
-
-@UNK 00 06, 0x200000000
-
 UNK 00 24, #0x5f0000000233
 wait 1
 
-mov x50, $ev
-evstr w5f, [x50], unk 0xfd, irq
+@!dump tiler_heap 0 4096
+@!dump heap 0 1048576
+@!dump idk 0 1048576
+@!dump position_data 0 4096
 
-!dump tiler_heap 0 4096
-!dump heap 0 1048576
-!dump idk 0 1048576
-!dump position_data 0 4096
+!cs 0
 
-"""
-
-oldcmds = """
-endpt fragment
 mov x50, $ev
 
 @ Bound min
@@ -396,9 +383,9 @@ mov x5a, 4
 
 frag:
 @ Use tile enable map
-fragment tem 1
+@fragment tem 1
 @UNK 00 07, 0x51
-@fragment
+fragment
 
 UNK 00 24, #0x5f0000000233
 wait 1
@@ -1199,13 +1186,16 @@ class Context:
                 addr = reg(s[1])
                 value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
             elif s[0] == "endpt":
-                assert(len(s) == 2)
-                # TODO: Decompose "blit"/"vertex" into individual bits
-                types = {"compute": 1, "fragment": 2, "blit": 3, "vertex": 13}
-                name = s[1]
+                assert(len(s) >= 2)
+                types = ["compute", "fragment", "tiler", "idvs"]
                 cmd = 34
                 addr = 0
-                value = types[name] if name in types else int(name, 0)
+                value = 0
+                for t in s[1:]:
+                    if t in types:
+                        value |= 1 << types.index(t)
+                    else:
+                        value |= int(t, 0)
             elif s[0] == "fragment":
                 cmd = 7
                 addr = 0
