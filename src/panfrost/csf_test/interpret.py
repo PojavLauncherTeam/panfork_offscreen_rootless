@@ -351,15 +351,18 @@ UNK 00 06, 0x4a4200000008
 @ Draw mode 6 -- Line loop
 @UNK 00 06, 0x4a4200000006
 
+flush_tiler
+wait 4
+
 UNK 00 24, #0x5f0000000233
 wait 1
 
+@ TODO: Why does this raise CS_INVALID_INSTRUCTION?
+@UNK 00 31, #0x100000000
+
 @!dump tiler_heap 0 4096
-@!dump heap 0 1048576
 @!dump idk 0 1048576
 @!dump position_data 0 4096
-
-!cs 0
 
 mov x50, $ev
 
@@ -407,6 +410,8 @@ skip:
 str x56, [x52]
 
 evstr w5f, [x50], unk 0xfd, irq
+
+!dump heap 0 1048576
 
 @!dump rt_buffer 0 4096
 !dump y 0 4096
@@ -1251,6 +1256,11 @@ class Context:
                 cmd = 6
                 addr = 0
                 value = (r2 << 40) | (r1 << 32) | (index << 8) | mode
+            elif s[0] == "flush_tiler":
+                assert(len(s) == 1)
+                cmd = 9
+                addr = 0
+                value = 0
             elif s[0] == "str" and s[1] in ("cycles", "timestamp"):
                 assert(len(s) == 3 or len(s) == 4)
                 assert(s[2][0] == "[")

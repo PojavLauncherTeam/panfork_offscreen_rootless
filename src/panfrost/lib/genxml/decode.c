@@ -1492,12 +1492,23 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 break;
         }
 
+        case 9: {
+                if (addr || l || h > 1)
+                        pandecode_log("flush_tiler (unk %02x), (unk %"PRIx64")\n",
+                                      addr, value);
+                else if (h)
+                        pandecode_log("flush_tiler unk\n");
+                else
+                        pandecode_log("flush_tiler\n");
+                break;
+        }
+
         case 16: case 17: {
                 char wid = (op == 16) ? 'w' : 'x';
 
                 if (arg1)
                         pandecode_log("add %c%02x, (unk %x), %c%02x, #0x%x\n",
-                                      wid, addr, wid, arg1, arg2, l);
+                                      wid, addr, arg1, wid, arg2, l);
                 else if ((int32_t) l < 0)
                         pandecode_log("add %c%02x, %c%02x, %i\n",
                                       wid, addr, wid, arg2, (int32_t) l);
