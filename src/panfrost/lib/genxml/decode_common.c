@@ -341,7 +341,9 @@ void
 pandecode_cs(mali_ptr cs_gpu_va, unsigned cs_size, unsigned gpu_id)
 {
         switch (pan_arch(gpu_id)) {
-        case 10: pandecode_cs_v10(cs_gpu_va, cs_size, gpu_id); return;
+        // Hack hack hackity hack: gpu_id == 1 means "don't decode" (only
+        // disassemble)
+        case 0: case 10: pandecode_cs_v10(cs_gpu_va, cs_size, gpu_id); return;
         default: unreachable("Unsupported architecture");
         }
 }

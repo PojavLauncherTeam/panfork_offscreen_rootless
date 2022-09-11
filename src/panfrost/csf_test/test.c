@@ -1036,7 +1036,7 @@ wait_cs(struct state *s, unsigned i)
                                         "CS_ACTIVE (%i) on queue %i:",
                                         e, extract_offset, a, i);
                                 /* Decode two instructions instead? */
-                                pandecode_cs(s->cs_mem[i].gpu + e, 8, s->gpu_id);
+                                pandecode_cs(s->cs_mem[i].gpu + e, 8, 1);
 
                                 if (done_kick) {
                                         cache_barrier();

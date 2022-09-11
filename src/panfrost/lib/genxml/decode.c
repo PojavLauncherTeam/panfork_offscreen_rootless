@@ -1362,11 +1362,13 @@ pandecode_cs_buffer(uint64_t *commands, unsigned size,
                     uint32_t *buffer, uint32_t *buffer_unk,
                     unsigned gpu_id, mali_ptr va);
 
+// Hack hack hackity hack: gpu_id == 1 means "don't decode" (only disassemble)
 static void
 pandecode_cs_command(uint64_t command, mali_ptr va,
                      uint32_t *buffer, uint32_t *buffer_unk,
                      unsigned gpu_id)
 {
+        gpu_id = 1;
         uint8_t op = command >> 56;
         uint8_t addr = (command >> 48) & 0xff;
         uint64_t value = command & 0xffffffffffffULL;
@@ -1416,7 +1418,8 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 pandecode_indent++;
 
-                pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
+                if (gpu_id != 1)
+                        pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
 
                 /* The gallium driver emits this even for compute jobs, clear
                  * it from unknown state */
@@ -1442,7 +1445,8 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 pandecode_indent++;
 
-                pandecode_malloc_vertex_job(0, buffer, buffer_unk, gpu_id);
+                if (gpu_id != 1)
+                        pandecode_malloc_vertex_job(0, buffer, buffer_unk, gpu_id);
 
                 pandecode_csf_dump_state(buffer_unk);
                 pandecode_log("\n");
@@ -1478,7 +1482,8 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
 
                 pandecode_indent++;
 
-                pandecode_fragment_job(0, buffer, buffer_unk, gpu_id);
+                if (gpu_id != 1)
+                        pandecode_fragment_job(0, buffer, buffer_unk, gpu_id);
 
                 pandecode_csf_dump_state(buffer_unk);
                 pandecode_log("\n");
@@ -1606,14 +1611,15 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
         }
 
         case 34: {
+                /* idvs implies tiler */
                 if (l & ~0xf)
                         pandecode_log("endpt 0x%x\n", l);
                 else
                         pandecode_log("endpt%s%s%s%s\n",
                                       (l & 1) ? " compute" : "",
                                       (l & 2) ? " fragment" : "",
-                                      (l & 4) ? " vertex1" : "",
-                                      (l & 8) ? " vertex2" : "");
+                                      (l & 4) ? " tiler" : "",
+                                      (l & 8) ? " idvs" : "");
                 break;
         }
 

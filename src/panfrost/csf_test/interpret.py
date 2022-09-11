@@ -3,6 +3,7 @@
 import os
 import re
 import subprocess
+import struct
 import sys
 
 try:
@@ -15,6 +16,12 @@ if py_path not in sys.path:
 
 import asm
 import struct
+
+def ff(val):
+    return struct.unpack("=f", struct.pack("=I", val))[0]
+
+def ii(val):
+    return struct.unpack("=I", struct.pack("=f", val))[0]
 
 shaders = {
     "atomic": """
@@ -275,6 +282,10 @@ descriptors = {
         # RT Clear
         0x2e234589, 0, 0, 0,
     ],
+
+    "position_data": [
+        ii(10.0), ii(10.0), ii(1.0), ii(1.0),
+    ],
 }
 
 # TODO: Use mako? Or just change the syntax for "LDM/STM"
@@ -283,7 +294,9 @@ descriptors = {
 cmds = """
 !cs 0
 
-endpt vertex
+endpt 13
+
+UNK 0400ff0000008001
 
 @ Base vertex count
 mov w24, 0
@@ -314,6 +327,9 @@ mov x32, $idvs_blend+1
 @ Occlusion
 mov x2e, 0
 
+@ Primitive size
+mov x3c, 0x3f800000
+
 @ Fragment shader environment
 mov x14, $fragment_shader
 
@@ -323,12 +339,25 @@ mov x10, $position_shader
 mov x1e, $thread_storage
 mov x18, $thread_storage
 
+@ is this right?! "Vertex attribute stride" apparently?
+mov x30, $position_data
+
 @ Tiler
 mov x28, $tiler_ctx
 
 @ Draw mode 8 -- Triangles
 @ Index type 0 -- None
-UNK 00 06, 0x4a4200000008
+@UNK 00 06, 0x4a4200000008
+@ Draw mode 1 -- Points
+@UNK 00 06, 0x4a4200000001
+@ Draw mode 6 -- Line loop
+@UNK 00 06, 0x4a4200000006
+
+@UNK 00 05, 0x0001ffffffff
+
+@UNK 00 05, 4
+
+@UNK 00 06, 0x200000000
 
 UNK 00 24, #0x5f0000000233
 wait 1
@@ -339,6 +368,7 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump tiler_heap 0 4096
 !dump heap 0 1048576
 !dump idk 0 1048576
+!dump position_data 0 4096
 
 """
 
@@ -768,7 +798,7 @@ b.ne w10, 1b
 """
 
 def get_cmds(cmd):
-    return cmds.replace("{cmd}", cmd)
+    return cmds.replace("{cmd}", str(cmd))
 
 def assemble_shader(text):
     lines = text.strip().split("\n")
@@ -1445,8 +1475,15 @@ def interpret(text):
     return str(c)
 
 def run(text):
-    subprocess.run(["csf_test", "/dev/stdin"],
-                   input=interpret(text), text=True)
+    # TODO: Keep seperate or merge stdout/stderr?
+    ret = subprocess.run(["csf_test", "/dev/stdin"],
+                         input=interpret(text), text=True,
+                         #capture_output=True
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         )
+    if ret.stderr is None:
+        ret.stderr = ""
+    return ret.stderr + ret.stdout
 
 def rebuild():
     try:
@@ -1464,11 +1501,16 @@ def go(text):
     if not rebuild():
         return
 
-    run(text)
+    print(run(text))
 
 os.environ["CSF_QUIET"] = "1"
 
 go(get_cmds(""))
+
+#for c in range(1, 64):
+#    val = c
+#    ret = run(get_cmds(ii(val)))
+#    print(str(val) + '\t' + [x for x in ret.split("\n") if x.startswith("0FFF10")][0])
 
 #rebuild()
 #for c in range(256):

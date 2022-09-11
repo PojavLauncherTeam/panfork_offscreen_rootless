@@ -3803,18 +3803,19 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 
         UNUSED struct panfrost_ptr tiler, vertex;
 
-        if (idvs) {
 #if PAN_ARCH >= 9
-                tiler = pan_pool_alloc_desc_cs_v10(&batch->pool.base, MALLOC_VERTEX_JOB);
-#elif PAN_ARCH >= 6
+        tiler = pan_pool_alloc_desc_cs_v10(&batch->pool.base, MALLOC_VERTEX_JOB);
+#else /* PAN_ARCH < 9 */
+        if (idvs) {
+#if PAN_ARCH >= 6
                 tiler = pan_pool_alloc_desc(&batch->pool.base, INDEXED_VERTEX_JOB);
-#else /* PAN_ARCH < 6 */
+#endif
                 unreachable("IDVS is unsupported on Midgard");
-#endif /* PAN_ARCH */
         } else {
                 vertex = pan_pool_alloc_desc_cs_v10(&batch->pool.base, COMPUTE_JOB);
                 tiler = pan_pool_alloc_desc_cs_v10(&batch->pool.base, TILER_JOB);
         }
+#endif /* PAN_ARCH */
 
         unsigned vertex_count = ctx->vertex_count;
 

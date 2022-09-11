@@ -603,6 +603,9 @@
     <value name="Explicit" value="3"/>
   </enum>
 
+  <struct name="Tiler launch" layout="ins" op="5">
+  </struct>
+
   <struct name="IDVS launch" layout="ins" op="6">
     <field name="Draw mode" size="8" start="0" type="Draw Mode" default="None"/>
     <field name="Index type" size="3" start="8" type="Index Type" default="None"/>
