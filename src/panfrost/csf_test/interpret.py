@@ -294,6 +294,72 @@ descriptors = {
 cmds = """
 !cs 0
 
+slot 4
+wait 4
+
+mov x48, $y
+UNK 00 30, #0x480000000000
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0x100000000
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0x100000000
+
+!dump y 0 4096
+!cs 0
+
+UNK 00 31, #0x100000000
+
+!dump y 0 4096
+!cs 0
+
+@ Does this do anything?
+UNK 00 31, #0x200000000
+
+@ Well this certainly does something!
+UNK 00 31, #0x300000000
+UNK 00 31, #0x300000000
+UNK 00 31, #0x300000000
+UNK 00 31, #0x300000000
+
+!dump y 0 4096
+!cs 0
+
+mov x48, $y
+add x44, x48, 128
+UNK 00 30, #0x440000000000
+wait all
+
+mov x20, 0x12345
+str w20, [x48, 0x1c]
+
+!dump y 0 4096
+
+"""
+
+oldcmds = """
+!cs 0
+
 endpt compute fragment tiler idvs
 
 @ Base vertex count
@@ -352,7 +418,6 @@ UNK 00 06, 0x4a4200000008
 @UNK 00 06, 0x4a4200000006
 
 flush_tiler
-wait 4
 
 UNK 00 24, #0x5f0000000233
 wait 1
