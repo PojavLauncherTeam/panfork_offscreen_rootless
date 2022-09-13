@@ -291,7 +291,7 @@ descriptors = {
 # TODO: Use mako? Or just change the syntax for "LDM/STM"
 # and use f-strings again?
 
-cmds = """
+altcmds = """
 !cs 0
 
 slot 4
@@ -357,7 +357,7 @@ str w20, [x48, 0x1c]
 
 """
 
-oldcmds = """
+cmds = """
 !cs 0
 
 endpt compute fragment tiler idvs
@@ -452,7 +452,10 @@ mov x5a, 4
 frag:
 @ Use tile enable map
 @fragment tem 1
-@UNK 00 07, 0x51
+
+fragment
+fragment
+fragment
 fragment
 
 UNK 00 24, #0x5f0000000233
