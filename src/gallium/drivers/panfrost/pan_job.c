@@ -860,10 +860,10 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         // TODO: We need better synchronisation than a single fake syncobj!
 
         printf("About to submit\n");
-        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset,
-                            ctx->syncobj_kbase, ctx->kbase_cs_fragment.seqnum);
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset,
                             ctx->syncobj_kbase, ctx->kbase_cs_vertex.seqnum);
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset,
+                            ctx->syncobj_kbase, ctx->kbase_cs_fragment.seqnum);
 
         printf("Wait vertex\n");
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
