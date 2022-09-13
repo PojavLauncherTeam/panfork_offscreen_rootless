@@ -1270,10 +1270,11 @@ GENX(pandecode_abort_on_fault)(mali_ptr jc_gpu_va)
 
 #if PAN_ARCH >= 10
 static void
-pandecode_csf_dump_state(uint32_t *state)
+pandecode_cs_dump_state(uint32_t *state)
 {
         uint64_t *st_64 = (uint64_t *)state;
-        for (unsigned i = 0; i < 256 / 4; ++i) {
+        /* Only registers below 0x40 seem to be actually be used by jobs */
+        for (unsigned i = 0; i < 0x40 / 4; ++i) {
                 uint64_t v1 = st_64[i * 2];
                 uint64_t v2 = st_64[i * 2 + 1];
 
@@ -1416,18 +1417,19 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 else
                         pandecode_log("compute inc %i, axis %i\n\n", task_increment, task_axis);
 
-                pandecode_indent++;
+                if (gpu_id != 1) {
+                        pandecode_indent++;
 
-                if (gpu_id != 1)
                         pandecode_compute_job(0, buffer, buffer_unk, gpu_id);
 
-                /* The gallium driver emits this even for compute jobs, clear
-                 * it from unknown state */
-                pan_unpack_cs(buffer, buffer_unk, SCISSOR, unused_scissor);
+                        /* The gallium driver emits this even for compute jobs, clear
+                         * it from unknown state */
+                        pan_unpack_cs(buffer, buffer_unk, SCISSOR, unused_scissor);
+                        pandecode_cs_dump_state(buffer_unk);
 
-                pandecode_csf_dump_state(buffer_unk);
-                pandecode_log("\n");
-                pandecode_indent--;
+                        pandecode_log("\n");
+                        pandecode_indent--;
+                }
 
                 break;
         }
@@ -1443,14 +1445,15 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                         pandecode_log("idvs w%02x, w%02x, mode %i index %i\n\n",
                                       arg1, arg2, mode, index);
 
-                pandecode_indent++;
+                if (gpu_id != 1) {
+                        pandecode_indent++;
 
-                if (gpu_id != 1)
                         pandecode_malloc_vertex_job(0, buffer, buffer_unk, gpu_id);
+                        pandecode_cs_dump_state(buffer_unk);
 
-                pandecode_csf_dump_state(buffer_unk);
-                pandecode_log("\n");
-                pandecode_indent--;
+                        pandecode_log("\n");
+                        pandecode_indent--;
+                }
 
                 break;
         }
@@ -1480,14 +1483,15 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                         pandecode_log("fragment\n\n");
                 }
 
-                pandecode_indent++;
+                if (gpu_id != 1) {
+                        pandecode_indent++;
 
-                if (gpu_id != 1)
                         pandecode_fragment_job(0, buffer, buffer_unk, gpu_id);
+                        pandecode_cs_dump_state(buffer_unk);
 
-                pandecode_csf_dump_state(buffer_unk);
-                pandecode_log("\n");
-                pandecode_indent--;
+                        pandecode_log("\n");
+                        pandecode_indent--;
+                }
 
                 break;
         }
