@@ -360,70 +360,8 @@ str w20, [x48, 0x1c]
 cmds = """
 !cs 0
 
-endpt fragment
-
-@mov x28, $framebuffer+1
-@fragment
-
-mov x50, $ev
-
-@ Bound min
-mov w2a, 0x00000000
-@ Bound max
-mov w2b, 0x007f007f
-mov x28, $framebuffer+1
-@ Tile enable map
-mov x2c, $x
-mov x2e, 64
-
-mov w40, 1
-str w40, [x2c]
-@str w40, [x2c, 128]
-
-mov x52, $y
-mov x58, 0x17
-add x52, x52, -8
-mov x5a, 4
-
-frag:
-@ Use tile enable map
-@fragment tem 1
-
-fragment
-
-UNK 00 24, #0x5f0000000233
-wait 1
-
-mov x54, $plane_0
-ldr x56, [x54]
-wait 0
-
-add x52, x52, 8
-str x58, [x52]
-
-@ Sometimes the fragment job doesn't seem to start at all
-@ When that happens, retry a number of times
-add x5a, x5a, -1
-b.eq w5a, skip
-b.eq w56, frag
-
-skip:
-str x56, [x52]
-
-evstr w5f, [x50], unk 0xfd, irq
-
-!dump heap 0 1048576
-
-@!dump rt_buffer 0 4096
-!dump y 0 4096
-@!dump plane_0 0 524288
-!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
-"""
-
-oldcmds = """
-!cs 0
-
 endpt compute fragment tiler idvs
+!cs 0
 
 @ Base vertex count
 mov w24, 0
@@ -507,12 +445,6 @@ mov w40, 1
 str w40, [x2c]
 @str w40, [x2c, 128]
 
-mov x52, $y
-mov x58, 0x17
-add x52, x52, -8
-mov x5a, 4
-
-frag:
 @ Use tile enable map
 @fragment tem 1
 
@@ -525,16 +457,7 @@ mov x54, $plane_0
 ldr x56, [x54]
 wait 0
 
-add x52, x52, 8
-str x58, [x52]
-
-@ Sometimes the fragment job doesn't seem to start at all
-@ When that happens, retry a number of times
-add x5a, x5a, -1
-b.eq w5a, skip
-b.eq w56, frag
-
-skip:
+mov x52, $y
 str x56, [x52]
 
 evstr w5f, [x50], unk 0xfd, irq
