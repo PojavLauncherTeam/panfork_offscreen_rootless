@@ -50,12 +50,14 @@ static const struct pipe_driver_query_info panfrost_driver_query_list[] = {
 
 struct panfrost_batch;
 struct panfrost_context;
+struct panfrost_cs;
 struct panfrost_resource;
 struct panfrost_compiled_shader;
 struct pan_fb_info;
 struct pan_blend_state;
 
 /* Virtual table of per-generation (GenXML) functions */
+
 
 struct panfrost_vtable {
         /* Prepares the renderer state descriptor or shader program descriptor
@@ -101,7 +103,9 @@ struct panfrost_vtable {
                                struct util_dynarray *binary,
                                struct pan_shader_info *info);
 
-	void (*emit_csf_toplevel)(struct panfrost_batch *);
+        void (*emit_csf_toplevel)(struct panfrost_batch *);
+
+        void (*init_cs)(struct panfrost_context *ctx, struct panfrost_cs *cs);
 };
 
 struct panfrost_screen {

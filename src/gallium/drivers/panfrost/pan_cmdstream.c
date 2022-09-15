@@ -2803,15 +2803,6 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 
         pan_command_stream *c = &cs->cs;
 
-        if (!cs->init) {
-                /* TODO: why not just do this all the time? Is it expensive? */
-                pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
-                /* TODO: I *still* don't exactly know what this does */
-                pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; } W;
-
-                cs->init = true;
-        }
-
         /* First, do some waiting at the start of the job */
 
         // #0x1, #0xffffe0, #0xffffe1 also seen
@@ -2849,10 +2840,10 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 #endif
 }
 
+#if PAN_ARCH >= 10
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
-#if PAN_ARCH >= 10
         emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
 
         // TODO: this is duplicated from emit_csf_queue
@@ -2869,8 +2860,23 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 53, 0x484a10000000);
 
         emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
-#endif
 }
+
+static void
+init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
+{
+        struct panfrost_device *dev = pan_device(ctx->base.screen);
+        pan_command_stream *c = &cs->cs;
+
+        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
+        pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; } W;
+
+        // 16 bytes
+        dev->mali.cs_submit(&dev->mali, &cs->base, 16, NULL, 0);
+        //dev->mali.cs_wait(&dev->mali, &cs->base, 16);
+}
+
+#endif
 
 #define DEFINE_CASE(c) case PIPE_PRIM_##c: return MALI_DRAW_MODE_##c;
 
@@ -5039,7 +5045,10 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
         screen->vtbl.init_polygon_list = init_polygon_list;
         screen->vtbl.get_compiler_options = GENX(pan_shader_get_compiler_options);
         screen->vtbl.compile_shader = GENX(pan_shader_compile);
+#if PAN_ARCH >= 10
         screen->vtbl.emit_csf_toplevel = emit_csf_toplevel;
+        screen->vtbl.init_cs = init_cs;
+#endif
 
         GENX(pan_blitter_init)(dev, &screen->blitter.bin_pool.base,
                                &screen->blitter.desc_pool.base);
