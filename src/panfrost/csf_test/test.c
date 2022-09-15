@@ -1709,7 +1709,7 @@ struct test kbase_main[] = {
         { compute_execute, NULL, "Execute a compute shader" },
         { compute_execute, NULL, "Execute compute on blit queue", .blit = true },
 
-        { mmu_dump, NULL, "Dump MMU pagetables" },
+        //{ mmu_dump, NULL, "Dump MMU pagetables" },
 };
 
 static void
