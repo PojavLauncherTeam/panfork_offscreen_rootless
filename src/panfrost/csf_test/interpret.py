@@ -360,6 +360,8 @@ str w20, [x48, 0x1c]
 cmds = """
 !cs 0
 
+@ Some time is required for the change to become active
+@ Just submitting a second job appears to be enough
 endpt compute fragment tiler idvs
 !cs 0
 
