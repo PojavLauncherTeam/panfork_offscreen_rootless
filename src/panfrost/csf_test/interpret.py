@@ -71,6 +71,12 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 
     "preframe": """
+LOAD.i32.unsigned.slot0.wait0 @r0, u0, offset:0
+SHADDX.u64 r2, u2, r0.w0, shift:0x2
+IADD.u32 r0, ^r0, 0x3020100.b1
+STORE.i32.slot0.wait0 @r59, ^r2, offset:0
+STORE.i32.slot0.wait0 @r0, u0, offset:0
+
 IADD_IMM.i32 r4, 0x0, #0x3f800000
 IADD_IMM.i32 r5, 0x0, #0x3f000000
 IADD_IMM.i32 r6, 0x0, #0x3f333333
@@ -91,8 +97,10 @@ ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
 LSHIFT_OR.i32 r1, ^r1, ^r2, 0x0
 S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
+FADD.f32 r0, ^r0, 0x40490FDB
+FADD.f32 r1, ^r1, 0x40490FDB
 MOV.i32 r2, 0x3F800000
-MOV.i32 r3, 0x3F800000
+MOV.i32 r3, 0x0
 STORE.i128.istream.slot0 @r0:r1:r2:r3, r4, offset:0
 STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
@@ -139,7 +147,7 @@ w = 0xffffffff
 descriptors = {
     "shader": [0x118, 1 << 12, "invoc_rmw"],
     "ls": [3, 31, "ls_alloc"],
-    "fau": [("ssbo", 16), ("ssbo", 0)],
+    "fau": [("ssbo", 0), ("ssbo", 16)],
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 
     "tiler_heap": [
@@ -173,9 +181,8 @@ descriptors = {
         0, 0,
     ],
 
-    "preframe_shader": [0x128, 1 << 12, "preframe"],
-
     # Preload r59/r60
+    "preframe_shader": [0x128, 3 << 11, "preframe"],
     "position_shader": [0x138, 3 << 11, "position"],
     "fragment_shader": [0x128, 3 << 11, "fragment"],
 
@@ -244,12 +251,12 @@ descriptors = {
 
         # Shader environment:
         0, # Attribute offset
-        0, # FAU count
+        2, # FAU count
         0, 0, 0, 0, 0, 0, # unk
         0, 0, # Resources
         "preframe_shader", # Shader
         0, 0, # Thread storage
-        0, 0, # FAU
+        "fau", # FAU
     ],
 
     "framebuffer": [
@@ -287,7 +294,7 @@ descriptors = {
 
         # RT Buffer
         "plane_0",
-        128 * 4 // 4, # Row stride
+        128 * 4, # Row stride
         0x400, # Surface stride / Body offset
 
         # RT Clear
@@ -408,6 +415,7 @@ mov x2e, $occlusion
 
 @ Primitive size -- 64
 mov x3c, 0x42800000
+@mov x3c, 0x3f800000
 
 @ Fragment shader environment
 mov x14, $fragment_shader
@@ -487,7 +495,7 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump y 0 4096
 @!dump plane_0 0 524288
 @!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
-!heatmap plane_0 0 524288 gran 0x04 len 0x20 stride 0x200
+!heatmap plane_0 0 4096 gran 0x04 len 0x20 stride 0x200
 !dump occlusion 0 4096
 !dump ssbo 0 4096
 """
