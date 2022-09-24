@@ -83,7 +83,8 @@ BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
 #BRANCHZI.absolute 0x1000000, ^r4
 # position of 16384
-IADD_IMM.i32 r2, 0x0, #0x0e
+# actually 4
+IADD_IMM.i32 r2, 0x0, #0x02
 LSHIFT_OR.i32 r0, 0x03020100.b1, r2, 0x0
 LSHIFT_AND.i32 r0, r60, r2, ^r0
 ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
@@ -97,6 +98,12 @@ STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
 
     "fragment": """
+LOAD.i32.unsigned.slot0.wait0 @r0, u0, offset:0
+SHADDX.u64 r2, u2, r0.w0, shift:0x2
+IADD.u32 r0, ^r0, 0x3020100.b1
+STORE.i32.slot0.wait0 @r59, ^r2, offset:0
+STORE.i32.slot0.wait0 @r0, u0, offset:0
+
 IADD_IMM.i32 r4, 0x0, #0x3f100000
 IADD_IMM.i32 r5, 0x0, #0x3f400000
 IADD_IMM.i32 r6, 0x0, #0x3f300000
@@ -118,6 +125,8 @@ memory = {
     "ls_alloc": 4096,
     "occlusion": 4096,
 
+    "ssbo": 4096,
+
     "plane_0": 128 * 128 * 32, # 512 KiB
 
     "idk": HEAP_SIZE,
@@ -130,7 +139,7 @@ w = 0xffffffff
 descriptors = {
     "shader": [0x118, 1 << 12, "invoc_rmw"],
     "ls": [3, 31, "ls_alloc"],
-    "fau": [("ev", 0), 10, 0],
+    "fau": [("ssbo", 16), ("ssbo", 0)],
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 
     "tiler_heap": [
@@ -168,7 +177,7 @@ descriptors = {
 
     # Preload r59/r60
     "position_shader": [0x138, 3 << 11, "position"],
-    "fragment_shader": [0x128, 1 << 12, "fragment"],
+    "fragment_shader": [0x128, 3 << 11, "fragment"],
 
     "idvs_zs": [
         0x70077, # Depth/stencil type, Always for stencil tests
@@ -402,6 +411,8 @@ mov x3c, 0x42800000
 
 @ Fragment shader environment
 mov x14, $fragment_shader
+@ FAU count == 2
+movp x0c, $fau+0x0200000000000000
 
 @ Position shader environment
 mov x10, $position_shader
@@ -478,6 +489,7 @@ evstr w5f, [x50], unk 0xfd, irq
 @!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
 !heatmap plane_0 0 524288 gran 0x04 len 0x20 stride 0x200
 !dump occlusion 0 4096
+!dump ssbo 0 4096
 """
 
 docopy = """
