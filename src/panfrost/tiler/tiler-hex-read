@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+
+import sys
+import struct
+
+FLIP_Y = False
+
+data = b''
+
+fb_width = 160
+fb_height = 160
+
+HEAP_OFS = 0x8000
+
+base_ptr = 0
+heap_ptr = 0
+midgard = False
+
+bak_data = b''
+
+cur_data = b''
+
+# TODO: More robust looping..
+for line in sys.stdin.read().split("\n"):
+    print(line)
+    split = line.split(" ")
+    if not len(split) or split[0] == "":
+        continue
+    if split[0] == "width":
+        fb_width = int(split[1])
+        continue
+    if split[0] == "height":
+        fb_height = int(split[1])
+        continue
+    if split[0] == "addr":
+        base_ptr = int(split[1], 16)
+        midgard = True
+        HEAP_OFS = 0x40
+        continue
+    if split[0] == "heap":
+        heap_ptr = int(split[1], 16)
+        data += cur_data
+        cur_data = b''
+        bak_data = data
+        data = b''
+        continue
+    offset = int(split[0], 16)
+    if offset > len(data):
+        data += cur_data
+        cur_data = b''
+        data += b'\0' * (offset - len(data))
+    for d in split[1:]:
+        if d == "" or d == "*":
+            continue
+        cur_data += bytes([int(d, 16)])
+
+data += cur_data
+
+if heap_ptr:
+    data, heap_data = bak_data, data
+
+def int7(val, signed=True):
+    val = val & 0x7f
+    if signed and val >= 0x40:
+        return val - 0x80
+    else:
+        return val
+
+def int8(val, signed=True):
+    val = val & 0xff
+    if signed and val >= 0x80:
+        return val - 0x100
+    else:
+        return val
+
+def fetch(ptr, size):
+    if midgard:
+        if ptr >= base_ptr and ptr < base_ptr + len(data):
+            base = ptr - base_ptr
+            return data[base:base+size]
+        elif ptr >= heap_ptr and ptr < heap_ptr + len(heap_data):
+            base = ptr - heap_ptr
+            return heap_data[base:base+size]
+    else:
+        return data[ptr:ptr+size]
+
+DRAW_TYPES = [
+    "unk",
+    "points",
+    "lines",
+    "tris",
+]
+
+def heap_interpret(start, end):
+    print(f"interpreting from {hex(start)} to {hex(end)}")
+
+    struct_count = 0
+
+    signed = True
+
+    while start != end:
+        if midgard and start & 0x1ff == 0x1f8:
+            jump = struct.unpack("=Q", fetch(start, 8))[0]
+            print(f"jump mdg: {hex(jump)}")
+            start = jump
+            continue
+
+        dat = fetch(start, 4)
+        if dat[3] & 0xe0 == 0x80:
+            struct_count += 1
+
+        print(f"{struct_count}:", " ".join([f"{hex(x)[2:].upper():>02}" for x in dat]), end="  ")
+
+        masked_op = dat[3] & ~3
+
+        up = struct.unpack("=I", dat)[0]
+
+        tri0 = int8(up >> 14, signed)
+        tri0_7 = int7(up >> 14, signed)
+        tri1 = int7(up >> 7, signed)
+        tri2 = int7(up, signed)
+
+        signed = True
+
+        if dat[3] & 0xe0 == 0x80:
+            address = (up & 16777215) * 64
+            typ = DRAW_TYPES[(dat[3] >> 2) & 0x3]
+            res = " reset" if dat[3] & 0x10 else ""
+            print(f"draw {typ}{res}: {hex(address)}")
+        elif dat[3] >> 4 == 4:
+            # TODO: handle two of these in a row
+            pf = (up >> 21) & 0x7f
+            print(f"primitive offset: {hex(pf << 4)} | +{tri0_7 << 8} {tri1 << 7} {tri2 << 7}")
+            signed = False
+        # TODO: Jumps are located based on position, not opcode
+        elif dat[3] == 0x00:
+            assert((up & 3) == 3)
+            start = HEAP_OFS + up - 7
+            print(f"jump (from {hex(start+4)}-4): {hex(up - 3)}, {hex(start + 4)}")
+        elif (masked_op & 0xc0) == 0:
+            mode = hex(dat[3] >> 2)
+
+            pre_offset = (up >> 22) & 0xf
+
+            print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}")
+
+        else:
+            print(f"Unknown opcode {hex(dat[3])}")
+
+        start += 4
+
+if midgard:
+    unpacked_header = list(struct.unpack("=16i", data[0:64]))
+    # Is this really big endian?
+    unpacked_header[5:7] = struct.unpack(">2i", data[20:28])
+    print(f"header: {' '.join([str(x) for x in unpacked_header])}")
+
+    header_size = 0
+
+    pos = base_ptr + HEAP_OFS
+    size = 16
+
+    while size == 16 or size // 2 < max(fb_width, fb_height):
+        header_size += ((fb_width + size - 1) // size) * ((fb_height + size - 1) // size)
+        size *= 2
+
+    # Extra is because of HEAP_OFS
+    header_size = (header_size + 63 + 8) & ~63
+
+pos = base_ptr + HEAP_OFS
+size = 16
+
+# TODO: Does this miss the largest level?
+while size == 16 or size // 2 < min(fb_width, fb_height):
+    for y in range((fb_height + size - 1) // size):
+        for x in range((fb_width + size - 1) // size):
+            header = fetch(pos, 8)
+            if midgard:
+                end = struct.unpack("=Q", header)[0]
+                use = bool(end)
+                end += 4
+                start = base_ptr + header_size * 8 + (pos - base_ptr - HEAP_OFS) * 64
+            else:
+                end, start = struct.unpack("=II", header)
+                use = bool(end)
+                start += HEAP_OFS
+                end += HEAP_OFS + 4
+                end &= ~3
+            if use:
+                if FLIP_Y:
+                    print([x * size, fb_height - (y + 1) * size], ((x + 1) * size, fb_height - y * size))
+                else:
+                    print([x * size, y * size], ((x + 1) * size, (y + 1) * size))
+                heap_interpret(start, end)
+
+            pos += 8
+    size *= 2
