@@ -465,6 +465,7 @@ str x56, [x52]
 evstr w5f, [x50], unk 0xfd, irq
 
 !dump heap 0 1048576
+!tiler heap 0 1048576
 
 @!dump rt_buffer 0 4096
 !dump y 0 4096
@@ -1150,12 +1151,16 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x280f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] in ("!dump", "!delta"):
+            elif s[0] in ("!dump", "!delta", "!tiler"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
-                mode = "hex" if s[0] == "!dump" else "delta"
+                mode = {
+                    "!dump": "hex",
+                    "!delta": "delta",
+                    "!tiler": "tiler",
+                }[s[0]]
                 self.exe.append(("dump", self.allocs[alloc_id].id,
                                  offset, size, mode))
                 continue

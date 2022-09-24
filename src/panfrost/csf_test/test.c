@@ -1125,6 +1125,17 @@ dump_delta(FILE *fp, uint64_t *values, unsigned size)
 }
 
 static void
+dump_tiler(FILE *fp, uint8_t *values, unsigned size)
+{
+        fflush(stdout);
+        FILE *stream = popen("tiler-hex-read", "w");
+        // TODO!
+        fprintf(stream, "width %i\nheight %i\n", 128, 128);
+        pan_hexdump(stream, values, size, false);
+        pclose(stream);
+}
+
+static void
 dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
              unsigned gran, unsigned length, unsigned stride)
 {
@@ -1286,6 +1297,8 @@ cs_test(struct state *s, struct test *t)
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
                         else if (!strcmp(mode, "delta"))
                                 dump_delta(stdout, s->cpu + offset, size);
+                        else if (!strcmp(mode, "tiler"))
+                                dump_tiler(stdout, s->cpu + offset, size);
 
                         free(mode);
 
