@@ -430,6 +430,11 @@ mov x18, $thread_storage
 @ Tiler
 mov x28, $tiler_ctx
 
+@ Scissor min
+mov w2a, 0x00000000
+@ Scissor max
+mov w2b, 0x007f007f
+
 @ Draw mode 8 -- Triangle Strip
 @ Index type 0 -- None
 @UNK 00 06, 0x4a420000000a
