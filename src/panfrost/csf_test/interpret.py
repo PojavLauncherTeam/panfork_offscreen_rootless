@@ -71,12 +71,6 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 
     "preframe": """
-LOAD.i32.unsigned.slot0.wait0 @r0, u0, offset:0
-SHADDX.u64 r2, u2, r0.w0, shift:0x2
-IADD.u32 r0, ^r0, 0x3020100.b1
-STORE.i32.slot0.wait0 @r59, ^r2, offset:0
-STORE.i32.slot0.wait0 @r0, u0, offset:0
-
 IADD_IMM.i32 r4, 0x0, #0x3f800000
 IADD_IMM.i32 r5, 0x0, #0x3f000000
 IADD_IMM.i32 r6, 0x0, #0x3f333333
@@ -106,11 +100,11 @@ STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
 
     "fragment": """
-LOAD.i32.unsigned.slot0.wait0 @r0, u0, offset:0
-SHADDX.u64 r2, u2, r0.w0, shift:0x2
-IADD.u32 r0, ^r0, 0x3020100.b1
+ATOM1_RETURN.i32.slot0.ainc.wait0 @r0, u0, offset:0
+IADD_IMM.i32 r1, 0x0, #0x1ff
+LSHIFT_AND.i32 r0, ^r0, 0x0, ^r1
+SHADDX.u64 r2, u2, ^r0.w0, shift:0x2
 STORE.i32.slot0.wait0 @r59, ^r2, offset:0
-STORE.i32.slot0.wait0 @r0, u0, offset:0
 
 IADD_IMM.i32 r4, 0x0, #0x3f100000
 IADD_IMM.i32 r5, 0x0, #0x3f400000
