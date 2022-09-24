@@ -1161,9 +1161,7 @@ dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
                         fprintf(fp, "\n");
                         st = 0;
                         ll = 0;
-                }
-
-                if (++st == stride) {
+                } else if (++st == stride) {
                         fprintf(fp, "\n");
                         st = 0;
                 }
