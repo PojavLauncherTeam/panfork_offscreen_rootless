@@ -141,10 +141,20 @@ def heap_interpret(start, end):
         signed = True
 
         if dat[3] & 0xe0 == 0x80:
-            address = (up & 16777215) * 64
-            typ = DRAW_TYPES[(dat[3] >> 2) & 0x3]
-            res = " reset" if dat[3] & 0x10 else ""
+            if valhall:
+                address = (up & 0x7ffffff) * 32
+                typ = DRAW_TYPES[(dat[3] >> 3) & 0x3]
+                res = ""
+            else:
+                address = (up & 0xffffff) * 64
+                typ = DRAW_TYPES[(dat[3] >> 2) & 0x3]
+                res = " reset" if dat[3] & 0x10 else ""
             print(f"draw {typ}{res}: {hex(address)}")
+        elif valhall and dat[3] >> 4 == 12:
+            unk1 = up & 0x3f
+            address = (up >> 6) & 0xffff
+            unk2 = up >> 22
+            print(f"draw offset: {hex(address)}, unk {hex(unk1)}, {hex(unk2)}")
         elif dat[3] >> 4 == 4:
             # TODO: handle two of these in a row
             pf = (up >> 21) & 0x7f

@@ -435,7 +435,8 @@ mov w2b, i16:127,127
 
 idvs 0x424a, mode triangle-strip, index none
 idvs 0x424a, mode points, index none
-@idvs 0x424a, mode line-loop, index none
+idvs 0x424a, mode points, index none
+idvs 0x424a, mode line-loop, index none
 
 flush_tiler
 
