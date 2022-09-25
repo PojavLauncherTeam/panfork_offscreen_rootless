@@ -83,8 +83,7 @@ BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
 #BRANCHZI.absolute 0x1000000, ^r4
 # position of 16384
-# actually 4
-IADD_IMM.i32 r2, 0x0, #0x02
+IADD_IMM.i32 r2, 0x0, #0x0e
 LSHIFT_OR.i32 r0, 0x03020100.b1, r2, 0x0
 LSHIFT_AND.i32 r0, r60, r2, ^r0
 ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
@@ -434,13 +433,9 @@ mov w2a, i16:0,0
 @ Scissor max
 mov w2b, i16:127,127
 
-@ Draw mode 8 -- Triangle Strip
-@ Index type 0 -- None
-@UNK 00 06, 0x4a420000000a
-@ Draw mode 1 -- Points
-UNK 00 06, 0x4a4200000001
-@ Draw mode 6 -- Line loop
-@UNK 00 06, 0x4a4200000006
+idvs 0x424a, mode triangle-strip, index none
+idvs 0x424a, mode points, index none
+idvs 0x424a, mode line-loop, index none
 
 flush_tiler
 
@@ -1337,17 +1332,40 @@ class Context:
                 assert(v >= (-1 << 31))
                 value = (reg(s[2]) << 40) | (v & 0xffffffff)
             elif s[0] == "idvs":
-                assert(len(s) == 7)
-                r1 = reg(s[1])
-                r2 = reg(s[2])
-                assert(s[3] == "mode")
-                mode = int(s[4])
-                assert(s[5] == "index")
-                index = int(s[6])
+                assert(len(s) == 6)
+                unk = val(s[1])
+                assert(s[2] == "mode")
+                modes = {
+                    "none": 0,
+                    "points": 1,
+                    "lines": 2,
+                    "line-strip": 4,
+                    "line-loop": 6,
+                    "triangles": 8,
+                    "triangle-strip": 10,
+                    "triangle-fan": 12,
+                    "polygon": 13,
+                    "quads": 14,
+                }
+                if s[3] in modes:
+                    mode = modes[s[3]]
+                else:
+                    mode = int(s[3])
+                assert(s[4] == "index")
+                itypes = {
+                    "none": 0,
+                    "uint8": 1,
+                    "uint16": 2,
+                    "uint32": 3,
+                }
+                if s[5] in itypes:
+                    index = itypes[s[5]]
+                else:
+                    index = int(s[5])
 
                 cmd = 6
                 addr = 0
-                value = (r2 << 40) | (r1 << 32) | (index << 8) | mode
+                value = (unk << 32) | (index << 8) | mode
             elif s[0] == "flush_tiler":
                 assert(len(s) == 1)
                 cmd = 9

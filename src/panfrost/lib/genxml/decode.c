@@ -1434,16 +1434,18 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 break;
         }
         case 6: {
+                /* The meaning of the first argument (in h) is unknown, but it
+                 * appears that the second bit must be set. */
                 uint32_t masked = l & 0xfffff8f0;
                 uint8_t mode = l & 0xf;
                 uint8_t index = (l >> 8) & 7;
                 if (addr || masked)
-                        pandecode_log("idvs (unk %02x), w%02x, w%02x, (unk %x), "
+                        pandecode_log("idvs (unk %02x), 0x%04x, (unk %x), "
                                       "mode %i index %i\n\n",
-                                      addr, arg1, arg2, masked, mode, index);
+                                      addr, h, masked, mode, index);
                 else
-                        pandecode_log("idvs w%02x, w%02x, mode %i index %i\n\n",
-                                      arg1, arg2, mode, index);
+                        pandecode_log("idvs 0x%04x, mode %i index %i\n\n",
+                                      h, mode, index);
 
                 if (gpu_id != 1) {
                         pandecode_indent++;
