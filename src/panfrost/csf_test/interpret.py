@@ -2,8 +2,8 @@
 
 import os
 import re
-import subprocess
 import struct
+import subprocess
 import sys
 
 try:
@@ -398,8 +398,8 @@ mov w26, 0x1000
 @ Sample mask / unk1
 mov w3a, 0x1ffff
 @ Min/max Z
-mov w2c, 0
-mov w2d, 0x3f800000
+mov w2c, float:0
+mov w2d, float:1.0
 @ Depth/stencil
 mov x34, $idvs_zs
 @ Blend
@@ -407,9 +407,8 @@ mov x32, $idvs_blend+1
 @ Occlusion
 mov x2e, $occlusion
 
-@ Primitive size -- 64
-mov x3c, 0x42800000
-@mov x3c, 0x3f800000
+@ Primitive size
+mov x3c, float:2.0
 
 @ Fragment shader environment
 mov x14, $fragment_shader
@@ -431,9 +430,9 @@ mov x18, $thread_storage
 mov x28, $tiler_ctx
 
 @ Scissor min
-mov w2a, 0x00000000
+mov w2a, i16:0,0
 @ Scissor max
-mov w2b, 0x007f007f
+mov w2b, i16:127,127
 
 @ Draw mode 8 -- Triangle Strip
 @ Index type 0 -- None
@@ -460,7 +459,7 @@ mov x50, $ev
 @ Bound min
 mov w2a, 0x00000000
 @ Bound max
-mov w2b, 0x007f007f
+mov w2b, i16:127,127
 mov x28, $framebuffer+1
 @ Tile enable map
 mov x2c, $x
@@ -496,7 +495,7 @@ evstr w5f, [x50], unk 0xfd, irq
 @!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
 !heatmap plane_0 0 4096 gran 0x04 len 0x20 stride 0x200
 !dump occlusion 0 4096
-!dump ssbo 0 4096
+@!dump ssbo 0 4096
 """
 
 docopy = """
@@ -1152,6 +1151,15 @@ class Context:
                 return hx(word[1:])
 
             def val(word):
+                if word.startswith("float:"):
+                    return ii(float(word.split(":")[1]))
+                elif word.startswith("i16:"):
+                    lo, hi = word.split(":")[1].split(",")
+                    lo, hi = val(lo), val(hi)
+                    assert(lo < (1 << 16))
+                    assert(hi < (1 << 16))
+                    return (lo & 0xffff) | (hi << 16)
+
                 value = int(word.strip("#"), 0)
                 assert(value < (1 << 48))
                 return value
