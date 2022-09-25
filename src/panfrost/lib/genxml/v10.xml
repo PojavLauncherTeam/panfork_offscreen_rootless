@@ -1490,8 +1490,8 @@
     <field name="Size Array" size="48" start="0x3c:0" type="uint"/>
   </struct>
 
-  <struct name="Indices" size="2">
-    <field name="Address" size="64" start="0:0" type="address"/>
+  <struct name="Indices" layout="cs">
+    <field name="Address" size="64" start="0x36:0" type="address"/>
   </struct>
 
   <!-- TODO: What to do about these? -->

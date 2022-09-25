@@ -1114,9 +1114,7 @@ pandecode_malloc_vertex_job(mali_ptr job, uint32_t *cs_buf, uint32_t *cs_buf_unk
         DUMP_SECTION_CS_V10(MALLOC_VERTEX_JOB, TILER, p, cs_buf, cs_buf_unk, "Tiler:\n");
         DUMP_SECTION_CS_V10(MALLOC_VERTEX_JOB, SCISSOR, p, cs_buf, cs_buf_unk, "Scissor:\n");
         DUMP_SECTION_CS_V10(MALLOC_VERTEX_JOB, PRIMITIVE_SIZE, p, cs_buf, cs_buf_unk, "Primitive Size:\n");
-#if PAN_ARCH < 10
-        DUMP_SECTION_CS_V10(MALLOC_VERTEX_JOB, INDICES, p, cs_buf, cs_buf_unk, "Indices:\n"); // todo v10
-#endif
+        DUMP_SECTION_CS_V10(MALLOC_VERTEX_JOB, INDICES, p, cs_buf, cs_buf_unk, "Indices:\n");
 
         pan_section_unpack_cs_v10(p, cs_buf, cs_buf_unk, MALLOC_VERTEX_JOB, DRAW, dcd);
 

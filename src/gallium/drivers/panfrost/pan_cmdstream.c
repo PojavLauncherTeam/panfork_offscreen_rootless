@@ -3590,7 +3590,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
         panfrost_emit_primitive_size(batch, info->mode == PIPE_PRIM_POINTS, 0,
                                      pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE_SIZE));
 
-        pan_section_pack(job, MALLOC_VERTEX_JOB, INDICES, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, INDICES, cfg) {
                 cfg.address = indices;
         }
 
