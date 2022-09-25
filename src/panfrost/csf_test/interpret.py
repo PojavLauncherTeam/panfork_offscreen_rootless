@@ -152,7 +152,8 @@ descriptors = {
         0, 0,
         # Hierarchy mask,
         # Single-sampled
-        0x6,
+        # Last provoking vertex
+        0x6 | (0 << 18),
         0x007f007f,
         # Layer
         0, 0,
@@ -294,6 +295,13 @@ descriptors = {
         0x2e234589, 0, 0, 0,
     ],
 
+    "index_buffer": [
+        0, 1, 2,
+        1, 2, 3,
+        0, 1, 2,
+        0, 2, 3,
+    ],
+
     "position_data": [
         ii(10.0), ii(10.0), ii(1.0), ii(1.0),
     ],
@@ -378,8 +386,6 @@ endpt compute fragment tiler idvs
 
 @ Base vertex count
 mov w24, 0
-@ Index count
-mov w21, 4
 @ Instance count
 mov w22, 1
 
@@ -433,6 +439,12 @@ mov w2a, i16:0,0
 @ Scissor max
 mov w2b, i16:127,127
 
+mov w21, 12
+mov w27, 0x30
+mov x36, $index_buffer
+@idvs 0x424a, mode triangles, index uint32
+
+mov w21, 4
 idvs 0x424a, mode triangle-strip, index none
 idvs 0x424a, mode points, index none
 idvs 0x424a, mode points, index none
@@ -1615,8 +1627,8 @@ def go(text):
         return
 
     print(run(text))
-    subprocess.run("ls /tmp/fdump.????? | tail -n2 | xargs diff -U3 -s",
-                   shell=True)
+    #subprocess.run("ls /tmp/fdump.????? | tail -n2 | xargs diff -U3 -s",
+    #               shell=True)
 
 os.environ["CSF_QUIET"] = "1"
 

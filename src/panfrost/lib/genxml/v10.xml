@@ -1492,6 +1492,8 @@
 
   <struct name="Indices" layout="cs">
     <field name="Address" size="64" start="0x36:0" type="address"/>
+    <!-- This seems different from v9, should it live someplace else? -->
+    <field name="Size" size="32" start="0x27:0" type="uint"/>
   </struct>
 
   <!-- TODO: What to do about these? -->

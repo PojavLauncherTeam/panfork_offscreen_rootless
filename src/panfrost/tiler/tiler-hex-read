@@ -133,10 +133,15 @@ def heap_interpret(start, end):
 
         up = struct.unpack("=I", dat)[0]
 
-        tri0 = int8(up >> 14, signed)
-        tri0_7 = int7(up >> 14, signed)
-        tri1 = int7(up >> 7, signed)
-        tri2 = int7(up, signed)
+        if valhall:
+            tri0 = tri0_7 = int7(up >> 15, signed)
+            tri1 = int7(up >> 8, signed)
+            tri2 = int7(up >> 1, signed)
+        else:
+            tri0 = int8(up >> 14, signed)
+            tri0_7 = int7(up >> 14, signed)
+            tri1 = int7(up >> 7, signed)
+            tri2 = int7(up, signed)
 
         signed = True
 
@@ -224,6 +229,7 @@ while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
                 footer = fetch(pos + HEAP_STRIDE, 8)
                 start, end = struct.unpack("=QQ", header + footer)
                 use = bool(end)
+                end += 4
                 # TODO: Is the same scheme for jumps used here?
                 end &= ~3
             if use:
