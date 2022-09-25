@@ -1614,6 +1614,8 @@ def go(text):
         return
 
     print(run(text))
+    subprocess.run("ls /tmp/fdump.????? | tail -n2 | xargs diff -U3 -s",
+                   shell=True)
 
 os.environ["CSF_QUIET"] = "1"
 
