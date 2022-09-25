@@ -9,12 +9,16 @@ data = b''
 
 fb_width = 160
 fb_height = 160
+#fb_mask = 0xffff
+hierarchy_mask = 6
 
 HEAP_OFS = 0x8000
 
 base_ptr = 0
 heap_ptr = 0
 midgard = False
+bifrost = True
+valhall = False
 
 bak_data = b''
 
@@ -32,8 +36,20 @@ for line in sys.stdin.read().split("\n"):
     if split[0] == "height":
         fb_height = int(split[1])
         continue
+    if split[0] == "mask":
+        fb_mask = int(split[1], 0)
+        continue
+    if split[0] == "vaheap":
+        base_ptr = int(split[1], 16)
+        bifrost = False
+        valhall = True
+        # TODO: Determine dynamically
+        HEAP_OFS = 0xffe80
+        HEAP_STRIDE = 192
+        continue
     if split[0] == "addr":
         base_ptr = int(split[1], 16)
+        bifrost = False
         midgard = True
         HEAP_OFS = 0x40
         continue
@@ -82,6 +98,8 @@ def fetch(ptr, size):
             base = ptr - heap_ptr
             return heap_data[base:base+size]
     else:
+        if valhall:
+            ptr -= base_ptr
         return data[ptr:ptr+size]
 
 DRAW_TYPES = [
@@ -169,9 +187,15 @@ if midgard:
 
 pos = base_ptr + HEAP_OFS
 size = 16
+anylevel = False
 
 # TODO: Does this miss the largest level?
-while size == 16 or size // 2 < min(fb_width, fb_height):
+while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
+    if (hierarchy_mask << 4) & size == 0:
+        size *= 2
+        continue
+
+    anylevel = True
     for y in range((fb_height + size - 1) // size):
         for x in range((fb_width + size - 1) // size):
             header = fetch(pos, 8)
@@ -180,11 +204,17 @@ while size == 16 or size // 2 < min(fb_width, fb_height):
                 use = bool(end)
                 end += 4
                 start = base_ptr + header_size * 8 + (pos - base_ptr - HEAP_OFS) * 64
-            else:
+            elif bifrost:
                 end, start = struct.unpack("=II", header)
                 use = bool(end)
                 start += HEAP_OFS
                 end += HEAP_OFS + 4
+                end &= ~3
+            else:
+                footer = fetch(pos + HEAP_STRIDE, 8)
+                start, end = struct.unpack("=QQ", header + footer)
+                use = bool(end)
+                # TODO: Is the same scheme for jumps used here?
                 end &= ~3
             if use:
                 if FLIP_Y:
