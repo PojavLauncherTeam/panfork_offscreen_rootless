@@ -152,7 +152,7 @@ descriptors = {
         0, 0,
         # Hierarchy mask: 0x80
         # Single-sampled
-        0x80,
+        0x4,
         0x007f007f,
         # Layer
         0, 0,
@@ -434,8 +434,8 @@ mov w2a, i16:0,0
 mov w2b, i16:127,127
 
 idvs 0x424a, mode triangle-strip, index none
-idvs 0x424a, mode points, index none
-idvs 0x424a, mode line-loop, index none
+@idvs 0x424a, mode points, index none
+@idvs 0x424a, mode line-loop, index none
 
 flush_tiler
 
@@ -482,6 +482,7 @@ str x56, [x52]
 evstr w5f, [x50], unk 0xfd, irq
 
 !dump heap 0 1048576
+!fdump heap 0 1048576
 @!tiler heap 0 1048576
 
 @!dump rt_buffer 0 4096
@@ -1180,13 +1181,14 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x280f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] in ("!dump", "!delta", "!tiler"):
+            elif s[0] in ("!dump", "!fdump", "!delta", "!tiler"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
                 mode = {
                     "!dump": "hex",
+                    "!fdump": "filehex",
                     "!delta": "delta",
                     "!tiler": "tiler",
                 }[s[0]]

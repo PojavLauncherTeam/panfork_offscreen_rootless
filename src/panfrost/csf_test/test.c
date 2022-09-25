@@ -1135,6 +1135,28 @@ dump_tiler(FILE *fp, uint8_t *values, unsigned size)
         pclose(stream);
 }
 
+/* TODO: Pass in a filename? */
+static void
+dump_filehex(uint8_t *values, unsigned size)
+{
+        char buf[1024] = {0};
+
+        for (unsigned i = 0; i < 10000; ++i) {
+                snprintf(buf, 1024, "/tmp/fdump.%05i", i);
+
+                int fd = open(buf, O_WRONLY | O_CREAT | O_EXCL, 0666);
+                if (fd == -1)
+                        continue;
+
+                FILE *fp = fdopen(fd, "w");
+
+                pan_hexdump(fp, values, size, false);
+
+                fclose(fp); /* will close fd */
+                break;
+        }
+}
+
 static void
 dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
              unsigned gran, unsigned length, unsigned stride)
@@ -1297,6 +1319,8 @@ cs_test(struct state *s, struct test *t)
                                 dump_delta(stdout, s->cpu + offset, size);
                         else if (!strcmp(mode, "tiler"))
                                 dump_tiler(stdout, s->cpu + offset, size);
+                        else if (!strcmp(mode, "filehex"))
+                                dump_filehex(s->cpu + offset, size);
 
                         free(mode);
 
