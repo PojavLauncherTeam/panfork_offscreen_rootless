@@ -1150,6 +1150,7 @@ dump_filehex(uint8_t *values, unsigned size)
 
                 FILE *fp = fdopen(fd, "w");
 
+                fprintf(fp, "%p, %u:\n", values, size);
                 pan_hexdump(fp, values, size, false);
 
                 fclose(fp); /* will close fd */
