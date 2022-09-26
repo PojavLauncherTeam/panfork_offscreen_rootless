@@ -102,7 +102,82 @@ def fetch(ptr, size):
             ptr -= base_ptr
         return data[ptr:ptr+size]
 
-def vertex_print(ptr, positions):
+def print_draw(ptr):
+    draw = fetch(ptr, 128)
+    if len(draw) < 128:
+        print(" couldn't fetch draw struct")
+        return
+    decoded = struct.unpack("=16Q", draw)
+    coverage = [0 for x in decoded]
+
+    fields = (
+        ("Allow forward pixel to kill", 1, "0:0", "bool"),
+        ("Allow forward pixel to be killed", 1, "0:1", "bool"),
+        ("Pixel kill operation", 2, "0:2", "Pixel Kill"),
+        ("ZS update operation", 2, "0:4", "Pixel Kill"),
+        ("Allow primitive reorder", 1, "0:6", "bool"),
+        ("Overdraw alpha0", 1, "0:7", "bool"),
+        ("Overdraw alpha1", 1, "0:8", "bool"),
+        ("Clean Fragment Write", 1, "0:9", "bool"),
+        ("Primitive Barrier", 1, "0:10", "bool"),
+        ("Evaluate per-sample", 1, "0:11", "bool"),
+        ("Single-sampled lines", 1, "0:13", "bool"),
+        ("Occlusion query", 2, "0:14", "Occlusion Mode"),
+        ("Front face CCW", 1, "0:16", "bool"),
+        ("Cull front face", 1, "0:17", "bool"),
+        ("Cull back face", 1, "0:18", "bool"),
+        ("Multisample enable", 1, "0:19", "bool"),
+        ("Shader modifies coverage", 1, "0:20", "bool"),
+        ("Alpha-to-coverage Invert", 1, "0:21", "bool"),
+        ("Alpha-to-coverage", 1, "0:22", "bool"),
+        ("Scissor to bounding box", 1, "0:23", "bool"),
+        ("Sample mask", 16, "1:0", "uint"),
+        ("Render target mask", 8, "1:16", "hex"),
+
+        ("Packet", 1, "2:0", "bool"),
+        # TODO: shr modifier
+        ("Vertex array", 64, "2:0", "address"),
+        ("Vertex packet stride", 16, "4:0", "uint"),
+        ("Vertex attribute stride", 16, "4:0", "uint"),
+        ("Unk", 16, "5:0", "uint"),
+
+        ("Minimum Z", 32, "6:0", "float"),
+        ("Maximum Z", 32, "7:0", "float"),
+        ("Depth/stencil", 64, "10:0", "address"),
+        ("Blend count", 4, "12:0", "uint"),
+        ("Blend", 60, "12:4", "address"),
+        ("Occlusion", 64, "14:0", "address"),
+
+        ("Attribute offset", 32, "16:0", "uint"),
+        ("FAU count", 8, "17:0", "uint"),
+        ("Resources", 48, "24:0", "address"),
+        ("Shader", 48, "26:0", "address"),
+        ("Thread storage", 48, "28:0", "address"),
+        ("FAU", 64, "30:0", "address"),
+    )
+
+    for f in fields:
+        name, size, start, type = f
+        word, bit = [int(x) for x in start.split(":")]
+        if word & 1:
+            bit += 32
+        word >>= 1
+
+        mask = (1 << size) - 1
+        data = (decoded[word] >> bit) & mask
+        coverage[word] |= mask << bit
+        if type == "float":
+            data = struct.unpack("=f", struct.pack("=I", data))[0]
+        else:
+            data = hex(data)
+        print(f"   {name}: {data}")
+
+    for i, (d, c) in enumerate(zip(decoded, coverage)):
+        ci = c ^ ((1 << 64) - 1)
+        if d & ci:
+            print(f"    unk at 64-bit word {i}: {hex(d)} (known mask {hex(c)})")
+
+def print_vertex(ptr, positions):
     for p in positions:
         data = fetch(ptr + p * 16, 16)
         if len(data) < 16:
@@ -184,6 +259,8 @@ def heap_interpret(start, end):
             draw_ptr += address << 32
             pos_ptr += address << 32
             print(f"draw offset: {hex(address)}, unk {hex(unk1)}, {hex(unk2)}")
+
+            print_draw(draw_ptr)
         elif dat[3] >> 6 == 1:
             # TODO: handle two of these in a row
             res = ""
@@ -229,7 +306,7 @@ def heap_interpret(start, end):
 
             print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}{unk}")
 
-            vertex_print(pos_ptr, [a, b, c][:dat[3] >> 2])
+            print_vertex(pos_ptr, [a, b, c][:dat[3] >> 2])
 
             a = b = c = 0
 
