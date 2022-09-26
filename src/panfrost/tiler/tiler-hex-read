@@ -102,6 +102,15 @@ def fetch(ptr, size):
             ptr -= base_ptr
         return data[ptr:ptr+size]
 
+def vertex_print(ptr, positions):
+    for p in positions:
+        data = fetch(ptr + p * 16, 16)
+        if len(data) < 16:
+            print("        <no data>")
+            continue
+        x, y, z, w = struct.unpack("=4f", data)
+        print(f"       <{x} {y} {z} {w}>")
+
 DRAW_TYPES = [
     "unk",
     "points",
@@ -115,6 +124,14 @@ def heap_interpret(start, end):
     struct_count = 0
 
     signed = True
+
+    base = 0
+    a = 0
+    b = 0
+    c = 0
+
+    draw_ptr = 0
+    pos_ptr = 0
 
     while start != end:
         if midgard and start & 0x1ff == 0x1f8:
@@ -146,31 +163,44 @@ def heap_interpret(start, end):
         signed = True
 
         if dat[3] & 0xe0 == 0x80:
+            res = ""
             if valhall:
                 address = (up & 0x7ffffff) * 32
                 typ = DRAW_TYPES[(dat[3] >> 3) & 0x3]
-                res = ""
             else:
                 address = (up & 0xffffff) * 64
                 typ = DRAW_TYPES[(dat[3] >> 2) & 0x3]
-                res = " reset" if dat[3] & 0x10 else ""
+                if dat[3] & 0x10:
+                    a = 0
+                    res = " reset"
+            draw_ptr = address
+            if valhall:
+                pos_ptr = address + 128
             print(f"draw {typ}{res}: {hex(address)}")
         elif valhall and dat[3] >> 4 == 12:
             unk1 = up & 0x3f
             address = (up >> 6) & 0xffff
             unk2 = up >> 22
+            draw_ptr += address << 32
+            pos_ptr += address << 32
             print(f"draw offset: {hex(address)}, unk {hex(unk1)}, {hex(unk2)}")
         elif dat[3] >> 6 == 1:
             # TODO: handle two of these in a row
+            res = ""
             if valhall:
                 # TOOD: Is the mask correct?
                 pf = (up >> 22) & 0x7f
                 shift = 7
-                res = " reset" if dat[3] & 0x20 else ""
+                if dat[3] & 0x20:
+                    a = 0
+                    res = " reset"
             else:
                 pf = (up >> 21) & 0x7f
                 shift = 8
-                res = ""
+
+            a += tri0_7 << shift
+            b += tri1 << 7
+            c += tri2 << 7
             print(f"primitive offset{res}: {hex(pf << 4)} | +{tri0_7 << shift} {tri1 << 7} {tri2 << 7}")
             signed = False
         # TODO: Jumps are located based on position, not opcode
@@ -192,7 +222,16 @@ def heap_interpret(start, end):
             if valhall and up & 1:
                 unk = ", unk 1"
 
+            a += base + tri0
+            b += a + tri1
+            c += a + tri2
+            base = a
+
             print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}{unk}")
+
+            vertex_print(pos_ptr, [a, b, c][:dat[3] >> 2])
+
+            a = b = c = 0
 
         else:
             print(f"Unknown opcode {hex(dat[3])}")
