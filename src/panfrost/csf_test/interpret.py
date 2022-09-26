@@ -87,10 +87,15 @@ IADD_IMM.i32 r2, 0x0, #0x0e
 LSHIFT_OR.i32 r0, 0x03020100.b1, r2, 0x0
 LSHIFT_AND.i32 r0, r60, r2, ^r0
 IADD_IMM.i32 r1, 0x0, #0x01
-RSHIFT_AND.i32 r1, ^r60, 0x03020100.b11, ^r1
+RSHIFT_AND.i32 r1, r60, 0x03020100.b11, ^r1
 LSHIFT_OR.i32 r1, ^r1, ^r2, 0x0
 S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
+
+RSHIFT_OR.i32 r0, ^r60, 0x07060504.b00, 0x0
+S32_TO_F32 r0, ^r0
+MOV.i32 r1, 0x0
+
 FADD.f32 r0, ^r0, 0x40490FDB
 FADD.f32 r1, ^r1, 0x40490FDB
 MOV.i32 r2, 0x3F800000
@@ -298,9 +303,18 @@ descriptors = {
 
     "index_buffer": [
         0, 1, 2,
+        #63, 64, 65,
         1, 2, 3,
+        4, 5, 6,
+        12, 13, 14,
         0, 1, 2,
-        0, 2, 3,
+        4, 5, 6,
+        8, 9, 10,
+        3, 4, 5,
+    ],
+
+    "point_index": [x * 4 for x in range(32)] + [
+        0, 64,
     ],
 
     "position_data": [
@@ -414,8 +428,8 @@ mov x32, $idvs_blend+1
 mov x2e, $occlusion
 
 @ Primitive size
-mov x3c, float:2.0
-
+mov x3c, float:1
+@3.75
 @ Fragment shader environment
 mov x14, $fragment_shader
 @ FAU count == 2
@@ -440,16 +454,21 @@ mov w2a, i16:0,0
 @ Scissor max
 mov w2b, i16:127,127
 
-mov w21, 12
-mov w27, 0x30
+mov w21, 24
+mov w27, 96
 mov x36, $index_buffer
 @idvs 0x424a, mode triangles, index uint32
 
+mov w21, 34
+mov w27, 4096
+mov x36, $point_index
+
+idvs 0x424a, mode points, index uint32
+
 mov w21, 4
-idvs 0x424a, mode triangle-strip, index none
-idvs 0x424a, mode points, index none
-idvs 0x424a, mode points, index none
-idvs 0x424a, mode line-loop, index none
+@idvs 0x424a, mode triangle-strip, index none
+@idvs 0x424a, mode points, index none
+@idvs 0x424a, mode line-loop, index none
 
 flush_tiler
 
