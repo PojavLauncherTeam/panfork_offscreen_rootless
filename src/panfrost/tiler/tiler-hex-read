@@ -160,22 +160,37 @@ def heap_interpret(start, end):
             address = (up >> 6) & 0xffff
             unk2 = up >> 22
             print(f"draw offset: {hex(address)}, unk {hex(unk1)}, {hex(unk2)}")
-        elif dat[3] >> 4 == 4:
+        elif dat[3] >> 6 == 1:
             # TODO: handle two of these in a row
-            pf = (up >> 21) & 0x7f
-            print(f"primitive offset: {hex(pf << 4)} | +{tri0_7 << 8} {tri1 << 7} {tri2 << 7}")
+            if valhall:
+                # TOOD: Is the mask correct?
+                pf = (up >> 22) & 0x7f
+                shift = 7
+            else:
+                pf = (up >> 21) & 0x7f
+                shift = 8
+            print(f"primitive offset: {hex(pf << 4)} | +{tri0_7 << shift} {tri1 << 7} {tri2 << 7}")
             signed = False
         # TODO: Jumps are located based on position, not opcode
+        elif dat[3] == 0xff:
+            up64 = struct.unpack("=Q", fetch(start, 8))[0]
+            assert((up64 & 3) == 3)
+            print(f"jump (from {hex(start+8)}-8): {hex(up64 - 3)}")
+            start = up64 - 7
         elif dat[3] == 0x00:
             assert((up & 3) == 3)
+            print(f"jump (from {hex(start+4)}-4): {hex(up - 3)}, {hex(HEAP_OFS + up - 3)}")
             start = HEAP_OFS + up - 7
-            print(f"jump (from {hex(start+4)}-4): {hex(up - 3)}, {hex(start + 4)}")
         elif (masked_op & 0xc0) == 0:
             mode = hex(dat[3] >> 2)
 
             pre_offset = (up >> 22) & 0xf
 
-            print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}")
+            unk = ""
+            if valhall and up & 1:
+                unk = ", unk 1"
+
+            print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}{unk}")
 
         else:
             print(f"Unknown opcode {hex(dat[3])}")
@@ -214,6 +229,9 @@ while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
     for y in range((fb_height + size - 1) // size):
         for x in range((fb_width + size - 1) // size):
             header = fetch(pos, 8)
+            if len(header) == 0:
+                break
+
             if midgard:
                 end = struct.unpack("=Q", header)[0]
                 use = bool(end)
@@ -227,11 +245,13 @@ while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
                 end &= ~3
             else:
                 footer = fetch(pos + HEAP_STRIDE, 8)
+                if len(footer) == 0:
+                    break
                 start, end = struct.unpack("=QQ", header + footer)
                 use = bool(end)
+                # The upper bits are used for jump metadata
+                end &= (1 << 48) - 1
                 end += 4
-                # TODO: Is the same scheme for jumps used here?
-                end &= ~3
             if use:
                 if FLIP_Y:
                     print([x * size, fb_height - (y + 1) * size], ((x + 1) * size, fb_height - y * size))
