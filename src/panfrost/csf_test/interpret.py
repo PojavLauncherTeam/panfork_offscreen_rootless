@@ -80,7 +80,7 @@ BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 
 
     "position": """
-LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
+LEA_BUF_IMM.slot0.wait0 @r4:r5, r59, table:0xD, index:0x0
 #BRANCHZI.absolute 0x1000000, ^r4
 # position of 16384
 IADD_IMM.i32 r2, 0x0, #0x0e
@@ -98,10 +98,13 @@ S32_TO_F32 r1, ^r1
 
 FADD.f32 r0, ^r0, 0x40490FDB
 FADD.f32 r1, ^r1, 0x40490FDB
-MOV.i32 r2, 0x3F800000
+MOV.i32 r2, 0x3DCCCCCD
 MOV.i32 r3, 0x0
 
 STORE.i128.slot0 @r0:r1:r2:r3, thread_local_pointer, offset:0
+
+IADD_IMM.i32 r8, 0x0, #0x00004000
+STORE.i16.istream.slot0 @r8, r4, offset:64
 
 STORE.i128.istream.slot0 @r0:r1:r2:r3, r4, offset:0
 STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
@@ -307,6 +310,12 @@ descriptors = {
 
     "index_buffer": [
         0, 1, 2,
+        0, 2, 1,
+        1, 0, 2,
+        1, 2, 0,
+        2, 0, 1,
+        2, 1, 0,
+
         #63, 64, 65,
         1, 2, 3,
         4, 5, 6,
@@ -456,11 +465,20 @@ mov w2a, i16:0,0
 @ Scissor max
 mov w2b, i16:127,127
 
-mov w21, 24
-mov w27, 96
+mov w21, 18
+mov w27, 4096
 mov x36, $index_buffer
 
-add w1f, w1f, 64
+@ setting w38 to 2 has an odd effect:
+@ 0 1 2
+@ 2 1 0
+@ 2 0 1
+@ 1 0 2
+@ 2 0 1
+@ 2 1 0
+@ 2 0 1
+@ 1 0 2
+@ 1 2 0
 
 idvs 0x424a, mode triangles, index uint32
 
