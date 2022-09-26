@@ -166,10 +166,12 @@ def heap_interpret(start, end):
                 # TOOD: Is the mask correct?
                 pf = (up >> 22) & 0x7f
                 shift = 7
+                res = " reset" if dat[3] & 0x20 else ""
             else:
                 pf = (up >> 21) & 0x7f
                 shift = 8
-            print(f"primitive offset: {hex(pf << 4)} | +{tri0_7 << shift} {tri1 << 7} {tri2 << 7}")
+                res = ""
+            print(f"primitive offset{res}: {hex(pf << 4)} | +{tri0_7 << shift} {tri1 << 7} {tri2 << 7}")
             signed = False
         # TODO: Jumps are located based on position, not opcode
         elif dat[3] == 0xff:

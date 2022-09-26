@@ -514,7 +514,6 @@ str x56, [x52]
 
 evstr w5f, [x50], unk 0xfd, irq
 
-!dump heap 0 1048576
 !fdump heap 0 1048576
 !tiler heap 0 1048576
 
