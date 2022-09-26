@@ -1374,6 +1374,7 @@
     <field name="Depth bias clamp" size="32" start="7:0" type="float"/>
   </struct>
 
+  <!-- TODO: Is this actually four words? -->
   <struct name="Vertex Array" size="3">
     <field name="Packet" size="1" start="0:0" type="bool"/>
 

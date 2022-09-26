@@ -1389,7 +1389,7 @@
     <field name="Depth bias clamp" size="32" start="7:0" type="float"/>
   </struct>
 
-  <struct name="Vertex Array" size="3">
+  <struct name="Vertex Array" size="4">
     <field name="Packet" size="1" start="0:0" type="bool"/>
 
     <!-- Written by hardware in packet mode -->
@@ -1398,6 +1398,8 @@
     <!-- Written by hardware, leave zero -->
     <field name="Vertex packet stride" size="16" start="2:0" type="uint"/>
     <field name="Vertex attribute stride" size="16" start="2:16" type="uint"/>
+    <!-- Comes from the w26 register -->
+    <field name="Unk" size="24" start="3:0" type="hex"/>
   </struct>
 
   <struct name="Draw" layout="cs">
@@ -1426,8 +1428,8 @@
 
     <field name="Unk 1" size="1" start="0x3a:16" type="bool" default="true"/>
 
-    <!-- TODO v10 -->
-    <field name="Vertex array" size="96" start="2:0" type="Vertex Array"/>
+    <!-- TODO v10, Doesn't exist in register space but is written to the heap -->
+    <field name="Vertex array" size="128" start="2:0" type="Vertex Array"/>
 
     <field name="Minimum Z" size="32" start="0x2c:0" type="float"/>
     <field name="Maximum Z" size="32" start="0x2d:0" type="float"/>
@@ -1461,8 +1463,8 @@
     <field name="Scissor to bounding box" size="1" start="0:23" type="bool"/>
     <field name="Sample mask" size="16" start="1:0" type="uint"/>
     <field name="Render target mask" size="8" start="1:16" type="hex"/>
-    <!-- TODO v10 -->
-    <!--<field name="Vertex array" size="96" start="2:0" type="Vertex Array"/>-->
+    <!-- This is correct, but uncommenting would break things! -->
+    <!--<field name="Vertex array" size="128" start="2:0" type="Vertex Array"/>-->
     <field name="Minimum Z" size="32" start="6:0" type="float"/>
     <field name="Maximum Z" size="32" start="7:0" type="float"/>
     <field name="Depth/stencil" size="64" start="10:0" type="address"/>
