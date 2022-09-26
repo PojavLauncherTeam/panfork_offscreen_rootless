@@ -86,7 +86,8 @@ LEA_BUF_IMM.slot0.wait0 @r4:r5, ^r59, table:0xD, index:0x0
 IADD_IMM.i32 r2, 0x0, #0x0e
 LSHIFT_OR.i32 r0, 0x03020100.b1, r2, 0x0
 LSHIFT_AND.i32 r0, r60, r2, ^r0
-ICMP.s32.lt.i1 r1, 0x1000000.b3, ^r60, 0x0
+IADD_IMM.i32 r1, 0x0, #0x01
+RSHIFT_AND.i32 r1, ^r60, 0x03020100.b11, ^r1
 LSHIFT_OR.i32 r1, ^r1, ^r2, 0x0
 S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
