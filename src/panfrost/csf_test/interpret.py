@@ -92,14 +92,17 @@ LSHIFT_OR.i32 r1, ^r1, ^r2, 0x0
 S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
 
-RSHIFT_OR.i32 r0, ^r60, 0x07060504.b00, 0x0
-S32_TO_F32 r0, ^r0
-MOV.i32 r1, 0x0
+#RSHIFT_OR.i32 r0, ^r60, 0x07060504.b00, 0x0
+#S32_TO_F32 r0, ^r0
+#MOV.i32 r1, 0x0
 
 FADD.f32 r0, ^r0, 0x40490FDB
 FADD.f32 r1, ^r1, 0x40490FDB
 MOV.i32 r2, 0x3F800000
 MOV.i32 r3, 0x0
+
+STORE.i128.slot0 @r0:r1:r2:r3, thread_local_pointer, offset:0
+
 STORE.i128.istream.slot0 @r0:r1:r2:r3, r4, offset:0
 STORE.i128.slot0.end @r0:r1:r2:r3, ^r4, offset:0x7000
 """,
@@ -133,6 +136,7 @@ memory = {
     "occlusion": 4096,
 
     "ssbo": 4096,
+    "tls": 4096,
 
     "plane_0": 128 * 128 * 32, # 512 KiB
 
@@ -176,8 +180,8 @@ descriptors = {
     ],
 
     "thread_storage": [
-        0, 31,
-        0, 0,
+        1, 31,
+        "tls",
         0, 0,
     ],
 
@@ -314,7 +318,7 @@ descriptors = {
     ],
 
     "point_index": [x * 4 for x in range(32)] + [
-        0, 64,
+        0, 64, 440, 0,
     ],
 
     "position_data": [
@@ -413,9 +417,9 @@ mov w38, 0x430000
 @ Pixel kill etc.
 @   Enable occlusion query
 mov w39, 0xc000
-@ Render target mask
+@ Unk...
 mov w26, 0x1000
-@ Sample mask / unk1
+@ Sample mask / render target mask
 mov w3a, 0x1ffff
 @ Min/max Z
 mov w2c, float:0
@@ -428,8 +432,7 @@ mov x32, $idvs_blend+1
 mov x2e, $occlusion
 
 @ Primitive size
-mov x3c, float:1
-@3.75
+mov x3c, float:3.75
 @ Fragment shader environment
 mov x14, $fragment_shader
 @ FAU count == 2
@@ -438,7 +441,6 @@ movp x0c, $fau+0x0200000000000000
 @ Position shader environment
 mov x10, $position_shader
 
-mov x1e, $thread_storage
 mov x18, $thread_storage
 
 @ is this right?! "Vertex attribute stride" apparently?
@@ -457,13 +459,16 @@ mov w2b, i16:127,127
 mov w21, 24
 mov w27, 96
 mov x36, $index_buffer
-@idvs 0x424a, mode triangles, index uint32
 
-mov w21, 34
+add w1f, w1f, 64
+
+idvs 0x424a, mode triangles, index uint32
+
+mov w21, 1 @36
 mov w27, 4096
 mov x36, $point_index
 
-idvs 0x424a, mode points, index uint32
+@idvs 0x424a, mode points, index uint32
 
 mov w21, 4
 @idvs 0x424a, mode triangle-strip, index none

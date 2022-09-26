@@ -1423,10 +1423,10 @@
     <field name="Alpha-to-coverage Invert" size="1" start="0x39:21" type="bool"/>
     <field name="Alpha-to-coverage" size="1" start="0x39:22" type="bool"/>
     <field name="Scissor to bounding box" size="1" start="0x39:23" type="bool"/>
-    <field name="Render target mask" size="8" start="0x26:12" type="hex"/>
     <field name="Sample mask" size="16" start="0x3a:0" type="uint"/>
+    <field name="Render target mask" size="16" start="0x3a:16" type="uint"/>
 
-    <field name="Unk 1" size="1" start="0x3a:16" type="bool" default="true"/>
+    <field name="Unk" size="8" start="0x26:0" type="hex" default="0x1000"/>
 
     <!-- TODO v10, Doesn't exist in register space but is written to the heap -->
     <field name="Vertex array" size="128" start="2:0" type="Vertex Array"/>
