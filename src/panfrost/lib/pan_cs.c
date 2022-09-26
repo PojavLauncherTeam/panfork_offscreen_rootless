@@ -564,6 +564,7 @@ GENX(pan_emit_tls)(const struct pan_tls_info *info,
                          */
                         cfg.tls_address_mode = MALI_ADDRESS_MODE_PACKED;
 
+                        /* The shift is only used for packed mode */
                         assert((info->tls.ptr & 4095) == 0);
                         cfg.tls_base_pointer = info->tls.ptr >> 8;
 #else

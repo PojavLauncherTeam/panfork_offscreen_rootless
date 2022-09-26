@@ -1294,7 +1294,8 @@
     <field name="Attribute offset" size="32" start="0:0" type="uint"/>
     <field name="Resources" size="48" start="0x00:0" type="address"/>
     <field name="Shader" size="48" start="0x10:0" type="address"/>
-    <!-- Thread storage may be swapped with fragment shaders -->
+    <!-- Note that filling the thread storage pointer at 0x1e might
+         also be requried for prefix shaders. -->
     <field name="Thread storage" size="48" start="0x18:0" type="address"/>
     <field name="FAU" size="48" start="0x08:0" type="address"/>
     <field name="FAU count" size="8" start="0x08:56" type="uint"/>
@@ -1314,7 +1315,7 @@
     <field name="Attribute offset" size="32" start="0:0" type="uint"/>
     <field name="Resources" size="48" start="0x04:0" type="address"/>
     <field name="Shader" size="48" start="0x14:0" type="address"/>
-    <field name="Thread storage" size="48" start="0x1e:0" type="address"/>
+    <field name="Thread storage" size="48" start="0x18:0" type="address"/>
     <field name="FAU" size="48" start="0x0c:0" type="address"/>
     <field name="FAU count" size="8" start="0x0c:56" type="uint"/>
   </struct>
