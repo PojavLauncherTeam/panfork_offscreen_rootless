@@ -1597,7 +1597,15 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 break;
         }
 
-        case 32: {
+        case 32: case 33: {
+                /* A tail call is similar to a normal call, but reuses the
+                 * current stack entry so that execution returns directly to
+                 * the parent, rather than pushing a new entry and returning
+                 * to the instruction after the call. Using tail calls avoids
+                 * the possibility of stack overflow.
+                 */
+                const char *name = (op == 32) ? "call" : "tailcall";
+
                 unsigned length = buffer[arg1];
                 uint64_t target = (((uint64_t)buffer[arg2 + 1]) << 32) | buffer[arg2];
 
@@ -1605,11 +1613,11 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 unsigned instrs = length / 8;
 
                 if (addr || l)
-                        pandecode_log("call (unk %02x), w%02x (%i instructions), x%02x (0x%"PRIx64"), (unk %x)\n",
-                                      addr, arg1, instrs, arg2, target, l);
+                        pandecode_log("%s (unk %02x), w%02x (%i instructions), x%02x (0x%"PRIx64"), (unk %x)\n",
+                                      name, addr, arg1, instrs, arg2, target, l);
                 else
-                        pandecode_log("call w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
-                                      arg1, instrs, arg2, target);
+                        pandecode_log("%s w%02x (%i instructions), x%02x (0x%"PRIx64")\n",
+                                      name, arg1, instrs, arg2, target);
 
                 if (!target || !length)
                         break;

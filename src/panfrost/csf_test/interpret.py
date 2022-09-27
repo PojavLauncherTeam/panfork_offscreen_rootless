@@ -1576,12 +1576,12 @@ class Context:
                 cmd = 53 if s[1][0] == "x" else 39
                 addr = 0
                 value = (src << 40) | (val << 32) | (cond << 28)
-            elif s[0] == "call":
+            elif s[0] in ("call", "tailcall"):
                 ss = [x for x in s if x.find('(') == -1 and x.find(')') == -1]
                 assert(len(ss) == 3)
                 assert(ss[1][0] == "w")
                 assert(ss[2][0] == "x")
-                cmd = 32
+                cmd = { "call": 32, "tailcall": 33 }[s[0]]
                 addr = 0
                 num = reg(ss[1])
                 target = reg(ss[2])
