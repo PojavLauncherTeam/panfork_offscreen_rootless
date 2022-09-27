@@ -3391,9 +3391,7 @@ panfrost_emit_draw(void *out,
                                 cfg.occlusion_query = MALI_OCCLUSION_MODE_PREDICATE;
 
                         struct panfrost_resource *rsrc = pan_resource(ctx->occlusion_query->rsrc);
-#if PAN_ARCH < 10
-                        cfg.occlusion = rsrc->image.data.bo->ptr.gpu; // TODO v10
-#endif
+                        cfg.occlusion = rsrc->image.data.bo->ptr.gpu;
                         panfrost_batch_write_rsrc(ctx->batch, rsrc,
                                               PIPE_SHADER_FRAGMENT);
                 }
@@ -3417,8 +3415,9 @@ panfrost_emit_draw(void *out,
 
                 cfg.single_sampled_lines = !rast->multisample;
 
+                /* This is filled in by hardware on v10 */
 #if PAN_ARCH < 10
-                cfg.vertex_array.packet = true; // TODO v10
+                cfg.vertex_array.packet = true;
 #endif
 
                 cfg.minimum_z = batch->minimum_z;
