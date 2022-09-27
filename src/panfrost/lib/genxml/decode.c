@@ -1507,6 +1507,14 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
         case 16: case 17: {
                 char wid = (op == 16) ? 'w' : 'x';
 
+                if (op == 16) {
+                        buffer_unk[addr] = buffer[addr] = buffer[arg2] + l;
+                } else {
+                        uint64_t r = buffer[arg2] + ((uint64_t)buffer[arg2 + 1] << 32) + l;
+                        buffer_unk[addr] = buffer[addr] = r;
+                        buffer_unk[addr + 1] = buffer[addr + 1] = r >> 32;
+                }
+
                 if (arg1)
                         pandecode_log("add %c%02x, (unk %x), %c%02x, #0x%x\n",
                                       wid, addr, arg1, wid, arg2, l);
@@ -1738,8 +1746,7 @@ pandecode_cs_buffer(uint64_t *commands, unsigned size,
         uint64_t *end = (uint64_t *)((uint8_t *) commands + size);
 
         for (uint64_t c = *commands; commands < end; c = *(++commands)) {
-                pandecode_cs_command(c, va,
-                                     buffer, buffer_unk, gpu_id);
+                pandecode_cs_command(c, va, buffer, buffer_unk, gpu_id);
                 va += 8;
         }
 }
