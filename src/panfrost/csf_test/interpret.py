@@ -1641,15 +1641,20 @@ def interpret(text):
     c.interpret(text)
     return str(c)
 
-def run(text):
+def run(text, capture=False):
+    if capture:
+        cap = {"stdout": subprocess.PIPE, "stderr": subprocess.STDOUT}
+    else:
+        cap = {}
+
     # TODO: Keep seperate or merge stdout/stderr?
     ret = subprocess.run(["csf_test", "/dev/stdin"],
                          input=interpret(text), text=True,
-                         #capture_output=True
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                         )
+                         **cap)
     if ret.stderr is None:
         ret.stderr = ""
+    if ret.stdout is None:
+        ret.stdout = ""
     return ret.stderr + ret.stdout
 
 def rebuild():
