@@ -615,6 +615,10 @@
   </struct>
 
   <struct name="Primitive" layout="cs">
+    <field name="Index count" size="32" start="0x21:0" type="uint"/>
+    <field name="Base vertex offset" size="32" start="0x24:0" type="uint"/>
+    <field name="Instance offset" size="32" start="0x25:0" type="uint"/>
+
     <field name="Allow rotating primitives" size="1" start="0x38:2" type="bool" default="true"/>
     <field name="Point size array format" size="2" start="0x38:11" type="Point Size Array Format"/>
     <field name="Low Depth Cull" size="1" start="0x38:16" type="bool" default="true"/>
@@ -630,12 +634,6 @@
     <field name="Secondary Shader" size="1" start="0:18" type="bool"/>
     <field name="Layer index enable" size="1" start="0:20" type="bool"/>
     <field name="Scissor array enable" size="1" start="0:21" type="bool"/>
-
-    <field name="Base vertex offset" size="32" start="0x24:0" type="uint"/>
-    <field name="Index count" size="32" start="0x21:0" type="uint"/>
-
-    <!-- TODO -->
-    <field name="Instance offset" size="32" start="2:0" type="uint"/>
   </struct>
 
   <struct name="Sampler" size="8" align="32">
