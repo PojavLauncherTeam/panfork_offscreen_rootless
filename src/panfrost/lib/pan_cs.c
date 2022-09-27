@@ -967,21 +967,25 @@ GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
         assert(max_levels >= 2);
 
         pan_pack(out, TILER_CONTEXT, tiler) {
-                /* TODO: Select hierarchy mask more effectively */
-                tiler.hierarchy_mask = (max_levels >= 8) ? 0xFF : 0x28;
+                /* TODO: Select hierarchy mask more effectively. */
 
-                /* For large framebuffers, disable the smallest bin size to
-                 * avoid pathological tiler memory usage. Required to avoid OOM
-                 * on dEQP-GLES31.functional.fbo.no_attachments.maximums.all on
-                 * Mali-G57.
+                /* Disable the smallest hierarchy level. This is required to
+                 * use 32x32 tiles on v10, and helps reduce tiler heap memory
+                 * usage for other GPUs. The rasteriser can efficiently skip
+                 * primitives not entering the current quadrant of a tile, so
+                 * this should not hurt performance much.
+                 * Even for GPUs earlier than v10, cores get fed tiles in
+                 * 32x32 pixel blocks, so making all of the tiles use the same
+                 * set of primitive lists could help with performance.
+                 * Maybe then v10 should disable two levels?
                  */
-                //if (MAX2(fb_width, fb_height) >= 4096)
-                tiler.hierarchy_mask &= ~1;
+                tiler.hierarchy_mask = (max_levels >= 8) ? 0xFE : 0x28;
 
                 tiler.fb_width = fb_width;
                 tiler.fb_height = fb_height;
                 tiler.heap = heap;
 #if PAN_ARCH >= 10
+                /* TODO v10 IIRC this is very wrong */
                 tiler.unk_heap = heap - 0xfff0;
 #endif
                 tiler.sample_pattern = pan_sample_pattern(nr_samples);
