@@ -3268,8 +3268,8 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
                 }
 
 #if PAN_ARCH >= 6
-// TODO: Does this exist on v10?
-#if PAN_ARCH <= 9
+#if PAN_ARCH < 10
+                /* Appears to be gone/moved in v10 */
                 cfg.secondary_shader = secondary_shader;
 #endif
 #endif
