@@ -391,9 +391,11 @@ cs_group_term(kbase k, struct kbase_context *c)
 static bool
 tiler_heap_create(kbase k, struct kbase_context *c)
 {
+        c->tiler_heap_chunk_size = 1 << 21; /* 2 MB */
+
         union kbase_ioctl_cs_tiler_heap_init init = {
                 .in = {
-                        .chunk_size = 1 << 21,
+                        .chunk_size = c->tiler_heap_chunk_size,
                         .initial_chunks = 5,
                         .max_chunks = 200,
                         .target_in_flight = 65535,

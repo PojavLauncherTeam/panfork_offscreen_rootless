@@ -53,6 +53,7 @@ struct kbase_context {
         uint32_t csg_uid;
         unsigned num_csi;
 
+        unsigned tiler_heap_chunk_size;
         base_va tiler_heap_va;
         base_va tiler_heap_header;
 };

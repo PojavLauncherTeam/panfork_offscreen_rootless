@@ -3166,7 +3166,7 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         t.gpu += 0x10000;
 
         pan_pack(t.cpu, TILER_HEAP, heap) {
-                heap.size = 2097152;
+                heap.size = batch->ctx->kbase_ctx->tiler_heap_chunk_size;
                 heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
                 heap.bottom = heap.base + 64;
                 heap.top = heap.base + heap.size;
