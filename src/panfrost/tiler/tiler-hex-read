@@ -103,6 +103,8 @@ def fetch(ptr, size):
     else:
         if valhall:
             ptr -= base_ptr
+        if ptr < 0:
+            return b""
         return data[ptr:ptr+size]
 
 def print_draw(ptr):
@@ -141,7 +143,7 @@ def print_draw(ptr):
         # TODO: shr modifier
         ("Vertex array", 64, "2:0", "address"),
         ("Vertex packet stride", 16, "4:0", "uint"),
-        ("Vertex attribute stride", 16, "4:0", "uint"),
+        ("Vertex attribute stride", 16, "4:16", "uint"),
         ("Unk", 16, "5:0", "uint"),
 
         ("Minimum Z", 32, "6:0", "float"),
@@ -182,9 +184,10 @@ def print_draw(ptr):
 
 def print_vertex(ptr, positions):
     for p in positions:
-        data = fetch(ptr + p * 16, 16)
+        addr = ptr + p * 16
+        data = fetch(addr, 16)
         if len(data) < 16:
-            print("        <no data>")
+            print(f"        <no data : {hex(addr)}>")
             continue
         x, y, z, w = struct.unpack("=4f", data)
         print(f"       <{x} {y} {z} {w}>")
