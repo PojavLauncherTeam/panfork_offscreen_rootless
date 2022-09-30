@@ -610,8 +610,7 @@
     <field name="Draw mode" size="8" start="0" type="Draw Mode" default="None"/>
     <field name="Index type" size="3" start="8" type="Index Type" default="None"/>
     <field name="Varying" size="1" start="18" type="bool"/>
-    <field name="Unk register 1" size="8" start="32" type="register" default="0x42"/>
-    <field name="Unk register 2" size="8" start="40" type="register" default="0x4a"/>
+    <field name="Unk" size="16" start="32" type="register" default="0x4a42"/>
   </struct>
 
   <struct name="Primitive" layout="cs">
