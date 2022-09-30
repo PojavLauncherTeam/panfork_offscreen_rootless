@@ -155,6 +155,9 @@ struct kbase {
         void (*ctr_open)(kbase k);
         void (*ctr_set_enabled)(kbase k, bool enable);
         void (*ctr_dump)(kbase k);
+
+        void (*mem_sync)(kbase k, base_va gpu, void *cpu, unsigned size,
+                         bool invalidate);
 };
 
 bool kbase_open(kbase k, int fd, unsigned cs_queue_count);

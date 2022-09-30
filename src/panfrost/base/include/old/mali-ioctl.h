@@ -679,10 +679,10 @@ struct kbase_ioctl_mem_alias {
 	u64 va_pages;
 } __attribute__((packed));
 
-struct kbase_ioctl_sync {
+struct kbase_ioctl_mem_sync {
 	union kbase_ioctl_header header;
 	mali_ptr handle;
-	PAD_CPU_PTR(void* user_addr);
+	u64 user_addr;
 	u64 size;
 	enum {
 		MALI_SYNC_TO_DEVICE = 1,

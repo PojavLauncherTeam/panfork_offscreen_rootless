@@ -46,7 +46,7 @@ union kbase_ioctl_mem_alloc {
 #define KBASE_IOCTL_MEM_FREE                (_IOWR(0x82,  4, struct kbase_ioctl_mem_free))
 #define KBASE_IOCTL_MEM_FLAGS_CHANGE        (_IOWR(0x82,  5, struct kbase_ioctl_mem_flags_change))
 #define KBASE_IOCTL_MEM_ALIAS               (_IOWR(0x82,  6, struct kbase_ioctl_mem_alias))
-#define KBASE_IOCTL_SYNC                    (_IOWR(0x82,  8, struct kbase_ioctl_sync))
+#define KBASE_IOCTL_MEM_SYNC                (_IOWR(0x82,  8, struct kbase_ioctl_mem_sync))
 #define KBASE_IOCTL_POST_TERM               (_IOWR(0x82,  9, __ioctl_placeholder))
 #define KBASE_IOCTL_HWCNT_SETUP             (_IOWR(0x82, 10, __ioctl_placeholder))
 #define KBASE_IOCTL_HWCNT_DUMP              (_IOWR(0x82, 11, __ioctl_placeholder))

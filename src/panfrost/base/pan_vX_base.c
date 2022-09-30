@@ -1459,6 +1459,23 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 }
 #endif
 
+static void
+kbase_mem_sync(kbase k, base_va gpu, void *cpu, unsigned size,
+               bool invalidate)
+{
+        struct kbase_ioctl_mem_sync sync = {
+                .handle = gpu,
+                .user_addr = (uintptr_t) cpu,
+                .size = size,
+                .type = invalidate + (PAN_BASE_API == 0 ? 1 : 0),
+        };
+
+        int ret;
+        ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_SYNC, &sync);
+        if (ret == -1)
+                perror("ioctl(KBASE_IOCTL_MEM_SYNC)");
+}
+
 bool
 #if PAN_BASE_API == 0
 kbase_open_old
@@ -1507,6 +1524,8 @@ kbase_open_csf
         k->syncobj_destroy = kbase_syncobj_destroy;
         k->syncobj_dup = kbase_syncobj_dup;
         k->syncobj_wait = kbase_syncobj_wait;
+
+        k->mem_sync = kbase_mem_sync;
 
         for (unsigned i = 0; i < ARRAY_SIZE(kbase_main); ++i) {
                 ++k->setup_state;
