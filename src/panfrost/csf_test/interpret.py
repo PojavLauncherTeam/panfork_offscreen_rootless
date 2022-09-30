@@ -84,6 +84,8 @@ LEA_BUF_IMM.slot0.wait0 @r4:r5, r59, table:0xD, index:0x0
 #BRANCHZI.absolute 0x1000000, ^r4
 # position of 16384
 IADD_IMM.i32 r2, 0x0, #0x0e
+# position of 16
+IADD_IMM.i32 r2, 0x0, #0x04
 LSHIFT_OR.i32 r0, 0x03020100.b1, r2, 0x0
 LSHIFT_AND.i32 r0, r60, r2, ^r0
 IADD_IMM.i32 r1, 0x0, #0x01
@@ -92,13 +94,17 @@ LSHIFT_OR.i32 r1, ^r1, ^r2, 0x0
 S32_TO_F32 r0, ^r0
 S32_TO_F32 r1, ^r1
 
-#RSHIFT_OR.i32 r0, ^r60, 0x07060504.b00, 0x0
-#S32_TO_F32 r0, ^r0
+RSHIFT_OR.i32 r2, ^r60, 0x03020100.b22, 0x0
+S32_TO_F32 r2, ^r2
+FADD.f32 r0, ^r0, r2
+FADD.f32 r1, ^r1, ^r2
+S32_TO_F32 r2, ^r60
 #MOV.i32 r1, 0x0
 
 FADD.f32 r0, ^r0, 0x40490FDB
 FADD.f32 r1, ^r1, 0x40490FDB
-MOV.i32 r2, 0x3DCCCCCD
+FMA.f32 r2, ^r2, 0x3DCCCCCD, 0x0
+#MOV.i32 r2, 0x3DCCCCCD
 MOV.i32 r3, 0x0
 
 STORE.i128.slot0 @r0:r1:r2:r3, thread_local_pointer, offset:0
@@ -469,18 +475,7 @@ mov w21, 18
 mov w27, 4096
 mov x36, $index_buffer
 
-@ setting w38 to 2 has an odd effect:
-@ 0 1 2
-@ 2 1 0
-@ 2 0 1
-@ 1 0 2
-@ 2 0 1
-@ 2 1 0
-@ 2 0 1
-@ 1 0 2
-@ 1 2 0
-
-idvs 0x4a42, mode triangles, index uint32
+idvs 0x4002, mode triangles, index uint32
 
 mov w21, 1 @36
 mov w27, 4096
