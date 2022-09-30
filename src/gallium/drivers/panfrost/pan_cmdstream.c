@@ -2825,12 +2825,15 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 
         /* TODO define... this is tiler|idvs */
         if (cs->mask & 12) {
-            pan_pack_ins(c, CS_FLUSH_TILER, _) { } W;
+                pan_pack_ins(c, CS_FLUSH_TILER, _) { } W;
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; } W;
+        } else {
+                // This could I think be optimised to 0xf80211 rather than 0x233
+                // TODO: Does this need to run for vertex jobs?
+                // What about when doing transform feedback?
+                pan_emit_cs_32(c, 0x54, 0); W;
+                pan_emit_cs_ins(c, 0x24, 0x540000000233ULL); W;
         }
-
-        // This could I think be optimised to 0xf80211 rather than 0x233
-        pan_emit_cs_32(c, 0x54, 0); W;
-        pan_emit_cs_ins(c, 0x24, 0x540000000233ULL); W;
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr); W;
         // TODO: What about overflow... just use EVADD instead?
