@@ -1453,6 +1453,8 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         cs->last_extract = extract_offset;
 
+        kbase_handle_events(k);
+
         return true;
 }
 #endif
