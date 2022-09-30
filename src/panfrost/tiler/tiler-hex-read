@@ -211,6 +211,8 @@ def heap_interpret(start, end):
     b = 0
     c = 0
 
+    num_vert = 3
+
     draw_ptr = 0
     pos_ptr = 0
 
@@ -247,17 +249,17 @@ def heap_interpret(start, end):
             res = ""
             if valhall:
                 address = (up & 0x7ffffff) * 32
-                typ = DRAW_TYPES[(dat[3] >> 3) & 0x3]
+                num_vert = (dat[3] >> 3) & 0x3
             else:
                 address = (up & 0xffffff) * 64
-                typ = DRAW_TYPES[(dat[3] >> 2) & 0x3]
+                num_vert = (dat[3] >> 2) & 0x3
                 if dat[3] & 0x10:
                     a = 0
                     res = " reset"
             draw_ptr = address
             if valhall:
                 pos_ptr = address + 128
-            print(f"draw {typ}{res}: {hex(address)}")
+            print(f"draw {DRAW_TYPES[num_vert]}{res}: {hex(address)}")
         elif valhall and dat[3] >> 4 == 12:
             unk1 = up & 0x3f
             address = (up >> 6) & 0xffff
@@ -312,7 +314,7 @@ def heap_interpret(start, end):
 
             print(f"{mode} draw: {hex(pre_offset)} | +{tri0} {tri1} {tri2}{unk}")
 
-            print_vertex(pos_ptr, [a, b, c][:dat[3] >> 2])
+            print_vertex(pos_ptr, [a, b, c][:num_vert])
 
             a = b = c = 0
 
