@@ -84,6 +84,7 @@ typedef struct {
 
 struct kbase {
         unsigned setup_state;
+        bool verbose;
 
         int fd;
         unsigned api;
@@ -161,7 +162,7 @@ struct kbase {
                          bool invalidate);
 };
 
-bool kbase_open(kbase k, int fd, unsigned cs_queue_count);
+bool kbase_open(kbase k, int fd, unsigned cs_queue_count, bool verbose);
 
 /* Called from kbase_open */
 bool kbase_open_old(kbase k);

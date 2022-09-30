@@ -61,7 +61,15 @@
 #include "old/mali-ioctl.h"
 #include "old/mali-ioctl-midgard.h"
 #include "old/mali-props.h"
+#endif
 
+#include "mali_kbase_gpuprops.h"
+
+#define LOG(fmt, ...) do { \
+                if (k->verbose) printf(fmt __VA_OPT__(,) __VA_ARGS__); \
+        } while (0)
+
+#if PAN_BASE_API == 0
 static int
 kbase_ioctl(int fd, unsigned long request, ...)
 {
@@ -97,8 +105,6 @@ kbase_ioctl(int fd, unsigned long request, ...)
         }
 }
 #endif
-
-#include "mali_kbase_gpuprops.h"
 
 #if PAN_BASE_API >= 1
 static bool
@@ -887,7 +893,7 @@ kbase_poll_event(kbase k, int64_t timeout_ns)
         if (ret == -1)
                 perror("poll(mali fd)");
 
-        printf("poll returned %i\n", pfd.revents);
+        LOG("poll returned %i\n", pfd.revents);
 
         return;
 }
@@ -962,7 +968,7 @@ kbase_read_event(kbase k)
 
         switch (event.type) {
         case BASE_CSF_NOTIFICATION_EVENT:
-                printf("Notification event!\n");
+                LOG("Notification event!\n");
                 return true;
 
         case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
@@ -1016,7 +1022,8 @@ kbase_read_event(kbase k)
 }
 
 static void
-kbase_update_syncobjs(struct kbase_event_slot *slot,
+kbase_update_syncobjs(kbase k,
+                      struct kbase_event_slot *slot,
                       uint64_t seqnum)
 {
         struct kbase_sync_link **list = &slot->syncobjs;
@@ -1025,11 +1032,11 @@ kbase_update_syncobjs(struct kbase_event_slot *slot,
         while (*list) {
                 struct kbase_sync_link *link = *list;
 
-                printf("seq %lx %lx\n", seqnum, link->seqnum);
+                LOG("seq %lx %lx\n", seqnum, link->seqnum);
 
                 /* Remove the link if the syncobj is now signaled */
                 if (seqnum > link->seqnum) {
-                        printf("syncobj %p done!\n", link->o);
+                        LOG("syncobj %p done!\n", link->o);
                         kbase_syncobj_dec_jobs(link->o);
                         *list = link->next;
                         if (&link->next == back)
@@ -1057,7 +1064,7 @@ kbase_handle_events(kbase k)
                 uint64_t seqnum = event_mem[i * 2];
                 uint64_t cmp = k->event_slots[i].last;
 
-                printf("MAIN SEQ %lx > %lx?\n", seqnum, cmp);
+                LOG("MAIN SEQ %lx > %lx?\n", seqnum, cmp);
 
                 if (seqnum < cmp) {
                         fprintf(stderr, "seqnum at offset %i went backward "
@@ -1067,7 +1074,7 @@ kbase_handle_events(kbase k)
                         /* TODO: Atomic operations? */
                         k->event_slots[i].last = seqnum;
 
-                        kbase_update_syncobjs(&k->event_slots[i], seqnum);
+                        kbase_update_syncobjs(k, &k->event_slots[i], seqnum);
                 }
         }
 }
@@ -1430,7 +1437,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
-                printf("extract: %p %li\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT));
+                LOG("extract: %p %li\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT));
 
                 // TODO: Reduce timeout
                 kbase_poll_event(k, 200 * 1000000);
