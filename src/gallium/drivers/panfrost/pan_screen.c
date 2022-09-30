@@ -469,7 +469,7 @@ panfrost_get_shader_param(struct pipe_screen *screen,
                 return (1 << PIPE_SHADER_IR_NIR);
 
         case PIPE_SHADER_CAP_MAX_SHADER_BUFFERS:
-                return 16;//allow_side_effects ? 16 : 0;
+                return allow_side_effects ? 16 : 0;
 
         case PIPE_SHADER_CAP_MAX_SHADER_IMAGES:
                 return allow_side_effects ? PIPE_MAX_SHADER_IMAGES : 0;

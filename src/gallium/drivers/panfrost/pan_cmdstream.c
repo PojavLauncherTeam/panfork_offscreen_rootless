@@ -3198,8 +3198,7 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
         struct panfrost_context *ctx = batch->ctx;
         UNUSED struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
 
-        // TODO: Remove UNUSED
-        UNUSED bool lines = (info->mode == PIPE_PRIM_LINES ||
+        bool lines = (info->mode == PIPE_PRIM_LINES ||
                       info->mode == PIPE_PRIM_LINE_LOOP ||
                       info->mode == PIPE_PRIM_LINE_STRIP);
 
@@ -3238,15 +3237,14 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
 #endif
 
                 cfg.index_count = ctx->indirect_draw ? 1 : draw->count;
-                enum mali_index_type index_type = panfrost_translate_index_size(info->index_size);
-                cfg.index_type = index_type;
+                cfg.index_type = panfrost_translate_index_size(info->index_size);
 
                 if (PAN_ARCH >= 9) {
                         /* Base vertex offset on Valhall is used for both
                          * indexed and non-indexed draws, in a simple way for
                          * either. Handle both cases.
                          */
-                        if (index_type)
+                        if (cfg.index_type)
                                 cfg.base_vertex_offset = draw->index_bias;
                         else
                                 cfg.base_vertex_offset = draw->start;
@@ -3254,7 +3252,7 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
                         /* Indices are moved outside the primitive descriptor
                          * on Valhall, so we don't need to set that here
                          */
-                } else if (index_type) {
+                } else if (cfg.index_type) {
                         cfg.base_vertex_offset = draw->index_bias - ctx->offset_start;
 
 #if PAN_ARCH <= 7
@@ -3340,7 +3338,6 @@ panfrost_emit_shader(struct panfrost_batch *batch,
         ubos = panfrost_emit_const_buf(batch, stage, &ubo_count, &cfg->fau,
                                        &fau_words);
 
-        // TODO: is UBO emission problematic?
         resources = panfrost_emit_resources(batch, stage, ubos, ubo_count);
 
         cfg->thread_storage = thread_storage;
@@ -3518,7 +3515,7 @@ panfrost_emit_draw(void *out,
 }
 
 #if PAN_ARCH >= 9
-static bool
+static void
 panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                             const struct pipe_draw_info *info,
                             const struct pipe_draw_start_count_bias *draw,
@@ -3526,7 +3523,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                             void *job)
 {
         struct panfrost_context *ctx = batch->ctx;
-        UNUSED struct panfrost_compiled_shader *vs = ctx->prog[PIPE_SHADER_VERTEX];
+        struct panfrost_compiled_shader *vs = ctx->prog[PIPE_SHADER_VERTEX];
         struct panfrost_compiled_shader *fs = ctx->prog[PIPE_SHADER_FRAGMENT];
 
         bool fs_required = panfrost_fs_required(fs, ctx->blend,
@@ -3538,8 +3535,12 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
          */
         secondary_shader &= fs_required;
 
+#if PAN_ARCH < 10
+        panfrost_emit_primitive(batch, info, draw, 0, secondary_shader,
+                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
+#else
         panfrost_emit_primitive(batch, info, draw, 0, secondary_shader, job);
-//                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
+#endif
 
         pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, INSTANCE_COUNT, cfg) {
                 cfg.count = info->instance_count;
@@ -3571,9 +3572,10 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 cfg.address = panfrost_batch_get_bifrost_tiler(batch, ~0);
         }
 
-        /* For v10, we shouldn't have to emit the scissor most of the time */
+        /* For v10, the scissor is emitted directly by
+         * panfrost_emit_viewport */
 #if PAN_ARCH < 10
-        STATIC_ASSERT(sizeof(batch->scissor) == pan_size(SCISSOR)); // TODO v10
+        STATIC_ASSERT(sizeof(batch->scissor) == pan_size(SCISSOR));
         memcpy(pan_section_ptr(job, MALLOC_VERTEX_JOB, SCISSOR),
                &batch->scissor, pan_size(SCISSOR));
 #endif
@@ -3599,9 +3601,6 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 panfrost_emit_shader(batch, &cfg, PIPE_SHADER_VERTEX, vs_ptr,
                                      batch->tls.gpu);
 
-                // do we always emit this in this path?
-                // oh.. see below
-
                 pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, VARYING, vary) {
                         /* If a varying shader is used, we configure it with the same
                          * state as the position shader for backwards compatible
@@ -3612,17 +3611,11 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                         mali_ptr ptr = batch->rsd[PIPE_SHADER_VERTEX] +
                                 (2 * pan_size(SHADER_PROGRAM));
 
-                        vary.thread_storage = cfg.thread_storage;
                         vary.shader = ptr;
-                        // todo are these shared?
-                        vary.resources = cfg.resources;
 
-                        vary.fau = cfg.fau;
-                        vary.fau_count = cfg.fau_count;
+                        // TODO: Fix this function for v9!
                 }
         }
-
-        return secondary_shader;
 }
 #endif
 
@@ -3911,8 +3904,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 #if PAN_ARCH >= 9
         assert(idvs && "Memory allocated IDVS required on Valhall");
 
-        secondary_shader = panfrost_emit_malloc_vertex(
-           batch, info, draw, indices, secondary_shader, tiler.cpu);
+        panfrost_emit_malloc_vertex(batch, info, draw, indices, secondary_shader, tiler.cpu);
 
 #if PAN_ARCH >= 10
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, _);
@@ -4788,6 +4780,8 @@ prepare_shader(struct panfrost_compiled_shader *state,
                                                             SHADER_PROGRAM);
 
         state->state = panfrost_pool_take_ref(pool, ptr.gpu);
+
+        // TODO: Why set primary_shader to false again?
 
         /* Generic, or IDVS/points */
         pan_pack(ptr.cpu, SHADER_PROGRAM, cfg) {

@@ -1437,7 +1437,8 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
-                LOG("extract: %p %li\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT));
+                LOG("extract: %p %li (want %i)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
+                    extract_offset);
 
                 // TODO: Reduce timeout
                 kbase_poll_event(k, 200 * 1000000);

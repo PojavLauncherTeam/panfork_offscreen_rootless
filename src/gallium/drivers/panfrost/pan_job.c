@@ -867,12 +867,12 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset,
                             ctx->syncobj_kbase, ctx->kbase_cs_vertex.seqnum);
 
+        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset,
+                            ctx->syncobj_kbase, ctx->kbase_cs_fragment.seqnum);
+
         if (log)
                 printf("Wait vertex\n");
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
-
-        dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset,
-                            ctx->syncobj_kbase, ctx->kbase_cs_fragment.seqnum);
 
         if (log)
                 printf("Wait fragment\n");
