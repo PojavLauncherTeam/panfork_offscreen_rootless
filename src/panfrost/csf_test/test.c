@@ -1131,7 +1131,7 @@ dump_tiler(FILE *fp, uint8_t *values, unsigned size)
         FILE *stream = popen("tiler-hex-read", "w");
         // TODO!
         fprintf(stream, "width %i\nheight %i\nmask %i\nvaheap %p\nsize %i\n",
-                128, 128, 6, values, size);
+                256, 256, 6, values, size);
         pan_hexdump(stream, values, size, false);
         pclose(stream);
 }

@@ -141,7 +141,7 @@ memory = {
     "ssbo": 4096,
     "tls": 4096,
 
-    "plane_0": 128 * 128 * 32, # 512 KiB
+    "plane_0": 256 * 256 * 32, # 2 MB
 
     "idk": HEAP_SIZE,
     "heap": HEAP_SIZE,
@@ -167,7 +167,7 @@ descriptors = {
         # Single-sampled
         # Last provoking vertex
         0x6 | (0 << 18),
-        0x007f007f,
+        0x00ff00ff,
         # Layer
         0, 0,
         "tiler_heap",
@@ -271,8 +271,8 @@ descriptors = {
         0x10000, 0, # Argument
         "ls_alloc", # Sample locations
         "dcds", # DCDs
-        0x007f007f, # width / height
-        0, 0x007f007f, # bound min/max
+        0x00ff00ff, # width / height
+        0, 0x00ff00ff, # bound min/max
         # 32x32 tile size
         # 4096 byte buffer allocation (maybe?)
         (10 << 9) | (4 << 24),
@@ -301,7 +301,7 @@ descriptors = {
 
         # RT Buffer
         "plane_0",
-        128 * 4, # Row stride
+        256 * 4, # Row stride
         0x400, # Surface stride / Body offset
 
         # RT Clear
@@ -463,7 +463,7 @@ mov x28, $tiler_ctx
 @ Scissor min
 mov w2a, i16:0,0
 @ Scissor max
-mov w2b, i16:127,127
+mov w2b, i16:255,255
 
 mov w21, 18
 mov w27, 4096
@@ -480,18 +480,18 @@ mov x36, $index_buffer
 @ 1 0 2
 @ 1 2 0
 
-idvs 0x424a, mode triangles, index uint32
+idvs 0x4a42, mode triangles, index uint32
 
 mov w21, 1 @36
 mov w27, 4096
 mov x36, $point_index
 
-@idvs 0x424a, mode points, index uint32
+@idvs 0x4a42, mode points, index uint32
 
 mov w21, 4
-@idvs 0x424a, mode triangle-strip, index none
-@idvs 0x424a, mode points, index none
-@idvs 0x424a, mode line-loop, index none
+@idvs 0x4a42, mode triangle-strip, index none
+@idvs 0x4a42, mode points, index none
+@idvs 0x4a42, mode line-loop, index none
 
 flush_tiler
 
@@ -510,7 +510,7 @@ mov x50, $ev
 @ Bound min
 mov w2a, 0x00000000
 @ Bound max
-mov w2b, i16:127,127
+mov w2b, i16:255,255
 mov x28, $framebuffer+1
 @ Tile enable map
 mov x2c, $x
@@ -544,7 +544,7 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump y 0 4096
 @!dump plane_0 0 524288
 @!heatmap plane_0 0 524288 gran 0x80 len 0x200 stride 0x4000
-!heatmap plane_0 0 4096 gran 0x04 len 0x20 stride 0x200
+!heatmap plane_0 0 8192 gran 0x04 len 0x20 stride 0x400
 !dump occlusion 0 4096
 @!dump ssbo 0 4096
 """
