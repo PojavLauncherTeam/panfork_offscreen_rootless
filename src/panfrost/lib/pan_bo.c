@@ -118,6 +118,7 @@ panfrost_bo_free(struct panfrost_bo *bo)
         int ret;
 
         if (dev->kbase) {
+                os_munmap(bo->ptr.cpu, bo->size);
                 dev->mali.free(&dev->mali, bo->ptr.gpu);
                 kbase_free_gem_handle(&dev->mali, bo->gem_handle);
                 ret = 0;
@@ -385,10 +386,13 @@ panfrost_bo_mmap(struct panfrost_bo *bo)
 static void
 panfrost_bo_munmap(struct panfrost_bo *bo)
 {
+        if (bo->dev->kbase)
+                return;
+
         if (!bo->ptr.cpu)
                 return;
 
-        if (os_munmap((void *) (uintptr_t)bo->ptr.cpu, bo->size)) {
+        if (os_munmap(bo->ptr.cpu, bo->size)) {
                 perror("munmap");
                 abort();
         }
@@ -439,6 +443,10 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (!(flags & (PAN_BO_INVISIBLE | PAN_BO_DELAY_MMAP)))
                 panfrost_bo_mmap(bo);
 
+        // TODO: Fix the bugs so that returning non-zeroed memory is fine
+        if (!(flags & PAN_BO_INVISIBLE))
+                memset(bo->ptr.cpu, 0, bo->size);
+
         p_atomic_set(&bo->refcnt, 1);
 
         if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC)) {
@@ -447,8 +455,6 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
                 else if (!(flags & PAN_BO_DELAY_MMAP))
                         pandecode_inject_mmap(bo->ptr.gpu, bo->ptr.cpu, bo->size, NULL);
         }
-
-        memset(bo->ptr.cpu, 0, bo->size);
 
         return bo;
 }
