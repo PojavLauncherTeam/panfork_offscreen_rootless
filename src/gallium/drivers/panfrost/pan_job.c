@@ -872,6 +872,28 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         printf("Wait fragment\n");
         dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
 
+        if (dev->debug & PAN_DBG_TILER) {
+                fflush(stdout);
+                FILE *stream = popen("tiler-hex-read", "w");
+
+                /* TODO: Dump more than just the first chunk */
+                unsigned size = batch->ctx->kbase_ctx->tiler_heap_chunk_size;
+                uint64_t va = batch->ctx->kbase_ctx->tiler_heap_header;
+
+                fprintf(stream, "width %i\n" "height %i\n" "mask %i\n"
+                        "vaheap 0x%"PRIx64"\n" "size %i\n",
+                        batch->key.width, batch->key.height, 0xfe, va, size);
+
+                void *ptr = mmap(NULL, size, PROT_READ | PROT_WRITE,
+                                 MAP_SHARED, dev->mali.fd, va);
+
+                pan_hexdump(stream, ptr, size, false);
+                memset(ptr, 0, size);
+                munmap(ptr, size);
+
+                pclose(stream);
+        }
+
         if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +
                         ctx->kbase_cs_vertex.base.last_extract;
