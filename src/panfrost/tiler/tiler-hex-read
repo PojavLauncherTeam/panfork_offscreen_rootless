@@ -9,8 +9,7 @@ data = b''
 
 fb_width = 160
 fb_height = 160
-#fb_mask = 0xffff
-hierarchy_mask = 6
+hierarchy_mask = 0xffff
 
 HEAP_OFS = 0x8000
 
@@ -19,6 +18,7 @@ heap_ptr = 0
 midgard = False
 bifrost = True
 valhall = False
+size = None
 
 bak_data = b''
 
@@ -37,15 +37,12 @@ for line in sys.stdin.read().split("\n"):
         fb_height = int(split[1])
         continue
     if split[0] == "mask":
-        fb_mask = int(split[1], 0)
+        hierarchy_mask = int(split[1], 0)
         continue
     if split[0] == "vaheap":
         base_ptr = int(split[1], 16)
         bifrost = False
         valhall = True
-        # TODO: Determine dynamically
-        HEAP_OFS = 0xffe80
-        HEAP_STRIDE = 192
         continue
     if split[0] == "addr":
         base_ptr = int(split[1], 16)
@@ -59,6 +56,9 @@ for line in sys.stdin.read().split("\n"):
         cur_data = b''
         bak_data = data
         data = b''
+        continue
+    if split[0] == "size":
+        size = int(split[1], 0)
         continue
     offset = int(split[0], 16)
     if offset > len(data):
@@ -74,6 +74,9 @@ data += cur_data
 
 if heap_ptr:
     data, heap_data = bak_data, data
+
+if size == None:
+    size = len(data)
 
 def int7(val, signed=True):
     val = val & 0x7f
@@ -315,35 +318,47 @@ def heap_interpret(start, end):
 
         start += 4
 
+def level_list():
+    levels = []
+    size = 16
+    anylevel = False
+
+    # TODO: Does this miss the largest level?
+    while anylevel == False or size // 2 < min(fb_width, fb_height):
+        if (hierarchy_mask << 4) & size != 0:
+            anylevel = True
+            levels.append(size)
+
+        size *= 2
+
+    return levels
+
+def div_round_up(x, y):
+    return (x + y - 1) // y
+
+def align(x, y):
+    return div_round_up(x, y) * y
+
+def tile_count():
+    return sum(div_round_up(fb_width, size) * div_round_up(fb_height, size)
+               for size in level_list())
+
 if midgard:
     unpacked_header = list(struct.unpack("=16i", data[0:64]))
     # Is this really big endian?
     unpacked_header[5:7] = struct.unpack(">2i", data[20:28])
     print(f"header: {' '.join([str(x) for x in unpacked_header])}")
 
-    header_size = 0
-
-    pos = base_ptr + HEAP_OFS
-    size = 16
-
-    while size == 16 or size // 2 < max(fb_width, fb_height):
-        header_size += ((fb_width + size - 1) // size) * ((fb_height + size - 1) // size)
-        size *= 2
-
     # Extra is because of HEAP_OFS
-    header_size = (header_size + 63 + 8) & ~63
+    header_size = align(tile_count() + 8, 64)
+elif valhall:
+    # TODO: Does this figure need alignment?
+    HEAP_STRIDE = tile_count() * 8
+    HEAP_OFS = size - HEAP_STRIDE * 2
 
 pos = base_ptr + HEAP_OFS
-size = 16
-anylevel = False
 
-# TODO: Does this miss the largest level?
-while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
-    if (hierarchy_mask << 4) & size == 0:
-        size *= 2
-        continue
-
-    anylevel = True
+for size in level_list():
     for y in range((fb_height + size - 1) // size):
         for x in range((fb_width + size - 1) // size):
             header = fetch(pos, 8)
@@ -378,4 +393,3 @@ while anylevel == False or size == 16 or size // 2 < min(fb_width, fb_height):
                 heap_interpret(start, end)
 
             pos += 8
-    size *= 2
