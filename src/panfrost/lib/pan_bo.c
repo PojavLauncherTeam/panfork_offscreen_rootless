@@ -448,6 +448,8 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
                         pandecode_inject_mmap(bo->ptr.gpu, bo->ptr.cpu, bo->size, NULL);
         }
 
+        memset(bo->ptr.cpu, 0, bo->size);
+
         return bo;
 }
 
