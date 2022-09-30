@@ -960,7 +960,7 @@ kbase_read_event(kbase k)
 
         switch (event.type) {
         case BASE_CSF_NOTIFICATION_EVENT:
-                fprintf(stderr, "Notification event!\n");
+                printf("Notification event!\n");
                 return true;
 
         case BASE_CSF_NOTIFICATION_GPU_QUEUE_GROUP_ERROR:
