@@ -3929,7 +3929,7 @@ panfrost_direct_draw(struct panfrost_batch *batch,
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, cfg) {
                 cfg.draw_mode = pan_draw_mode(info->mode);
                 cfg.index_type = panfrost_translate_index_size(info->index_size);
-                cfg.varying = secondary_shader;
+                cfg.secondary_shader = secondary_shader;
         }
         batch->scoreboard.first_job = 1;
         batch->scoreboard.first_tiler = NULL + 1;

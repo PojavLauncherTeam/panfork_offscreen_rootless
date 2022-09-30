@@ -599,17 +599,17 @@
 
   <enum name="Primitive Restart">
     <value name="None" value="0"/>
-    <value name="Implicit" value="2"/>
-    <value name="Explicit" value="3"/>
+    <value name="Explicit" value="1"/>
   </enum>
 
   <struct name="Tiler launch" layout="ins" op="5">
   </struct>
 
   <struct name="IDVS launch" layout="ins" op="6">
+    <!-- The low 32 bits are all ORd with register w38 -->
     <field name="Draw mode" size="8" start="0" type="Draw Mode" default="None"/>
     <field name="Index type" size="3" start="8" type="Index Type" default="None"/>
-    <field name="Varying" size="1" start="18" type="bool"/>
+    <field name="Secondary Shader" size="1" start="18" type="bool"/>
     <field name="Unk" size="16" start="32" type="register" default="0x4a42"/>
   </struct>
 
@@ -618,19 +618,22 @@
     <field name="Base vertex offset" size="32" start="0x24:0" type="uint"/>
     <field name="Instance offset" size="32" start="0x25:0" type="uint"/>
 
-    <field name="Allow rotating primitives" size="1" start="0x38:2" type="bool" default="true"/>
+    <!-- These bits can also be set from the IDVS launch instruction...
+         they are combined with a bitwise OR. -->
+    <field name="Draw mode" size="8" start="0x38:0" type="Draw Mode" default="None"/>
+    <field name="Index type" size="3" start="0x38:8" type="Index Type" default="None"/>
     <field name="Point size array format" size="2" start="0x38:11" type="Point Size Array Format"/>
+    <field name="Primitive Index Enable" size="1" start="0x38:13" type="bool"/>
+    <field name="Primitive Index Writeback" size="1" start="0x38:14" type="bool"/>
+    <field name="Allow rotating primitives" size="1" start="0x38:15" type="bool" default="true"/>
     <field name="Low Depth Cull" size="1" start="0x38:16" type="bool" default="true"/>
     <field name="High Depth Cull" size="1" start="0x38:17" type="bool" default="true"/>
-    <!-- Is this really a two-bit field? Explicit mode was apparently removed. -->
-    <field name="Primitive restart" size="2" start="0x38:18" type="Primitive Restart"/>
+    <field name="Secondary Shader" size="1" start="0x38:18" type="bool"/>
+    <field name="Primitive restart" size="1" start="0x38:19" type="Primitive Restart"/>
     <!-- Set to 2 when writing point size, 1 otherwise. 0 appears to be fine in any case. -->
     <field name="Unk" size="2" start="0x38:22" type="uint"/>
 
     <!-- These are likely in 0x38, but bit positions have not been verified -->
-    <field name="Primitive Index Enable" size="1" start="0:13" type="bool"/>
-    <field name="Primitive Index Writeback" size="1" start="0:14" type="bool"/>
-    <field name="Secondary Shader" size="1" start="0:18" type="bool"/>
     <field name="Layer index enable" size="1" start="0:20" type="bool"/>
     <field name="Scissor array enable" size="1" start="0:21" type="bool"/>
   </struct>
