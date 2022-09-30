@@ -344,8 +344,8 @@ def div_round_up(x, y):
 def align(x, y):
     return div_round_up(x, y) * y
 
-def tile_count():
-    return sum(div_round_up(fb_width, size) * div_round_up(fb_height, size)
+def tile_count(alignment=4):
+    return sum(align(div_round_up(fb_width, size) * div_round_up(fb_height, size), 4)
                for size in level_list())
 
 if midgard:
