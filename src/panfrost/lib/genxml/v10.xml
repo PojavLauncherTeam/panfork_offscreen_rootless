@@ -1249,7 +1249,8 @@
     <field name="Layer count" size="8" start="4:0" type="uint" default="1" modifier="minus(1)"/>
     <field name="Layer offset" size="8" start="4:8" type="uint"/>
     <field name="Heap" size="64" start="6:0" type="address"/>
-    <field name="Unk Heap" size="64" start="8:0" type="address"/>
+    <!-- The blob places this directly before the heap pointer -->
+    <field name="Scratch" size="64" start="8:0" type="address"/>
     <field name="Weights" size="256" start="8:0" type="Tiler Weights"/>
     <field name="State" size="512" start="32:0" type="Tiler State"/>
   </struct>

@@ -3161,7 +3161,7 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         struct panfrost_ptr t =
                 pan_pool_alloc_aligned(&batch->pool.base, 0x12000, 64);
 
-        /* What's this about? I don't know... */
+        /* Allocate scratch space for vertex positions / point sizes */
         t.cpu += 0x10000;
         t.gpu += 0x10000;
 

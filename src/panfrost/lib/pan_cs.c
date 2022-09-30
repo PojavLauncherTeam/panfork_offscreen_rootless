@@ -985,8 +985,7 @@ GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
                 tiler.fb_height = fb_height;
                 tiler.heap = heap;
 #if PAN_ARCH >= 10
-                /* TODO v10 IIRC this is very wrong */
-                tiler.unk_heap = heap - 0xfff0;
+                tiler.scratch = heap - 0xfff0;
 #endif
                 tiler.sample_pattern = pan_sample_pattern(nr_samples);
 #if PAN_ARCH >= 9
