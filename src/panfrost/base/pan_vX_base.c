@@ -810,17 +810,17 @@ kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
                         perror("poll(syncobj)");
 
                 if (ret == 0 && try_count > 10) {
-                        fprintf(stderr, "syncobj wait timeout, returning\n");
+                        fprintf(stderr, "syncobj wait timeout, %p returning\n", o);
                         return false;
                 }
 
                 if (ret == 0) {
                         ++try_count;
-                        fprintf(stderr, "syncobj wait timeout\n");
+                        fprintf(stderr, "syncobj wait timeout %p\n", o);
                         continue;
                 }
 
-                if (pfd[0].revents)
+                if (pfd[0].revents || try_count > 10)
                         kbase_handle_events(k);
         }
 
@@ -1072,7 +1072,7 @@ kbase_handle_events(kbase k)
                         fprintf(stderr, "seqnum at offset %i went backward "
                                 "from %"PRIu64" to %"PRIu64"!\n",
                                 i, cmp, seqnum);
-                } else if (seqnum > cmp) {
+                } else /*if (seqnum > cmp)*/ {
                         /* TODO: Atomic operations? */
                         k->event_slots[i].last = seqnum;
 
