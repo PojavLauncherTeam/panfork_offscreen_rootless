@@ -209,6 +209,8 @@ no_cs = "".join([f"""
 
 #define pan_pack_cs_v10(dst, _, T, name) pan_pack(dst, T, name)
 
+#define pan_section_pack_cs_v10(dst, _, A, S, name) pan_section_pack(dst, A, S, name)
+
 //#define pan_pack_cs(dst, T, name)                       \\//
 //   for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\//
 //        *_loop_terminate = (void *) (dst);                  \\//
@@ -222,8 +224,17 @@ with_cs = """
    for (struct PREFIX1(T) name = { PREFIX2(T, header) }, \\
         *_loop_terminate = (void *) (dst);                  \\
         __builtin_expect(_loop_terminate != NULL, 1);       \\
-        ({ PREFIX2(T, pack)(dst, &name);  \\
+        ({ PREFIX2(T, pack_cs)(dst, &name);  \\
            _loop_terminate = NULL; }))
+
+#define pan_section_pack_cs(dst, A, S, name)                                                         \\
+   for (PREFIX4(A, SECTION, S, TYPE) name = { PREFIX4(A, SECTION, S, header) }, \\
+        *_loop_terminate = (void *) (dst);                                                        \\
+        __builtin_expect(_loop_terminate != NULL, 1);                                             \\
+        ({ PREFIX4(A, SECTION, S, pack_cs) (dst, &name);              \\
+           _loop_terminate = NULL; }))
+
+#define pan_section_pack_cs_v10(_, dst, A, S, name) pan_section_pack_cs(dst, A, S, name)
 
 // TODO: assert that the first argument is NULL
 #define pan_pack_cs_v10(_, dst, T, name) pan_pack_cs(dst, T, name)
@@ -862,6 +873,8 @@ class Parser(object):
             print('#define {}_SECTION_{}_TYPE struct {}'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
             print('#define {}_SECTION_{}_header {}_header'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
             print('#define {}_SECTION_{}_pack {}_pack'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
+            # TODO: Only when req'd
+            print('#define {}_SECTION_{}_pack_cs {}_pack_cs'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
             print('#define {}_SECTION_{}_unpack {}_unpack'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
             print('#define {}_SECTION_{}_print {}_print'.format(aggregate.name.upper(), section.name.upper(), section.type_name))
             print('#define {}_SECTION_{}_OFFSET {}'.format(aggregate.name.upper(), section.name.upper(), section.offset))
@@ -884,7 +897,7 @@ class Parser(object):
         print('struct {}_packed {{ uint32_t opaque[{}]; }};'.format(name.lower(), group.length // 4))
 
     def emit_cs_pack_function(self, name, group):
-        print("static inline void\n%s_pack(pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{\n" %
+        print("static inline void\n%s_pack_cs(pan_command_stream * restrict s,\n%sconst struct %s * restrict values)\n{\n" %
               (name, ' ' * (len(name) + 6), name))
 
         group.emit_pack_function(csf=True)

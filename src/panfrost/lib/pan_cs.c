@@ -991,7 +991,8 @@ GENX(pan_emit_fragment_job)(const struct pan_fb_info *fb,
         }
 #endif
 
-        pan_section_pack(out, FRAGMENT_JOB, PAYLOAD, payload) {
+        pan_command_stream s = {0};
+        pan_section_pack_cs_v10(out, &s, FRAGMENT_JOB, PAYLOAD, payload) {
                 payload.bound_min_x = fb->extent.minx >> MALI_TILE_SHIFT;
                 payload.bound_min_y = fb->extent.miny >> MALI_TILE_SHIFT;
                 payload.bound_max_x = fb->extent.maxx >> MALI_TILE_SHIFT;

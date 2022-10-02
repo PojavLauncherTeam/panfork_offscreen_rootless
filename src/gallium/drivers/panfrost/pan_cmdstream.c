@@ -3447,7 +3447,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
         panfrost_emit_primitive(batch, info, draw, 0, secondary_shader, job);
 //                                pan_section_ptr(job, MALLOC_VERTEX_JOB, PRIMITIVE));
 
-        pan_section_pack(job, MALLOC_VERTEX_JOB, INSTANCE_COUNT, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, INSTANCE_COUNT, cfg) {
                 cfg.count = info->instance_count;
         }
 
@@ -3469,7 +3469,7 @@ panfrost_emit_malloc_vertex(struct panfrost_batch *batch,
                 }
         }
 
-        pan_section_pack(job, MALLOC_VERTEX_JOB, TILER, cfg) {
+        pan_section_pack_cs_v10(job, &batch->cs_vertex, MALLOC_VERTEX_JOB, TILER, cfg) {
                 cfg.address = panfrost_batch_get_bifrost_tiler(batch, ~0);
         }
 
@@ -3590,7 +3590,7 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
         batch->rsd[PIPE_SHADER_VERTEX] = panfrost_emit_compute_shader_meta(batch, PIPE_SHADER_VERTEX);
 
 #if PAN_ARCH >= 9
-        pan_section_pack(t.cpu, COMPUTE_JOB, PAYLOAD, cfg) {
+        pan_section_pack_cs_v10(t.cpu, &batch->cs_vertex, COMPUTE_JOB, PAYLOAD, cfg) {
                 cfg.workgroup_size_x = 1;
                 cfg.workgroup_size_y = 1;
                 cfg.workgroup_size_z = 1;
@@ -4213,7 +4213,7 @@ panfrost_launch_grid(struct pipe_context *pipe,
 #else
         struct panfrost_compiled_shader *cs = ctx->prog[PIPE_SHADER_COMPUTE];
 
-        pan_section_pack(t.cpu, COMPUTE_JOB, PAYLOAD, cfg) {
+        pan_section_pack_cs_v10(t.cpu, &batch->cs_vertex, COMPUTE_JOB, PAYLOAD, cfg) {
                 cfg.workgroup_size_x = info->block[0];
                 cfg.workgroup_size_y = info->block[1];
                 cfg.workgroup_size_z = info->block[2];
@@ -4788,6 +4788,12 @@ init_batch(struct panfrost_batch *batch)
 #else
         /* On Midgard, the TLS is embedded in the FB descriptor */
         batch->tls = batch->framebuffer;
+#endif
+
+#if PAN_ARCH >= 10
+        // TODO v10
+        batch->cs_vertex.ptr = malloc(65536);
+        batch->cs_fragment.ptr = malloc(65536);
 #endif
 }
 
