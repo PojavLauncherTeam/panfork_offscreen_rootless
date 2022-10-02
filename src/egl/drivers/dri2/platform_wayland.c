@@ -51,6 +51,7 @@
 #include <wayland-egl-backend.h>
 #include <wayland-client.h>
 #include "wayland-drm-client-protocol.h"
+#include "mali-buffer-sharing-client-protocol.h"
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
 
 /*
@@ -668,7 +669,7 @@ dri2_wl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
                                                dri2_surf->base.PresentOpaque);
    assert(visual_idx != -1);
 
-   if (dri2_dpy->wl_dmabuf || dri2_dpy->wl_drm) {
+   if (dri2_dpy->wl_dmabuf || dri2_dpy->wl_drm || dri2_dpy->wl_mali) {
       dri2_surf->format = dri2_wl_visuals[visual_idx].wl_drm_format;
    } else {
       assert(dri2_dpy->wl_shm);
@@ -688,6 +689,16 @@ dri2_wl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
          goto cleanup_queue;
       }
       wl_proxy_set_queue((struct wl_proxy *)dri2_surf->wl_drm_wrapper,
+                         dri2_surf->wl_queue);
+   }
+
+   if (dri2_dpy->wl_mali) {
+      dri2_surf->wl_mali_wrapper = wl_proxy_create_wrapper(dri2_dpy->wl_mali);
+      if (!dri2_surf->wl_mali_wrapper) {
+         _eglError(EGL_BAD_ALLOC, "dri2_create_surface");
+         goto cleanup_queue;
+      }
+      wl_proxy_set_queue((struct wl_proxy *)dri2_surf->wl_mali_wrapper,
                          dri2_surf->wl_queue);
    }
 
@@ -765,6 +776,8 @@ dri2_wl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
  cleanup_drm:
    if (dri2_surf->wl_drm_wrapper)
       wl_proxy_wrapper_destroy(dri2_surf->wl_drm_wrapper);
+   if (dri2_surf->wl_mali_wrapper)
+      wl_proxy_wrapper_destroy(dri2_surf->wl_mali_wrapper);
  cleanup_queue:
    wl_event_queue_destroy(dri2_surf->wl_queue);
  cleanup_surf:
@@ -827,6 +840,8 @@ dri2_wl_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
    wl_proxy_wrapper_destroy(dri2_surf->wl_dpy_wrapper);
    if (dri2_surf->wl_drm_wrapper)
       wl_proxy_wrapper_destroy(dri2_surf->wl_drm_wrapper);
+   if (dri2_surf->wl_mali_wrapper)
+      wl_proxy_wrapper_destroy(dri2_surf->wl_mali_wrapper);
    if (dri2_surf->wl_dmabuf_feedback) {
       zwp_linux_dmabuf_feedback_v1_destroy(dri2_surf->wl_dmabuf_feedback);
       dmabuf_feedback_fini(&dri2_surf->dmabuf_feedback);
@@ -1460,6 +1475,40 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
       ret = zwp_linux_buffer_params_v1_create_immed(params, width, height,
                                                     fourcc, 0);
       zwp_linux_buffer_params_v1_destroy(params);
+   } else if (dri2_surf->wl_mali_wrapper || dri2_dpy->wl_mali) {
+      struct wl_drm *wl_mali =
+         dri2_surf ? dri2_surf->wl_mali_wrapper : dri2_dpy->wl_mali;
+      int fd = -1, stride;
+
+      if (num_planes > 1)
+         return NULL;
+
+      query = dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_FD, &fd);
+      query &= dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
+      if (!query) {
+         if (fd >= 0)
+            close(fd);
+         return NULL;
+      }
+
+      uint32_t format;
+
+      switch (fourcc) {
+      case DRM_FORMAT_RGB565:
+              format = MALI_BUFFER_SHARING_FORMAT_RGB565;
+              break;
+      case DRM_FORMAT_XRGB8888:
+              format = MALI_BUFFER_SHARING_FORMAT_XRGB8888;
+              break;
+      default:
+              format = MALI_BUFFER_SHARING_FORMAT_ARGB8888;
+              break;
+      }
+
+      ret = mali_buffer_sharing_create_buffer((void *)wl_mali,
+                                              width, height, stride,
+                                              0 /* offset */, format, fd);
+      close(fd);
    } else {
       struct wl_drm *wl_drm =
          dri2_surf ? dri2_surf->wl_drm_wrapper : dri2_dpy->wl_drm;
@@ -1734,6 +1783,58 @@ drm_handle_device(void *data, struct wl_drm *drm, const char *device)
 }
 
 static void
+mali_handle_device(void *data, struct mali_buffer_sharing *drm, const char *device)
+{
+   struct dri2_egl_display *dri2_dpy = data;
+   drm_magic_t magic;
+
+   // hack
+   printf("device %s\n", device);
+   dri2_dpy->device_name = strdup("/dev/dri/card0");
+
+   dri2_dpy->fd = loader_open_device(dri2_dpy->device_name);
+   if (dri2_dpy->fd == -1) {
+      _eglLog(_EGL_WARNING, "wayland-egl: could not open %s (%s)",
+              dri2_dpy->device_name, strerror(errno));
+      free(dri2_dpy->device_name);
+      dri2_dpy->device_name = NULL;
+      return;
+   }
+
+   if (drmGetNodeTypeFromFd(dri2_dpy->fd) == DRM_NODE_RENDER) {
+      dri2_dpy->authenticated = true;
+   } else {
+      roundtrip(dri2_dpy);
+      if (drmGetMagic(dri2_dpy->fd, &magic)) {
+         close(dri2_dpy->fd);
+         dri2_dpy->fd = -1;
+         free(dri2_dpy->device_name);
+         dri2_dpy->device_name = NULL;
+         _eglLog(_EGL_WARNING, "wayland-egl: drmGetMagic failed");
+         return;
+      }
+
+      mali_buffer_sharing_auth((void *)dri2_dpy->wl_mali, magic);
+      roundtrip(dri2_dpy);
+      // We don't get a callback
+      dri2_dpy->authenticated = true;
+   }
+
+   int supported_fourcc[] = {
+      DRM_FORMAT_RGB565,
+      DRM_FORMAT_XRGB8888,
+      DRM_FORMAT_ARGB8888,
+   };
+
+   for (unsigned i = 0; i < ARRAY_SIZE(supported_fourcc); ++i) {
+      int visual_idx = dri2_wl_visual_idx_from_fourcc(supported_fourcc[i]);
+      assert(visual_idx != -1);
+
+      BITSET_SET(dri2_dpy->formats.formats_bitmap, visual_idx);
+   }
+}
+
+static void
 drm_handle_format(void *data, struct wl_drm *drm, uint32_t format)
 {
    struct dri2_egl_display *dri2_dpy = data;
@@ -1766,6 +1867,10 @@ static const struct wl_drm_listener drm_listener = {
    .format = drm_handle_format,
    .authenticated = drm_handle_authenticated,
    .capabilities = drm_handle_capabilities
+};
+
+static const struct mali_buffer_sharing_listener mali_listener = {
+   .alloc_device = mali_handle_device,
 };
 
 static void
@@ -1811,6 +1916,14 @@ wl_drm_bind(struct dri2_egl_display *dri2_dpy)
    dri2_dpy->wl_drm = wl_registry_bind(dri2_dpy->wl_registry, dri2_dpy->wl_drm_name,
                                        &wl_drm_interface, dri2_dpy->wl_drm_version);
    wl_drm_add_listener(dri2_dpy->wl_drm, &drm_listener, dri2_dpy);
+}
+
+static void
+wl_mali_bind(struct dri2_egl_display *dri2_dpy)
+{
+   dri2_dpy->wl_mali = wl_registry_bind(dri2_dpy->wl_registry, dri2_dpy->wl_mali_name,
+                                        &mali_buffer_sharing_interface, dri2_dpy->wl_mali_version);
+   mali_buffer_sharing_add_listener((void *)dri2_dpy->wl_mali, &mali_listener, dri2_dpy);
 }
 
 static void
@@ -1943,6 +2056,9 @@ registry_handle_global_drm(void *data, struct wl_registry *registry,
    if (strcmp(interface, wl_drm_interface.name) == 0) {
       dri2_dpy->wl_drm_version = MIN2(version, 2);
       dri2_dpy->wl_drm_name = name;
+   } else if (strcmp(interface, mali_buffer_sharing_interface.name) == 0) {
+      dri2_dpy->wl_mali_version = MIN2(version, 4);
+      dri2_dpy->wl_mali_name = name;
    } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 && version >= 3) {
       dri2_dpy->wl_dmabuf =
          wl_registry_bind(registry, name, &zwp_linux_dmabuf_v1_interface,
@@ -2145,10 +2261,7 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
 
    /* We couldn't retrieve a render node from the dma-buf feedback (or the
     * feedback was not advertised at all), so we must fallback to wl_drm. */
-   if (dri2_dpy->fd == -1) {
-      /* wl_drm not advertised by compositor, so can't continue */
-      if (dri2_dpy->wl_drm_name == 0)
-         goto cleanup;
+   if (dri2_dpy->fd == -1 && dri2_dpy->wl_drm_name) {
       wl_drm_bind(dri2_dpy);
 
       if (dri2_dpy->wl_drm == NULL)
@@ -2160,6 +2273,22 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
           (roundtrip(dri2_dpy) < 0 || !dri2_dpy->authenticated))
          goto cleanup;
    }
+
+   if (dri2_dpy->fd == -1 && dri2_dpy->wl_mali_name) {
+      wl_mali_bind(dri2_dpy);
+
+      if (dri2_dpy->wl_mali == NULL)
+         goto cleanup;
+      if (roundtrip(dri2_dpy) < 0 || dri2_dpy->fd == -1)
+         goto cleanup;
+
+      if (!dri2_dpy->authenticated &&
+          (roundtrip(dri2_dpy) < 0 || !dri2_dpy->authenticated))
+         goto cleanup;
+   }
+
+   if (dri2_dpy->fd)
+           goto cleanup;
 
    dri2_dpy->fd = loader_get_user_preferred_fd(dri2_dpy->fd,
                                                &dri2_dpy->is_different_gpu);
@@ -2786,6 +2915,8 @@ dri2_teardown_wayland(struct dri2_egl_display *dri2_dpy)
    dri2_wl_formats_fini(&dri2_dpy->formats);
    if (dri2_dpy->wl_drm)
       wl_drm_destroy(dri2_dpy->wl_drm);
+   if (dri2_dpy->wl_mali)
+      wl_drm_destroy(dri2_dpy->wl_mali);
    if (dri2_dpy->wl_dmabuf)
       zwp_linux_dmabuf_v1_destroy(dri2_dpy->wl_dmabuf);
    if (dri2_dpy->wl_shm)

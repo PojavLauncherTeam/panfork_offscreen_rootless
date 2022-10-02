@@ -212,7 +212,8 @@ bind_drm(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 
 	wl_resource_set_implementation(resource, &drm_interface, data, NULL);
 
-	wl_resource_post_event(resource, WL_DRM_DEVICE, drm->device_name);
+        printf("device name: %s\n", drm->device_name);
+	wl_resource_post_event(resource, WL_DRM_DEVICE, "/dev/dri/card0");
 
 	if (drm->callbacks.is_format_supported(drm->user_data,
 					       WL_DRM_FORMAT_ARGB2101010)) {

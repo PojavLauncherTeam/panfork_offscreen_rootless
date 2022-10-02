@@ -52,6 +52,8 @@
 #include <wayland-client.h>
 #include "wayland-drm.h"
 #include "wayland-drm-client-protocol.h"
+#include "mali-buffer-sharing.h"
+#include "mali-buffer-sharing-client-protocol.h"
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
 #endif
 
@@ -2260,6 +2262,9 @@ dri2_create_image_wayland_wl_buffer(_EGLDisplay *disp, _EGLContext *ctx,
    buffer = wayland_drm_buffer_get(dri2_dpy->wl_server_drm,
                                    (struct wl_resource *) _buffer);
    if (!buffer)
+           buffer = wayland_drm_buffer_get(dri2_dpy->wl_server_mali,
+                                   (struct wl_resource *) _buffer);
+   if (!buffer)
        return NULL;
 
    if (!_eglParseImageAttribList(&attrs, disp, attr_list))
@@ -3256,11 +3261,17 @@ dri2_bind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
            wayland_drm_init(wl_dpy, device_name,
                             &wl_drm_callbacks, disp, flags);
 
+   dri2_dpy->wl_server_mali =
+           mali_buffer_sharing_init(wl_dpy, device_name,
+                                    &wl_drm_callbacks,
+                                    disp);
+
    free(device_name);
 
    if (!dri2_dpy->wl_server_drm)
       goto fail;
 
+   // TODO: Do this for mali_buffer_sharing
 #ifdef HAVE_DRM_PLATFORM
    /* We have to share the wl_drm instance with gbm, so gbm can convert
     * wl_buffers to gbm bos. */
@@ -3281,6 +3292,11 @@ dri2_unbind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
+   if (dri2_dpy->wl_server_mali) {
+           wayland_drm_uninit(dri2_dpy->wl_server_mali);
+           dri2_dpy->wl_server_mali = NULL;
+   }
+
    if (!dri2_dpy->wl_server_drm)
            return EGL_FALSE;
 
@@ -3299,6 +3315,8 @@ dri2_query_wayland_buffer_wl(_EGLDisplay *disp, struct wl_resource *buffer_resou
    const struct wl_drm_components_descriptor *format;
 
    buffer = wayland_drm_buffer_get(dri2_dpy->wl_server_drm, buffer_resource);
+   if (!buffer)
+           buffer = wayland_drm_buffer_get(dri2_dpy->wl_server_mali, buffer_resource);
    if (!buffer)
       return EGL_FALSE;
 
