@@ -1311,43 +1311,6 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
         if (insert_offset == cs->last_insert)
                 return true;
 
-        __asm__ volatile ("dmb sy" ::: "memory");
-
-        bool active = CS_READ_REGISTER(cs, CS_ACTIVE);
-        printf("active is %i\n", active);
-
-        CS_WRITE_REGISTER(cs, CS_INSERT, insert_offset);
-
-        if (active) {
-                __asm__ volatile ("dmb sy" ::: "memory");
-                CS_RING_DOORBELL(cs);
-                __asm__ volatile ("dmb sy" ::: "memory");
-
-                active = CS_READ_REGISTER(cs, CS_ACTIVE);
-                printf("active is now %i\n", active);
-        } else {
-                struct kbase_ioctl_cs_queue_kick kick = {
-                        .buffer_gpu_addr = cs->va,
-                };
-
-                int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
-
-                if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
-                        return false;
-                }
-        }
-
-        {
-                int ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
-                ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
-
-                if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_EVENT_SIGNAL)");
-                        return false;
-                }
-        }
-
         if (o) {
                 kbase_syncobj_ref(o);
                 kbase_syncobj_inc_jobs(o);
@@ -1369,6 +1332,45 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
 
                 assert(!*list);
                 *list = link;
+        }
+
+        __asm__ volatile ("dmb sy" ::: "memory");
+
+        LOG("submit %p, seq %li\n", cs, seqnum);
+
+        bool active = CS_READ_REGISTER(cs, CS_ACTIVE);
+        LOG("active is %i\n", active);
+
+        CS_WRITE_REGISTER(cs, CS_INSERT, insert_offset);
+
+        if (active) {
+                __asm__ volatile ("dmb sy" ::: "memory");
+                CS_RING_DOORBELL(cs);
+                __asm__ volatile ("dmb sy" ::: "memory");
+
+                active = CS_READ_REGISTER(cs, CS_ACTIVE);
+                LOG("active is now %i\n", active);
+        } else {
+                struct kbase_ioctl_cs_queue_kick kick = {
+                        .buffer_gpu_addr = cs->va,
+                };
+
+                int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+
+                if (ret == -1) {
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                        return false;
+                }
+        }
+
+        {
+                int ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
+                ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
+
+                if (ret == -1) {
+                        perror("ioctl(KBASE_IOCTL_CS_EVENT_SIGNAL)");
+                        return false;
+                }
         }
 
         return true;
