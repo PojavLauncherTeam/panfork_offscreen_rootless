@@ -228,6 +228,7 @@ pandecode_fbd(uint64_t gpu_va, bool is_fragment, unsigned gpu_id)
 #if PAN_ARCH >= 6
         pandecode_sample_locations(fb);
 
+#if PAN_ARCH < 10
         unsigned dcd_size = pan_size(DRAW);
 
         if (params.pre_frame_0 != MALI_PRE_POST_FRAME_SHADER_MODE_NEVER) {
@@ -250,6 +251,7 @@ pandecode_fbd(uint64_t gpu_va, bool is_fragment, unsigned gpu_id)
                 pandecode_log("Post frame:\n");
                 pandecode_dcd(&draw, MALI_JOB_TYPE_FRAGMENT, gpu_id);
         }
+#endif
 #else /* PAN_ARCH < 6 */
         DUMP_SECTION(FRAMEBUFFER, LOCAL_STORAGE, fb, "Local Storage:\n");
 
