@@ -1482,6 +1482,17 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         return true;
 }
+
+static void
+kbase_cs_wait_idle(kbase k, struct kbase_cs *cs)
+{
+        for (;;) {
+                if (!CS_READ_REGISTER(cs, CS_ACTIVE))
+                        return;
+
+                usleep(1 * 1000);
+        }
+}
 #endif
 
 static void
@@ -1543,6 +1554,7 @@ kbase_open_csf
         k->cs_term = kbase_cs_term;
         k->cs_submit = kbase_cs_submit;
         k->cs_wait = kbase_cs_wait;
+        k->cs_wait_idle = kbase_cs_wait_idle;
 #endif
 
         k->syncobj_create = kbase_syncobj_create;
