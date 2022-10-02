@@ -2777,26 +2777,6 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
         return transfer.gpu;
 }
 
-// TODO: Check that we don't go past CS_EXTRACT
-static void
-wrap_csf(struct panfrost_cs *cs)
-{
-        struct panfrost_bo *bo = cs->bo;
-        pan_command_stream *s = &cs->cs;
-
-        assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
-
-        // TODO: Better decide when to wrap?
-        if ((void *)s->ptr >= bo->ptr.cpu + (bo->size * 3 / 4)) {
-                memset(s->ptr, 0, bo->ptr.cpu + bo->size - (void *)s->ptr);
-                cs->offset += bo->size;
-                s->ptr = bo->ptr.cpu;
-        }
-}
-
-// todo this seems inefficient
-#define W wrap_csf(cs)
-
 // TODO: Rewrite this!
 static void
 emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
@@ -2807,32 +2787,41 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         if (s.ptr == bo->ptr.cpu)
                 return;
 
+        assert((void *)s.ptr <= bo->ptr.cpu + bo->size);
+
         pan_command_stream *c = &cs->cs;
+
+        // Give enough space for at least 32 instructions
+        if ((void *)c->ptr >= cs->bo->ptr.cpu + cs->bo->size - 32 * 8) {
+                assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
+
+                memset(c->ptr, 0, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
+                cs->offset += cs->bo->size;
+                c->ptr = cs->bo->ptr.cpu;
+        }
 
         /* First, do some waiting at the start of the job */
 
         // #0x1, #0xffffe0, #0xffffe1 also seen
-        pan_emit_cs_32(c, 0x54, 0); W;
+        pan_emit_cs_32(c, 0x54, 0);
         // TODO genxmlify
-        pan_emit_cs_ins(c, 0x24, 0x540000000233ULL); W;
+        pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
         // TODO: What does this need to be?
-        pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; } W;
+        pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
-        /* This should eventually be changed to a call (see three commeneted
-         * lines), but copying to the main buffer makes debugging easier.
-         * TODO what happens if this wraps? */
-        unsigned length = (void *)s.ptr - bo->ptr.cpu;
-        memcpy(c->ptr, bo->ptr.cpu, length);
-        c->ptr += length / 8;
+        // copying to the main buffer can make debugging easier.
+        //unsigned length = (void *)s.ptr - bo->ptr.cpu;
+        //memcpy(c->ptr, bo->ptr.cpu, length);
+        //c->ptr += length / 8;
 
-        //pan_emit_cs_48(c, 0x48, bo->ptr.gpu); W;
-        //pan_emit_cs_32(c, 0x4a, (void *)s.ptr - bo->ptr.cpu); W;
-        //pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
+        pan_emit_cs_48(c, 0x48, bo->ptr.gpu);
+        pan_emit_cs_32(c, 0x4a, (void *)s.ptr - bo->ptr.cpu);
+        pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 
         /* TODO define... this is tiler|idvs */
         if (cs->mask & 12) {
-                pan_pack_ins(c, CS_FLUSH_TILER, _) { } W;
-                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; } W;
+                pan_pack_ins(c, CS_FLUSH_TILER, _) { }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
         }
 
         {
@@ -2840,15 +2829,20 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 // TODO: Does this need to run for vertex jobs?
                 // What about when doing transform feedback?
                 // I think we at least need it for compute?
-                pan_emit_cs_32(c, 0x54, 0); W;
-                pan_emit_cs_ins(c, 0x24, 0x540000000233ULL); W;
+                pan_emit_cs_32(c, 0x54, 0);
+                pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
         }
 
-        pan_emit_cs_48(c, 0x48, cs->event_ptr); W;
+        pan_emit_cs_48(c, 0x48, cs->event_ptr);
         // TODO: What about overflow... just use EVADD instead?
-        pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1); W;
+        pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1);
         // TODO genxmlify...  this is a 64-bit EVSTR instruction
-        pan_emit_cs_ins(c, 52, 0x01484a00040001); W;
+        pan_emit_cs_ins(c, 52, 0x01484a00040001);
+
+        // TODO: is this just a weird ddk thing, or does it help performance
+        c->ptr = (void *)ALIGN_POT((uintptr_t)c->ptr, 64);
+
+        assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
 #endif
 }
 
@@ -2880,8 +2874,8 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         struct panfrost_device *dev = pan_device(ctx->base.screen);
         pan_command_stream *c = &cs->cs;
 
-        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; } W;
-        pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; } W;
+        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; }
+        pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; }
 
         // 16 bytes
         dev->mali.cs_submit(&dev->mali, &cs->base, 16, NULL, 0);
@@ -4893,11 +4887,12 @@ init_batch(struct panfrost_batch *batch)
 #endif
 
 #if PAN_ARCH >= 10
+        // TODO: Do tail-calls between BOs so that the size can be reduced
         batch->cs_vertex_bo =
-                panfrost_batch_create_bo(batch, 65536, 0, PIPE_SHADER_VERTEX,
+                panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_VERTEX,
                                          "Vertex batch command stream");
         batch->cs_fragment_bo =
-                panfrost_batch_create_bo(batch, 65536, 0, PIPE_SHADER_FRAGMENT,
+                panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_FRAGMENT,
                                          "Fragment batch command stream");
 
         // TODO: Is there a better way to handle this?
