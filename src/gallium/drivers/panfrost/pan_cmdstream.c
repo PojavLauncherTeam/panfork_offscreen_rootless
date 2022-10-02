@@ -2796,8 +2796,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
 
                 memset(c->ptr, 0, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
-                cs->offset += cs->bo->size;
                 c->ptr = cs->bo->ptr.cpu;
+
+                cs->offset += cs->bo->size;
         }
 
         /* First, do some waiting at the start of the job */
@@ -2810,13 +2811,27 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
         // copying to the main buffer can make debugging easier.
-        //unsigned length = (void *)s.ptr - bo->ptr.cpu;
-        //memcpy(c->ptr, bo->ptr.cpu, length);
-        //c->ptr += length / 8;
+        // TODO: This needs to be more reliable.
+#if 0
+        unsigned length = (void *)s.ptr - bo->ptr.cpu;
+        unsigned clamped = MIN2(length, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
+        memcpy(c->ptr, bo->ptr.cpu, clamped);
+        c->ptr += clamped / 8;
+
+        if (clamped != length) {
+                unsigned rest = length - clamped;
+                c->ptr = cs->bo->ptr.cpu;
+                memcpy(c->ptr, bo->ptr.cpu, rest);
+                c->ptr += rest / 8;
+
+                cs->offset += cs->bo->size;
+        }
+#else
 
         pan_emit_cs_48(c, 0x48, bo->ptr.gpu);
         pan_emit_cs_32(c, 0x4a, (void *)s.ptr - bo->ptr.cpu);
         pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
+#endif
 
         /* TODO define... this is tiler|idvs */
         if (cs->mask & 12) {
