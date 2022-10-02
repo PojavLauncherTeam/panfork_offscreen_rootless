@@ -456,6 +456,9 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
                         pandecode_inject_mmap(bo->ptr.gpu, bo->ptr.cpu, bo->size, NULL);
         }
 
+        //printf("alloc %lx to %lx size %zu\n",
+        //       bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size);
+
         return bo;
 }
 
@@ -481,6 +484,9 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
         struct panfrost_device *dev = bo->dev;
 
         pthread_mutex_lock(&dev->bo_map_lock);
+
+        //printf("free %lx to %lx size %zu\n",
+        //       bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size);
 
         /* Someone might have imported this BO while we were waiting for the
          * lock, let's make sure it's still not referenced before freeing it.

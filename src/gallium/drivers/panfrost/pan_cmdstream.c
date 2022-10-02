@@ -2787,7 +2787,8 @@ wrap_csf(struct panfrost_cs *cs)
         assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
 
         // TODO: Better decide when to wrap?
-        if ((void *)s->ptr >= bo->ptr.cpu + (bo->size * 15 / 16)) {
+        if ((void *)s->ptr >= bo->ptr.cpu + (bo->size * 3 / 4)) {
+                memset(s->ptr, 0, bo->ptr.cpu + bo->size - (void *)s->ptr);
                 cs->offset += bo->size;
                 s->ptr = bo->ptr.cpu;
         }
@@ -3169,6 +3170,7 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         struct panfrost_ptr t =
                 pan_pool_alloc_aligned(&batch->pool.base, 0x12000, 64);
 
+        // TODO: Should this be shared?
         /* Allocate scratch space for vertex positions / point sizes */
         t.cpu += 0x10000;
         t.gpu += 0x10000;
