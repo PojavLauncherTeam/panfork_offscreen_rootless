@@ -64,6 +64,7 @@ struct kbase_cs {
         base_va va;
         unsigned size;
         unsigned event_mem_offset;
+        unsigned csi;
 
         unsigned last_insert;
         unsigned last_extract;
@@ -141,7 +142,7 @@ struct kbase {
         // TODO: Pass in a priority?
         struct kbase_cs (*cs_bind)(kbase k, struct kbase_context *ctx,
                                    base_va va, unsigned size);
-        void (*cs_term)(kbase k, struct kbase_cs *cs, base_va va);
+        void (*cs_term)(kbase k, struct kbase_cs *cs);
 
         bool (*cs_submit)(kbase k, struct kbase_cs *cs, unsigned insert_offset,
                           struct kbase_syncobj *o, uint64_t seqnum);
