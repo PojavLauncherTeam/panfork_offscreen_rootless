@@ -126,6 +126,9 @@ struct panfrost_cs {
         unsigned mask;
         mali_ptr event_ptr;
         uint64_t seqnum;
+        // TODO: This should be a 64-bit field... and everywhere else
+        // insert/extract offsets are dealt with
+        unsigned offset;
 };
 
 struct panfrost_context {

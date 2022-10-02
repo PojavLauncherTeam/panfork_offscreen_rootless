@@ -907,6 +907,8 @@ panfrost_cs_create(struct panfrost_context *ctx, unsigned size, unsigned mask)
         c.bo = panfrost_bo_create(dev, size, 0, "Command stream");
         c.cs.ptr = c.bo->ptr.cpu;
 
+        memset(c.bo->ptr.cpu, 0, size);
+
         c.base = dev->mali.cs_bind(&dev->mali, kctx, c.bo->ptr.gpu, size);
 
         c.size = size;

@@ -1001,7 +1001,7 @@ kbase_read_event(kbase k)
 
                 // See CS_FATAL_EXCEPTION_* in mali_gpu_csf_registers.h
                 fprintf(stderr, "Queue %i error: status 0x%x "
-                        "sideband 0x%"PRIx64":",
+                        "sideband 0x%"PRIx64"\n",
                         queue, e.payload.fatal_queue.status,
                         (uint64_t) e.payload.fatal_queue.sideband);
 
@@ -1338,7 +1338,7 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
 
         __asm__ volatile ("dmb sy" ::: "memory");
 
-        LOG("submit %p, seq %li\n", cs, seqnum);
+        LOG("submit %p, seq %li, insert %i\n", cs, seqnum, insert_offset);
 
         bool active = CS_READ_REGISTER(cs, CS_ACTIVE);
         LOG("active is %i\n", active);

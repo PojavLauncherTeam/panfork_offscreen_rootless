@@ -848,8 +848,8 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         screen->vtbl.emit_csf_toplevel(batch);
 
-        unsigned vs_offset = (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
-        unsigned fs_offset = (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
+        unsigned vs_offset = ctx->kbase_cs_vertex.offset + (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
+        unsigned fs_offset = ctx->kbase_cs_fragment.offset + (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
 
         if (dev->debug & PAN_DBG_TRACE) {
                 // TODO: decode toplevel commands

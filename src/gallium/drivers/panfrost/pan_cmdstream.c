@@ -2778,18 +2778,23 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 }
 
 // TODO: Check that we don't go past CS_EXTRACT
-// TODO: Maybe we need an explicit jump back?
 static void
-wrap_csf(struct panfrost_bo *bo, pan_command_stream *s)
+wrap_csf(struct panfrost_cs *cs)
 {
+        struct panfrost_bo *bo = cs->bo;
+        pan_command_stream *s = &cs->cs;
+
         assert((void *)s->ptr <= bo->ptr.cpu + bo->size);
 
-        if ((void *)s->ptr >= bo->ptr.cpu + bo->size / 2)
+        // TODO: Better decide when to wrap?
+        if ((void *)s->ptr >= bo->ptr.cpu + (bo->size * 15 / 16)) {
+                cs->offset += bo->size;
                 s->ptr = bo->ptr.cpu;
+        }
 }
 
 // todo this seems inefficient
-#define W wrap_csf(cs->bo, &cs->cs)
+#define W wrap_csf(cs)
 
 // TODO: Rewrite this!
 static void
