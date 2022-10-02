@@ -1081,6 +1081,30 @@ kbase_handle_events(kbase k)
                 }
         }
 }
+
+static void
+kbase_wait_all_syncobjs(kbase k)
+{
+        for (unsigned i = 0; i < 5; ++i) {
+                bool all = true;
+
+                for (unsigned i = 0; i < k->event_slot_usage; ++i) {
+                        if (k->event_slots[i].syncobjs) {
+                                LOG("slot %i has syncobjs\n", i);
+                                all = false;
+                        }
+                }
+
+                if (all)
+                        return;
+
+                LOG("waiting for syncobjs\n");
+
+                kbase_poll_event(k, 200 * 1000000);
+                kbase_handle_events(k);
+        }
+}
+
 #endif
 
 #if PAN_BASE_API < 2
@@ -1484,6 +1508,10 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
         cs->last_extract = extract_offset;
 
         kbase_handle_events(k);
+
+        // everything is broken, let's avoid fixing it by waiting for every
+        // syncobj!
+        kbase_wait_all_syncobjs(k);
 
         return true;
 }
