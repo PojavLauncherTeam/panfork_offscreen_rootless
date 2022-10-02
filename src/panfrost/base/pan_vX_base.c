@@ -1040,6 +1040,7 @@ kbase_update_syncobjs(kbase k,
                 if (seqnum > link->seqnum) {
                         LOG("syncobj %p done!\n", link->o);
                         kbase_syncobj_dec_jobs(link->o);
+                        kbase_syncobj_unref(link->o);
                         *list = link->next;
                         if (&link->next == back)
                                 slot->back = list;
