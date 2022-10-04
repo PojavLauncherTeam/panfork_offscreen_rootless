@@ -1289,6 +1289,9 @@ kbase_cs_bind_noevent(kbase k, struct kbase_context *ctx,
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_CS_QUEUE_BIND)");
+                // hack
+                cs.user_io = (void *)1;
+                return cs;
         }
 
         cs.user_io =
@@ -1349,6 +1352,9 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
 {
         LOG("submit %p, seq %li, insert %li -> %li\n", cs, seqnum,
             cs->last_insert, insert_offset);
+
+        if (!cs->user_io)
+                return false;
 
         if (insert_offset == cs->last_insert)
                 return true;
@@ -1438,6 +1444,11 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 {
         unsigned count = 0;
 
+        if (!cs->user_io) {
+                kbase_cs_timeout(k, cs);
+                return false;
+        }
+
         // Clearly it's useless to check CS_EXTRACT... at least without the
         // necessary synchronisation commands?
         //usleep(100000);
@@ -1483,6 +1494,9 @@ static void
 kbase_cs_wait_idle(kbase k, struct kbase_cs *cs)
 {
         //return;
+
+        if (!cs->user_io)
+                return;
 
         // Evidently this is unreliable... sometimes the GPU can be powered
         // off with this still set?
