@@ -1,6 +1,13 @@
 `Mesa <https://mesa3d.org>`_ - The 3D Graphics Library
 ======================================================
 
+Valhall v10 "CSF" support branch—for Mali G710/G610.
+
+Note that firmware is required for these GPUs, for RK3588 try
+downloading the file from the Rockchip `libmali
+<https://github.com/JeffyCN/rockchip_mirrors/tree/libmali/firmware/g610>`_
+repo, and placing it in ``/lib/firmware/``.
+
 Source
 ------
 
