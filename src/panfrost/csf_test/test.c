@@ -127,6 +127,8 @@ typedef bool (* section)(struct state *s, struct test *t);
 #define CS_QUEUE_COUNT 4 /* compute / vertex / fragment / other */
 #define CS_QUEUE_SIZE 65536
 
+#define CS_TRACE_SIZE 262144
+
 struct state {
         int page_size;
         int argc;
@@ -155,6 +157,8 @@ struct state {
         void *cs_user_io[CS_QUEUE_COUNT];
         unsigned cs_last_submit[CS_QUEUE_COUNT];
         struct pan_command_stream cs[CS_QUEUE_COUNT];
+        struct panfrost_ptr cs_trace_mem[CS_QUEUE_COUNT];
+        struct panfrost_ptr cs_trace_var[CS_QUEUE_COUNT];
 
         unsigned shader_alloc_offset;
         mali_ptr compute_shader;
@@ -795,16 +799,22 @@ static bool
 cs_queue_register(struct state *s, struct test *t)
 {
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
-                struct kbase_ioctl_cs_queue_register reg = {
+                struct kbase_ioctl_cs_queue_register_ex reg = {
                         .buffer_gpu_addr = s->cs_mem[i].gpu,
                         .buffer_size = CS_QUEUE_SIZE,
                         .priority = 1,
+
+                        .ex_offset_var_addr = s->cs_trace_var[i].gpu,
+                        .ex_buffer_base = s->cs_trace_mem[i].gpu,
+                        .ex_buffer_size = CS_TRACE_SIZE,
+                        .ex_event_size = 8,
+                        .ex_event_state = 0xff,
                 };
 
-                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_REGISTER, &reg);
+                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_REGISTER_EX, &reg);
 
                 if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER)");
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER_EX)");
                         return false;
                 }
 
