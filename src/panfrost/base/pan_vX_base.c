@@ -1070,15 +1070,16 @@ kbase_handle_events(kbase k)
                 LOG("MAIN SEQ %lx > %lx?\n", seqnum, cmp);
 
                 if (seqnum < cmp) {
-                        fprintf(stderr, "seqnum at offset %i went backward "
-                                "from %"PRIu64" to %"PRIu64"!\n",
-                                i, cmp, seqnum);
+                        if (false)
+                                fprintf(stderr, "seqnum at offset %i went backward "
+                                        "from %"PRIu64" to %"PRIu64"!\n",
+                                        i, cmp, seqnum);
                 } else /*if (seqnum > cmp)*/ {
-                        /* TODO: Atomic operations? */
-                        k->event_slots[i].last = seqnum;
-
                         kbase_update_syncobjs(k, &k->event_slots[i], seqnum);
                 }
+
+                /* TODO: Atomic operations? */
+                k->event_slots[i].last = seqnum;
         }
 }
 
@@ -1343,9 +1344,12 @@ kbase_cs_term(kbase k, struct kbase_cs *cs)
         *((uint64_t *)(cs->user_io + 4096 + r)) = v
 
 static bool
-kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
+kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 struct kbase_syncobj *o, uint64_t seqnum)
 {
+        LOG("submit %p, seq %li, insert %li -> %li\n", cs, seqnum,
+            cs->last_insert, insert_offset);
+
         if (insert_offset == cs->last_insert)
                 return true;
 
@@ -1374,14 +1378,13 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, unsigned insert_offset,
 
         __asm__ volatile ("dmb sy" ::: "memory");
 
-        LOG("submit %p, seq %li, insert %i\n", cs, seqnum, insert_offset);
-
         bool active = CS_READ_REGISTER(cs, CS_ACTIVE);
         LOG("active is %i\n", active);
 
         CS_WRITE_REGISTER(cs, CS_INSERT, insert_offset);
+        cs->last_insert = insert_offset;
 
-        if (active) {
+        if (false /*active*/) {
                 __asm__ volatile ("dmb sy" ::: "memory");
                 CS_RING_DOORBELL(cs);
                 __asm__ volatile ("dmb sy" ::: "memory");
@@ -1419,19 +1422,19 @@ kbase_cs_timeout(kbase k, struct kbase_cs *cs)
 {
         kbase_cs_term(k, cs);
 
+        /* Clean up old syncobjs so we don't keep waiting for them */
+        kbase_update_syncobjs(k, &k->event_slots[cs->event_mem_offset], ~0ULL);
+
         struct kbase_cs new;
         new = kbase_cs_bind_noevent(k, cs->ctx, cs->va, cs->size, cs->csi);
 
         cs->user_io = new.user_io;
 
-        /* Skip whatever job caused problems */
-        CS_WRITE_REGISTER(cs, CS_EXTRACT_INIT, cs->last_insert);
-
         fprintf(stderr, "bound csi %i again\n", cs->csi);
 }
 
 static bool
-kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
+kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 {
         unsigned count = 0;
 
@@ -1441,7 +1444,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
-                LOG("extract: %p %li (want %i)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
+                LOG("extract: %p %li (want %li)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
                     extract_offset);
 
                 // TODO: Reduce timeout
@@ -1450,10 +1453,10 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
                 ++count;
 
                 if (count > 10) {
-                        unsigned e = CS_READ_REGISTER(cs, CS_EXTRACT);
+                        uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
                         unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 
-                        fprintf(stderr, "CS_EXTRACT (%i) != %i, "
+                        fprintf(stderr, "CS_EXTRACT (%li) != %li, "
                                 "CS_ACTIVE (%i)\n",
                                 e, extract_offset, a);
 
@@ -1479,7 +1482,11 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, unsigned extract_offset)
 static void
 kbase_cs_wait_idle(kbase k, struct kbase_cs *cs)
 {
-        for (;;) {
+        //return;
+
+        // Evidently this is unreliable... sometimes the GPU can be powered
+        // off with this still set?
+        for (unsigned i = 0; i < 100; ++i) {
                 if (!CS_READ_REGISTER(cs, CS_ACTIVE))
                         return;
 

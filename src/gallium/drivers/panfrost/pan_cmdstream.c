@@ -2833,8 +2833,8 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 #endif
 
-        /* TODO define... this is tiler|idvs */
-        if (cs->mask & 12) {
+        /* TODO define a macro... this is tiler|idvs */
+        if (cs->endpoints & 12) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
         }
@@ -2855,7 +2855,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_emit_cs_ins(c, 52, 0x01484a00040001);
 
         // TODO: is this just a weird ddk thing, or does it help performance
-        c->ptr = (void *)ALIGN_POT((uintptr_t)c->ptr, 64);
+        // Probably it just lessens the WC impact
+        // TODO: this would only work if the memory is zeroed!
+        //c->ptr = (void *)ALIGN_POT((uintptr_t)c->ptr, 64);
 
         assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
 #endif
@@ -2889,10 +2891,13 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         struct panfrost_device *dev = pan_device(ctx->base.screen);
         pan_command_stream *c = &cs->cs;
 
-        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->mask; }
+        cs->offset = 0;
+        c->ptr = cs->bo->ptr.cpu;
+
+        // two instructions == 16 bytes
+        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->endpoints; }
         pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; }
 
-        // 16 bytes
         dev->mali.cs_submit(&dev->mali, &cs->base, 16, NULL, 0);
         //dev->mali.cs_wait(&dev->mali, &cs->base, 16);
 }

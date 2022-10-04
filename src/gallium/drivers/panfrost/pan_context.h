@@ -122,13 +122,10 @@ struct panfrost_cs {
         struct kbase_cs base;
         struct panfrost_bo *bo;
         pan_command_stream cs;
-        unsigned size;
-        unsigned mask;
         mali_ptr event_ptr;
         uint64_t seqnum;
-        // TODO: This should be a 64-bit field... and everywhere else
-        // insert/extract offsets are dealt with
-        unsigned offset;
+        uint64_t offset;
+        unsigned endpoints;
 };
 
 struct panfrost_context {

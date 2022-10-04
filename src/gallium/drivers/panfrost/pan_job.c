@@ -834,6 +834,16 @@ done:
         return ret;
 }
 
+static void
+reset_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
+{
+        struct panfrost_screen *screen = pan_screen(ctx->base.screen);
+
+        cs->base.last_insert = 0;
+        cs->base.last_extract = 0;
+        screen->vtbl.init_cs(ctx, cs);
+}
+
 static int
 panfrost_batch_submit_csf(struct panfrost_batch *batch,
                           const struct pan_fb_info *fb)
@@ -848,8 +858,10 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         screen->vtbl.emit_csf_toplevel(batch);
 
-        unsigned vs_offset = ctx->kbase_cs_vertex.offset + (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
-        unsigned fs_offset = ctx->kbase_cs_fragment.offset + (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
+        unsigned vs_offset = ctx->kbase_cs_vertex.offset +
+                (void *)ctx->kbase_cs_vertex.cs.ptr - ctx->kbase_cs_vertex.bo->ptr.cpu;
+        unsigned fs_offset = ctx->kbase_cs_fragment.offset +
+                (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
 
         if (dev->debug & PAN_DBG_TRACE) {
                 // TODO: decode toplevel commands
@@ -878,11 +890,15 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         if (log)
                 printf("Wait vertex\n");
-        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset);
+
+        // TODO: How will we know to reset a CS when waiting is not done?
+        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset))
+                reset_cs(ctx, &ctx->kbase_cs_vertex);
 
         if (log)
                 printf("Wait fragment\n");
-        dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset);
+        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset))
+                reset_cs(ctx, &ctx->kbase_cs_fragment);
 
         if (dev->debug & PAN_DBG_TILER) {
                 fflush(stdout);

@@ -66,8 +66,8 @@ struct kbase_cs {
         unsigned event_mem_offset;
         unsigned csi;
 
-        unsigned last_insert;
-        unsigned last_extract;
+        uint64_t last_insert;
+        uint64_t last_extract;
 };
 
 struct kbase;
@@ -144,9 +144,9 @@ struct kbase {
                                    base_va va, unsigned size);
         void (*cs_term)(kbase k, struct kbase_cs *cs);
 
-        bool (*cs_submit)(kbase k, struct kbase_cs *cs, unsigned insert_offset,
+        bool (*cs_submit)(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                           struct kbase_syncobj *o, uint64_t seqnum);
-        bool (*cs_wait)(kbase k, struct kbase_cs *cs, unsigned extract_offset);
+        bool (*cs_wait)(kbase k, struct kbase_cs *cs, uint64_t extract_offset);
         void (*cs_wait_idle)(kbase k, struct kbase_cs *cs);
 
         /* syncobj functions */
