@@ -27,7 +27,7 @@ shaders = {
     "atomic": """
 IADD_IMM.i32.reconverge r0, 0x0, #0x0
 NOP.wait0
-ICMP.u32.ge.m1 r1, r0, u2, 0x0
+ICMP_OR.u32.ge.m1 r1, r0, u2, 0x0
 BRANCHZ.eq.reconverge ^r1.h0, offset:1
 BRANCHZ.eq 0x0, offset:3
 ATOM1_RETURN.i32.slot0.ainc @r1, u0, offset:0x0
@@ -37,7 +37,7 @@ NOP.end
 """,
     "rmw": """
 IADD_IMM.i32.reconverge r0, 0x0, #0x0
-ICMP.u32.ge.m1 r1, r0, u2, 0x0
+ICMP_OR.u32.ge.m1 r1, r0, u2, 0x0
 BRANCHZ.eq.reconverge r1.h0, offset:1
 BRANCHZ.eq 0x0, offset:6
 NOP.wait1
@@ -55,7 +55,7 @@ STORE.i32.slot0.end @r0, u0, offset:0
     "invoc_offset": """
 LSHIFT_OR.i32 r0, ^r60, 0x3020100.b22, 0x0
 IADD.s32 r0, u0, ^r0
-ICMP.u32.lt.i1 r1, r0, u0, 0x0
+ICMP_OR.u32.lt.i1 r1, r0, u0, 0x0
 IADD.s32 r1, ^r1, u1
 MOV.i32 r2, u2
 STORE.i32.slot0.end @r2, ^r0, offset:0
@@ -63,7 +63,7 @@ STORE.i32.slot0.end @r2, ^r0, offset:0
     "invoc_rmw": """
 LSHIFT_OR.i32 r0, ^r60, 0x3020100.b22, 0x0
 IADD.s32 r0, u0, ^r0
-ICMP.u32.lt.i1 r1, r0, u0, 0x0
+ICMP_OR.u32.lt.i1 r1, r0, u0, 0x0
 IADD.s32 r1, ^r1, u1
 LOAD.i32.unsigned.slot0.wait0 @r2, r0, offset:0
 IADD.s32 r2, ^r2, u2
