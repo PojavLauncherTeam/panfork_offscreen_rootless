@@ -2836,7 +2836,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         /* TODO define a macro... this is tiler|idvs */
         if (cs->endpoints & 12) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
-                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
+                //pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
         }
 
         {
