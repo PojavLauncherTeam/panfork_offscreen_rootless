@@ -1200,7 +1200,7 @@ dump_heatmap(FILE *fp, uint8_t *values, unsigned size,
                         st = 0;
                 }
         }
-        fprintf(fp, " %02x\n", sum);
+        fprintf(fp, " %02x\n", sum & 0xff);
 }
 
 static bool
