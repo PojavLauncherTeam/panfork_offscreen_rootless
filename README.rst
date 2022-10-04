@@ -38,3 +38,10 @@ blob, but other setups might work:
 
 The exact path to the library directory (which should contain
 ``libGL.so`` etc.) may differ between distros.
+
+To avoid the blob completely, Sway seems to work with Panfrost, though
+Xwayland seems to be broken at the moment:
+
+.. code-block:: sh
+
+  $ LD_LIBRARY_PATH=/opt/panfrost/lib/aarch64-linux-gnu sway
