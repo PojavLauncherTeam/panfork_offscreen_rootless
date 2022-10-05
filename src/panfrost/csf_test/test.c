@@ -127,8 +127,6 @@ typedef bool (* section)(struct state *s, struct test *t);
 #define CS_QUEUE_COUNT 4 /* compute / vertex / fragment / other */
 #define CS_QUEUE_SIZE 65536
 
-#define CS_TRACE_SIZE 262144
-
 struct state {
         int page_size;
         int argc;
@@ -157,8 +155,6 @@ struct state {
         void *cs_user_io[CS_QUEUE_COUNT];
         unsigned cs_last_submit[CS_QUEUE_COUNT];
         struct pan_command_stream cs[CS_QUEUE_COUNT];
-        struct panfrost_ptr cs_trace_mem[CS_QUEUE_COUNT];
-        struct panfrost_ptr cs_trace_var[CS_QUEUE_COUNT];
 
         unsigned shader_alloc_offset;
         mali_ptr compute_shader;
@@ -777,9 +773,6 @@ cs_queue_create(struct state *s, struct test *t)
                 s->cs_mem[i] = alloc_mem(s, CS_QUEUE_SIZE, 0x200f);
                 s->cs[i].ptr = s->cs_mem[i].cpu;
 
-                s->cs_trace_var[i] = alloc_mem(s, s->page_size, 0x200f);
-                s->cs_trace_mem[i] = alloc_mem(s, CS_TRACE_SIZE, 0x200f);
-
                 if (!s->cs_mem[i].cpu)
                         return false;
         }
@@ -802,22 +795,16 @@ static bool
 cs_queue_register(struct state *s, struct test *t)
 {
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
-                struct kbase_ioctl_cs_queue_register_ex reg = {
+                struct kbase_ioctl_cs_queue_register reg = {
                         .buffer_gpu_addr = s->cs_mem[i].gpu,
                         .buffer_size = CS_QUEUE_SIZE,
                         .priority = 1,
-
-                        .ex_offset_var_addr = s->cs_trace_var[i].gpu,
-                        .ex_buffer_base = s->cs_trace_mem[i].gpu,
-                        .ex_buffer_size = CS_TRACE_SIZE,
-                        .ex_event_size = 7,
-                        .ex_event_state = 0xff,
                 };
 
-                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_REGISTER_EX, &reg);
+                int ret = ioctl(s->mali_fd, KBASE_IOCTL_CS_QUEUE_REGISTER, &reg);
 
                 if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER_EX)");
+                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_REGISTER)");
                         return false;
                 }
 
@@ -855,17 +842,11 @@ cs_queue_term(struct state *s, struct test *t)
 {
         bool pass = true;
 
-        printf("CS trace:\n");
-
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 if (s->cs_user_io[i] &&
                     munmap(s->cs_user_io[i],
                            s->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES))
                         pass = false;
-
-
-                pan_hexdump(stdout, s->cs_trace_var[i].cpu, 64, true);
-                pan_hexdump(stdout, s->cs_trace_mem[i].cpu, CS_TRACE_SIZE, true);
 
                 struct kbase_ioctl_cs_queue_terminate term = {
                         .buffer_gpu_addr = s->cs_mem[i].gpu,
