@@ -142,7 +142,7 @@ bind_mali(struct wl_client *client, void *data, uint32_t version, uint32_t id)
         wl_resource_set_implementation(resource, &mali_interface, data, NULL);
 
         printf("device name: %s\n", drm->device_name);
-        mali_buffer_sharing_send_alloc_device(resource, "");
+        mali_buffer_sharing_send_alloc_device(resource, "display-subsystem");
 }
 
 struct wl_drm *
@@ -164,7 +164,7 @@ mali_buffer_sharing_init(struct wl_display *display, char *device_name,
         drm->buffer_interface.destroy = buffer_destroy;
 
         drm->wl_drm_global =
-                wl_global_create(display, &mali_buffer_sharing_interface, 4,
+                wl_global_create(display, &mali_buffer_sharing_interface, 5,
                                  drm, bind_mali);
 
         return drm;
