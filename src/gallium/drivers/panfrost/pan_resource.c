@@ -643,9 +643,9 @@ panfrost_resource_create_with_modifier(struct pipe_screen *screen,
                 (bind & PIPE_BIND_SHADER_IMAGE) ? "Shader image" :
                 "Other resource";
 
-        // TODO: replace with PAN_BIND_SHARED_MASK
-        if (dev->ro && (template->bind & (PIPE_BIND_DISPLAY_TARGET | PIPE_BIND_SCANOUT |
-                                          PIPE_BIND_SHARED))) {
+        /* Revert to doing a kmsro allocation for any shared BO, because kbase
+         * cannot do export */
+        if (dev->ro && (template->bind & PAN_BIND_SHARED_MASK)) {
                 struct winsys_handle handle;
                 struct pan_block_size blocksize = panfrost_block_size(modifier, template->format);
 
