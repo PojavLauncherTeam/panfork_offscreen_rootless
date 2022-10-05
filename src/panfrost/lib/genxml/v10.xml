@@ -1343,12 +1343,12 @@
     <field name="Workgroup size Y" size="10" start="0x21:10" type="uint" modifier="minus(1)"/>
     <field name="Workgroup size Z" size="10" start="0x21:20" type="uint" modifier="minus(1)"/>
     <field name="Allow merging workgroups" size="1" start="0x21:31" type="bool"/>
+    <field name="Offset X" size="32" start="0x22:0" type="uint"/>
+    <field name="Offset Y" size="32" start="0x23:0" type="uint"/>
+    <field name="Offset Z" size="32" start="0x24:0" type="uint"/>
     <field name="Workgroup count X" size="32" start="0x25:0" type="uint"/>
     <field name="Workgroup count Y" size="32" start="0x26:0" type="uint"/>
     <field name="Workgroup count Z" size="32" start="0x27:0" type="uint"/>
-    <field name="Offset X" size="32" start="5:0" type="uint"/>
-    <field name="Offset Y" size="32" start="6:0" type="uint"/>
-    <field name="Offset Z" size="32" start="7:0" type="uint"/>
     <field name="Compute" size="512" start="0x00:0" type="Compute Shader Environment"/>
   </struct>
 
