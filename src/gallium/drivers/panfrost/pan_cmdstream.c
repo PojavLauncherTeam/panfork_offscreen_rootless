@@ -2803,8 +2803,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 
         /* First, do some waiting at the start of the job */
 
-        // #0x1, #0xffffe0, #0xffffe1 also seen
-        pan_emit_cs_32(c, 0x54, 0);
+        // #0x0, #0x1, #0xffffe0, #0xffffe1 also seen... probably they are
+        // just values from the register
+        pan_emit_cs_32(c, 0x54, *cs->base.latest_flush);
         // TODO genxmlify
         pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
         // TODO: What does this need to be?

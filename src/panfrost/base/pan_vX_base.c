@@ -1268,6 +1268,7 @@ kbase_cs_bind_noevent(kbase k, struct kbase_context *ctx,
                 .va = va,
                 .size = size,
                 .csi = csi,
+                .latest_flush = (uint32_t *)k->csf_user_reg,
         };
 
         struct kbase_ioctl_cs_queue_register reg = {

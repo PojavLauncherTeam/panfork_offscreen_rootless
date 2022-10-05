@@ -68,6 +68,9 @@ struct kbase_cs {
 
         uint64_t last_insert;
         uint64_t last_extract;
+
+        // TODO: This is only here because it's convenient for emit_csf_queue
+        uint32_t *latest_flush;
 };
 
 struct kbase;
