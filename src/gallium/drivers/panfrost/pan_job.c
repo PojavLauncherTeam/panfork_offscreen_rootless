@@ -834,6 +834,7 @@ done:
         return ret;
 }
 
+// TODO: Often we have to reset the whole group, not just a single CS
 static void
 reset_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
 {
@@ -874,14 +875,15 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         // TODO: We need better synchronisation than a single fake syncobj!
 
+        if (log)
+                printf("About to submit\n");
         // sigh... so for some reason we need to wait for the GPU to be
         // powered off before starting the vertex job?
         // Perhaps the fragment job does not do enough cleanup work at the
         // end, leaving caches dirty?
         dev->mali.cs_wait_idle(&dev->mali, &ctx->kbase_cs_vertex.base);
+        dev->mali.cs_wait_idle(&dev->mali, &ctx->kbase_cs_fragment.base);
 
-        if (log)
-                printf("About to submit\n");
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset,
                             ctx->syncobj_kbase, ctx->kbase_cs_vertex.seqnum);
 
@@ -890,7 +892,6 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         if (log)
                 printf("Wait vertex\n");
-
         // TODO: How will we know to reset a CS when waiting is not done?
         if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset))
                 reset_cs(ctx, &ctx->kbase_cs_vertex);
