@@ -81,7 +81,6 @@ kbase_alloc_gem_handle_locked(kbase k, base_va va, int fd)
         for (unsigned i = 0; i < size; ++i) {
                 if (handles[i].fd == -2) {
                         handles[i] = h;
-                        pthread_mutex_unlock(&k->handle_lock);
                         return i;
                 }
         }
@@ -155,11 +154,14 @@ kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers)
                 pthread_mutex_lock(&k->handle_lock);
                 if (handle >= util_dynarray_num_elements(&k->gem_handles, kbase_handle)) {
                         errno = EINVAL;
+                        pthread_mutex_unlock(&k->handle_lock);
                         return -1;
                 }
                 kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
-                if (!ptr->use_count)
+                if (!ptr->use_count) {
+                        pthread_mutex_unlock(&k->handle_lock);
                         return 0;
+                }
 
                 pthread_mutex_unlock(&k->handle_lock);
 
