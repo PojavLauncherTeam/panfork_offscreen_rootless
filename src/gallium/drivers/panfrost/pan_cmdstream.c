@@ -2931,6 +2931,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
+        pan_command_stream *cf = &batch->ctx->kbase_cs_fragment.cs;
         emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
 
         // TODO: this is duplicated from emit_csf_queue
@@ -2941,15 +2942,15 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         // TODO: this assumes SAME_VA
         mali_ptr seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_vertex.event_ptr;
 
-        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x48, seqnum_ptr);
-        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x4a, vertex_seqnum);
+        pan_emit_cs_48(cf, 0x48, seqnum_ptr);
+        pan_emit_cs_48(cf, 0x4a, vertex_seqnum);
         // TODO genxmlify... this is a 64-bit EVWAIT instruction
-        pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 53, 0x484a10000000);
+        pan_emit_cs_ins(cf, 53, 0x484a10000000);
 
-        pan_emit_cs_32(&batch->ctx->kbase_cs_fragment.cs, 0x54, 0);
-        pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 0x24, 0x540000000200);
+        pan_emit_cs_32(cf, 0x54, 0);
+        pan_emit_cs_ins(cf, 0x24, 0x540000000200);
 
-        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x56, batch->tiler_ctx.bifrost);
+        pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
         emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
 }
