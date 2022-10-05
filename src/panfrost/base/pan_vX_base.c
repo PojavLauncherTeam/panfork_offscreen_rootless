@@ -641,6 +641,8 @@ kbase_free(kbase k, base_va va)
 static int
 kbase_import_dmabuf(kbase k, int fd)
 {
+        int ret;
+
         pthread_mutex_lock(&k->handle_lock);
 
         unsigned size = util_dynarray_num_elements(&k->gem_handles, kbase_handle);
@@ -653,9 +655,14 @@ kbase_import_dmabuf(kbase k, int fd)
                 if (h.fd < 0)
                         continue;
 
-                if (os_same_file_description(h.fd, fd)) {
+                ret = os_same_file_description(h.fd, fd);
+
+                if (ret == 0) {
+                        printf("same file description %i %i\n", h.fd, fd);
                         pthread_mutex_unlock(&k->handle_lock);
                         return i;
+                } else if (ret < 0) {
+                        printf("error in os_same_file_description(%i, %i)\n", h.fd, fd);
                 }
         }
 
@@ -670,7 +677,7 @@ kbase_import_dmabuf(kbase k, int fd)
                 }
         };
 
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_IMPORT, &import);
+        ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_IMPORT, &import);
 
         int handle;
 
