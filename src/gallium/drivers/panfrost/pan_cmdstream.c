@@ -2849,7 +2849,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
-        if (cs->endpoints & 2) {
+        if (false && cs->endpoints & 2) {
                 /* Skip the next operation if the batch doesn't use a tiler
                  * heap (i.e. it's just a blit) */
                 pan_emit_cs_ins(c, 22, 0x560030000001); /* b.ne w56, skip 1 */
@@ -2896,7 +2896,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 //pan_pack_ins(c, CS_HEAPINC, cfg) {
                 //        cfg.type = MALI_HEAP_STATISTIC_FRAGMENT_END;
                 //}
+        }
 
+        if (cs->endpoints & 2) {
                 pan_emit_cs_32(c, 0x54, 0);
                 pan_emit_cs_ins(c, 0x24, 0x2540000f80211);
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 1; }
