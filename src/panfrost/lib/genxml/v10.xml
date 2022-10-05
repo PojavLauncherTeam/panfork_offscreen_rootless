@@ -1188,6 +1188,9 @@
     <value name="2 MiB" value="3"/>
   </enum>
 
+  <!-- Is this actually correct? Changing it doesn't seem to affect
+       heap memory usage at all. Then again, neither does the chunk
+       size... perhaps those are both wrong, at least for v10.  -->
   <enum name="Chunk Partition">
     <value name="Dynamic" value="0"/>
     <value name="Static 25%" value="1"/>
