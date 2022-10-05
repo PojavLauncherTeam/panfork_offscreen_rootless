@@ -344,7 +344,7 @@ descriptors = {
 # TODO: Use mako? Or just change the syntax for "LDM/STM"
 # and use f-strings again?
 
-altcmds = """
+cmds = """
 !cs 0
 
 slot 4
@@ -411,6 +411,31 @@ str w20, [x48, 0x1c]
 """
 
 cmds = """
+!cs 0
+
+slot 4
+wait 4
+
+mov x48, $y
+heapctx x48
+
+!dump y 0 4096
+!cs 0
+
+heapinc vt_start
+heapinc vt_end
+heapinc frag_end
+
+!dump y 0 4096
+!cs 0
+
+UNK 05 31, #0x10ffff000
+UNK 00 31, #0x900000000
+
+!dump y 0 4096
+"""
+
+oldcmds = """
 !cs 0
 
 @ Some time is required for the change to become active
@@ -1594,6 +1619,26 @@ class Context:
                 assert(l.call_len_offset is not None)
 
                 self.is_call = True
+            elif s[0] == "heapctx":
+                assert(len(s) == 2)
+                assert(s[1][0] == "x")
+                cmd = 48
+                addr = 0
+                value = reg(s[1]) << 40
+            elif s[0] == "heapinc":
+                assert(len(s) == 2)
+                modes = {
+                    "vt_start": 0,
+                    "vt_end": 1,
+                    "frag_end": 3,
+                }
+                if s[1] in modes:
+                    mode = modes[s[1]]
+                else:
+                    mode = int(s[1])
+                cmd = 49
+                addr = 0
+                value = mode << 32
             else:
                 print("Unknown command:", orig_line, file=sys.stderr)
                 # TODO remove

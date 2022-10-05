@@ -1726,6 +1726,33 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                 break;
         }
 
+        case 48: {
+                if (addr || arg1 || l)
+                        pandecode_log("heapctx (unk %02x), "
+                                      "x%02x, (unk %02x), (unk %x)\n",
+                                      addr, arg2, arg1, l);
+                else
+                        pandecode_log("heapctx x%02x\n", arg2);
+                break;
+        }
+
+        case 49: {
+                const char *m = (const char *[]){
+                        "vt_start",
+                        "vt_end",
+                        "unk",
+                        "frag_end",
+                }[arg1 & 3];
+
+                if (addr || arg2 || arg1 > 3 || l)
+                        pandecode_log("heapinc (unk %02x), "
+                                      "(unk %02x), %02x, (unk %x)\n",
+                                      addr, arg2, arg1, l);
+                else
+                        pandecode_log("heapinc %s\n", m);
+                break;
+        }
+
         default:
                 /*
                  * UNK 00 30, #0x480000000000 -- takes an eight-byte aligned

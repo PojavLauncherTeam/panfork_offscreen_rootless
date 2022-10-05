@@ -1596,4 +1596,18 @@
   </struct>
 
   <struct name="CS Flush Tiler" layout="ins" op="9"/>
+
+  <struct name="CS HEAPCTX" layout="ins" op="48">
+    <field name="Address" size="8" start="40" type="register"/>
+  </struct>
+
+  <enum name="Heap Statistic">
+    <value name="V/T Start" value="0"/>
+    <value name="V/T End" value="1"/>
+    <value name="Fragment End" value="3"/>
+  </enum>
+
+  <struct name="CS HEAPINC" layout="ins" op="49">
+    <field name="Type" size="8" start="32" type="Heap Statistic"/>
+  </struct>
 </panxml>
