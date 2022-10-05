@@ -1254,6 +1254,9 @@
     <field name="Heap" size="64" start="6:0" type="address"/>
     <!-- The blob places this directly before the heap pointer -->
     <field name="Scratch" size="64" start="8:0" type="address"/>
+    <!-- Filled in by hardare, passed to HEAPCLEAR -->
+    <field name="Heap Start" size="64" start="10:0" type="address"/>
+    <field name="Heap End" size="64" start="12:0" type="address"/>
     <field name="Weights" size="256" start="8:0" type="Tiler Weights"/>
     <field name="State" size="512" start="32:0" type="Tiler State"/>
   </struct>
@@ -1596,6 +1599,15 @@
   </struct>
 
   <struct name="CS Flush Tiler" layout="ins" op="9"/>
+
+  <!-- TODO: What else can the instruction do? -->
+  <struct name="CS HEAPCLEAR" layout="ins" op="11">
+    <field name="Unk 1" size="16" start="0" type="hex" default="1"/>
+    <field name="Slots" size="8" start="16" type="hex"/>
+    <field name="End" size="8" start="32" type="register"/>
+    <field name="Start" size="8" start="40" type="register"/>
+    <field name="Unk 2" size="8" start="48" type="hex" default="2"/>
+  </struct>
 
   <struct name="CS HEAPCTX" layout="ins" op="48">
     <field name="Address" size="8" start="40" type="register"/>

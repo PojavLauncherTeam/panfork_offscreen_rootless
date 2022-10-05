@@ -2849,13 +2849,67 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
+        if (cs->endpoints & 2) {
+                /* Skip the next operation if the batch doesn't use a tiler
+                 * heap (i.e. it's just a blit) */
+                pan_emit_cs_ins(c, 22, 0x560030000001); /* b.ne w56, skip 1 */
+                pan_emit_cs_ins(c, 22, 0x570020000007); /* b.eq w57, skip 7 */
+
+                pan_pack_ins(c, CS_LDR, cfg) {
+                        cfg.offset = 4 * 10; /* Heap Start */
+                        cfg.register_mask = 0x3;
+                        cfg.addr = 0x56;
+                        cfg.register_base = 0x4a;
+                }
+                pan_pack_ins(c, CS_LDR, cfg) {
+                        cfg.offset = 4 * 12; /* Heap End */
+                        cfg.register_mask = 0x3;
+                        cfg.addr = 0x56;
+                        cfg.register_base = 0x4c;
+                }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = (1 << 0) | (1 << 2); }
+
+                pan_pack_ins(c, CS_HEAPCLEAR, cfg) {
+                        cfg.start = 0x4a;
+                        cfg.end = 0x4c;
+                        cfg.slots = 1 << 2;
+                }
+
+                /* Reset the fields so that the clear operation isn't done again */
+                pan_emit_cs_48(c, 0x4a, 0);
+                pan_pack_ins(c, CS_STR, cfg) {
+                        cfg.offset = 4 * 10; /* Heap Start */
+                        cfg.register_mask = 0x3;
+                        cfg.addr = 0x56;
+                        cfg.register_base = 0x4a;
+                }
+                pan_pack_ins(c, CS_STR, cfg) {
+                        cfg.offset = 4 * 12; /* Heap End */
+                        cfg.register_mask = 0x3;
+                        cfg.addr = 0x56;
+                        cfg.register_base = 0x4a;
+                }
+
+                /* Branch target for above branch */
+
+                // This seems to be done by the HEAPCLEAR
+                //pan_pack_ins(c, CS_HEAPINC, cfg) {
+                //        cfg.type = MALI_HEAP_STATISTIC_FRAGMENT_END;
+                //}
+
+                pan_emit_cs_32(c, 0x54, 0);
+                pan_emit_cs_ins(c, 0x24, 0x2540000f80211);
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 1; }
+        }
+
         {
                 // This could I think be optimised to 0xf80211 rather than 0x233
                 // TODO: Does this need to run for vertex jobs?
                 // What about when doing transform feedback?
                 // I think we at least need it for compute?
-                pan_emit_cs_32(c, 0x54, 0);
-                pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
+
+                //pan_emit_cs_32(c, 0x54, 0);
+                //pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
         }
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
@@ -2891,6 +2945,11 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x4a, vertex_seqnum);
         // TODO genxmlify... this is a 64-bit EVWAIT instruction
         pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 53, 0x484a10000000);
+
+        pan_emit_cs_32(&batch->ctx->kbase_cs_fragment.cs, 0x54, 0);
+        pan_emit_cs_ins(&batch->ctx->kbase_cs_fragment.cs, 0x24, 0x540000000200);
+
+        pan_emit_cs_48(&batch->ctx->kbase_cs_fragment.cs, 0x56, batch->tiler_ctx.bifrost);
 
         emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
 }
