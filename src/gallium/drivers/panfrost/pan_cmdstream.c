@@ -2811,6 +2811,12 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // TODO: What does this need to be?
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
+        if (cs->endpoints & 12) {
+                pan_pack_ins(c, CS_HEAPINC, cfg) {
+                        cfg.type = MALI_HEAP_STATISTIC_V_T_START;
+                }
+        }
+
         // copying to the main buffer can make debugging easier.
         // TODO: This needs to be more reliable.
 #if 0
@@ -2837,7 +2843,10 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         /* TODO define a macro... this is tiler|idvs */
         if (cs->endpoints & 12) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
-                //pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
+                pan_pack_ins(c, CS_HEAPINC, cfg) {
+                        cfg.type = MALI_HEAP_STATISTIC_V_T_END;
+                }
         }
 
         {
@@ -2895,12 +2904,14 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         cs->offset = 0;
         c->ptr = cs->bo->ptr.cpu;
 
-        // two instructions == 16 bytes
+        // four instructions == 32 bytes
         pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->endpoints; }
         pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; }
+        pan_emit_cs_48(c, 0x48, ctx->kbase_ctx->tiler_heap_va);
+        pan_pack_ins(c, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
 
-        dev->mali.cs_submit(&dev->mali, &cs->base, 16, NULL, 0);
-        //dev->mali.cs_wait(&dev->mali, &cs->base, 16);
+        dev->mali.cs_submit(&dev->mali, &cs->base, 32, NULL, 0);
+        //dev->mali.cs_wait(&dev->mali, &cs->base, 32);
 }
 
 #endif
@@ -3185,6 +3196,8 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         GENX(pan_emit_tiler_heap)(dev, t.cpu);
 #else
 #if 1
+        // TODO: I think this needs to be shared between all concurrent users
+        // of the heap
         pan_pack(t.cpu, TILER_HEAP, heap) {
                 heap.size = batch->ctx->kbase_ctx->tiler_heap_chunk_size;
                 heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
