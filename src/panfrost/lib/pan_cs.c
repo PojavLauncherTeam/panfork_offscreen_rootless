@@ -961,6 +961,7 @@ GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
                          unsigned nr_samples,
                          bool first_provoking_vertex,
                          mali_ptr heap,
+                         mali_ptr scratch,
                          void *out)
 {
         unsigned max_levels = dev->tiler_features.max_levels;
@@ -985,7 +986,7 @@ GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
                 tiler.fb_height = fb_height;
                 tiler.heap = heap;
 #if PAN_ARCH >= 10
-                tiler.scratch = heap - 0xfff0;
+                tiler.scratch = scratch;
 #endif
                 tiler.sample_pattern = pan_sample_pattern(nr_samples);
 #if PAN_ARCH >= 9

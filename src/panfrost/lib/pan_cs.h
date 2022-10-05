@@ -173,7 +173,7 @@ void
 GENX(pan_emit_tiler_ctx)(const struct panfrost_device *dev,
                          unsigned fb_width, unsigned fb_height,
                          unsigned nr_samples, bool first_provoking_vertex,
-                         mali_ptr heap,
+                         mali_ptr heap, mali_ptr scratch,
                          void *out);
 #endif
 

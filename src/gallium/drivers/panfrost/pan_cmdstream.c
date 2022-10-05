@@ -3175,26 +3175,36 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         if (batch->tiler_ctx.bifrost)
                 return batch->tiler_ctx.bifrost;
 
-#if PAN_ARCH < 10
+        mali_ptr scratch = 0;
+
         struct panfrost_ptr t =
                 pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
 
+#if PAN_ARCH < 10
         GENX(pan_emit_tiler_heap)(dev, t.cpu);
 #else
-        struct panfrost_ptr t =
-                pan_pool_alloc_aligned(&batch->pool.base, 0x12000, 64);
-
-        // TODO: Should this be shared?
-        /* Allocate scratch space for vertex positions / point sizes */
-        t.cpu += 0x10000;
-        t.gpu += 0x10000;
-
+#if 1
         pan_pack(t.cpu, TILER_HEAP, heap) {
                 heap.size = batch->ctx->kbase_ctx->tiler_heap_chunk_size;
                 heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
                 heap.bottom = heap.base + 64;
                 heap.top = heap.base + heap.size;
         }
+#else
+        GENX(pan_emit_tiler_heap)(dev, t.cpu);
+#endif
+        // TODO: Dynamically size?
+        unsigned scratch_bits = 16;
+
+        /* Allocate scratch space for vertex positions / point sizes */
+        // TODO: Should this be shared?
+        struct panfrost_ptr sc =
+                pan_pool_alloc_aligned(&batch->pool.base, 1 << scratch_bits, 4096);
+
+        /* I think the scratch size is passed in the low bits of the
+         * pointer... but trying to go above 16 gives a CS_INHERIT_FAULT.
+         */
+        scratch = sc.gpu + scratch_bits;
 #endif
 
         mali_ptr heap = t.gpu;
@@ -3203,7 +3213,7 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
                                  util_framebuffer_get_num_samples(&batch->key),
                                  pan_tristate_get(batch->first_provoking_vertex),
-                                 heap, t.cpu);
+                                 heap, scratch, t.cpu);
 
         batch->tiler_ctx.bifrost = t.gpu;
         return batch->tiler_ctx.bifrost;
