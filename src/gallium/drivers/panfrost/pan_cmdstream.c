@@ -2933,7 +2933,14 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
+        pan_command_stream *cv = &batch->ctx->kbase_cs_vertex.cs;
         pan_command_stream *cf = &batch->ctx->kbase_cs_fragment.cs;
+
+        pan_emit_cs_48(cv, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
+        pan_pack_ins(cv, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
+        pan_emit_cs_48(cf, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
+        pan_pack_ins(cf, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
+
         emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
 
         // TODO: this is duplicated from emit_csf_queue

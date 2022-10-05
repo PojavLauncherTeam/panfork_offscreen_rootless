@@ -142,6 +142,8 @@ struct kbase {
         /* >= v10 GPUs */
         struct kbase_context *(*context_create)(kbase k);
         void (*context_destroy)(kbase k, struct kbase_context *ctx);
+        void (*heap_recreate)(kbase k, struct kbase_context *ctx);
+
         // TODO: Pass in a priority?
         struct kbase_cs (*cs_bind)(kbase k, struct kbase_context *ctx,
                                    base_va va, unsigned size);

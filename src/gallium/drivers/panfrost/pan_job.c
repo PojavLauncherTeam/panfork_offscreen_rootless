@@ -917,11 +917,13 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                                  MAP_SHARED, dev->mali.fd, va);
 
                 pan_hexdump(stream, ptr, size, false);
-                memset(ptr, 0, size);
+                //memset(ptr, 0, size);
                 munmap(ptr, size);
 
                 pclose(stream);
         }
+
+        dev->mali.heap_recreate(&dev->mali, ctx->kbase_ctx);
 
         if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +

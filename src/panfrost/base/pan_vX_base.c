@@ -1259,6 +1259,13 @@ kbase_context_destroy(kbase k, struct kbase_context *ctx)
         free(ctx);
 }
 
+static void
+kbase_heap_recreate(kbase k, struct kbase_context *ctx)
+{
+        tiler_heap_term(k, ctx);
+        tiler_heap_create(k, ctx);
+}
+
 static struct kbase_cs
 kbase_cs_bind_noevent(kbase k, struct kbase_context *ctx,
                       base_va va, unsigned size, unsigned csi)
@@ -1570,6 +1577,7 @@ kbase_open_csf
 #else
         k->context_create = kbase_context_create;
         k->context_destroy = kbase_context_destroy;
+        k->heap_recreate = kbase_heap_recreate;
 
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
