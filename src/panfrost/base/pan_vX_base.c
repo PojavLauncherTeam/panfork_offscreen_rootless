@@ -658,7 +658,6 @@ kbase_import_dmabuf(kbase k, int fd)
                 ret = os_same_file_description(h.fd, fd);
 
                 if (ret == 0) {
-                        printf("same file description %i %i\n", h.fd, fd);
                         pthread_mutex_unlock(&k->handle_lock);
                         return i;
                 } else if (ret < 0) {
