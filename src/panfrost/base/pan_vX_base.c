@@ -709,9 +709,6 @@ struct kbase_syncobj {
 
         /* How many jobs are still executing? */
         unsigned job_count;
-
-        /* Write a byte to this pipe when job_count hits zero */
-        int pipefd[2];
 };
 
 static struct kbase_syncobj *
@@ -722,10 +719,6 @@ kbase_syncobj_create(kbase k)
         o->ref_count = 1;
 
         pthread_mutex_init(&o->child_mtx, NULL);
-
-        int ret = pipe2(o->pipefd, O_CLOEXEC | O_NONBLOCK);
-        if (ret == -1)
-                perror("pipe(o->pipefd)");
 
         return o;
 }
@@ -745,9 +738,6 @@ kbase_syncobj_unref(struct kbase_syncobj *o)
         unsigned ret = p_atomic_dec_return(&o->ref_count);
 
         if (!ret) {
-                close(o->pipefd[0]);
-                close(o->pipefd[1]);
-
                 for (unsigned i = 0; i < o->child_count; ++i)
                         kbase_syncobj_unref(o->children[i]);
 
@@ -800,18 +790,14 @@ kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
                 /* There are currently-executing jobs which reference this
                  * syncobj, wait for an event. */
 
-                struct pollfd pfd[2] = {
+                struct pollfd pfd[1] = {
                         {
                                 .fd = k->fd,
                                 .events = POLLIN,
                         },
-                        {
-                                .fd = o->pipefd[0],
-                                .events = POLLIN,
-                        },
                 };
 
-                int ret = poll(pfd, 2, 200);
+                int ret = poll(pfd, 1, 200);
                 if (ret == -1)
                         perror("poll(syncobj)");
 
@@ -840,19 +826,7 @@ kbase_syncobj_inc_jobs(struct kbase_syncobj *o)
         pthread_mutex_lock(&o->child_mtx);
 
         /* Might as well not bother with the atomic, given the locking... */
-        if (p_atomic_inc_return(&o->job_count) == 1) {
-                /* This is the first job, make sure that the pipe is empty */
-                uint32_t data = 0;
-                int ret = read(o->pipefd[0], &data, 4);
-
-                if (ret == -1 && errno != EAGAIN)
-                        perror("read(o->pipdfd[0])");
-
-                /* We should never have more than one byte in the pipe at a
-                 * time */
-                if (ret > 1)
-                        fprintf(stderr, "syncobj pipe too large!\n");
-        }
+        p_atomic_inc_return(&o->job_count);
 
         for (unsigned i = 0; i < o->child_count; ++i)
                 kbase_syncobj_inc_jobs(o->children[i]);
@@ -867,15 +841,7 @@ kbase_syncobj_dec_jobs(struct kbase_syncobj *o)
         pthread_mutex_lock(&o->child_mtx);
 
         /* Might as well not bother with the atomic, given the locking... */
-        if (p_atomic_dec_return(&o->job_count) == 0) {
-
-                /* This was the last job, write a cookie into the pipe */
-                uint8_t data = 0xEE;
-                int ret = write(o->pipefd[1], &data, 1);
-
-                if (ret != 1)
-                        perror("write(o->pipdfd[1])");
-        }
+        p_atomic_dec_return(&o->job_count);
 
         for (unsigned i = 0; i < o->child_count; ++i)
                 kbase_syncobj_dec_jobs(o->children[i]);
