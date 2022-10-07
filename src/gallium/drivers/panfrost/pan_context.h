@@ -125,7 +125,7 @@ struct panfrost_cs {
         mali_ptr event_ptr;
         uint64_t seqnum;
         uint64_t offset;
-        unsigned endpoints;
+        unsigned hw_resources;
 };
 
 struct panfrost_context {

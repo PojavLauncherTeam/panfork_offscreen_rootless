@@ -440,7 +440,7 @@ oldcmds = """
 
 @ Some time is required for the change to become active
 @ Just submitting a second job appears to be enough
-endpt compute fragment tiler idvs
+resources compute fragment tiler idvs
 !cs 0
 
 @ Base vertex count
@@ -748,7 +748,7 @@ mov x30, $y
 @regdump x30
 @mov x30, 0
 
-endpt 1
+resources compute
 slot 2
 mov w54, #0xffffe0
 UNK 00 24, #0x540000000233
@@ -1354,7 +1354,7 @@ class Context:
                 cmd = 16 if s[1][0] == "w" else 17
                 addr = reg(s[1])
                 value = (reg(s[2]) << 40) | (val(s[3]) & 0xffffffff)
-            elif s[0] == "endpt":
+            elif s[0] == "resources":
                 assert(len(s) >= 2)
                 types = ["compute", "fragment", "tiler", "idvs"]
                 cmd = 34

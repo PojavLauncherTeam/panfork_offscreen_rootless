@@ -1641,9 +1641,9 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
         case 34: {
                 /* idvs implies tiler */
                 if (l & ~0xf)
-                        pandecode_log("endpt 0x%x\n", l);
+                        pandecode_log("resources 0x%x\n", l);
                 else
-                        pandecode_log("endpt%s%s%s%s\n",
+                        pandecode_log("resources%s%s%s%s\n",
                                       (l & 1) ? " compute" : "",
                                       (l & 2) ? " fragment" : "",
                                       (l & 4) ? " tiler" : "",

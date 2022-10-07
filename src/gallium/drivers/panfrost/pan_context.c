@@ -910,7 +910,7 @@ panfrost_cs_create(struct panfrost_context *ctx, unsigned size, unsigned mask)
 
         c.event_ptr = dev->mali.event_mem.gpu + c.base.event_mem_offset * 16;
 
-        c.endpoints = mask;
+        c.hw_resources = mask;
         screen->vtbl.init_cs(ctx, &c);
 
         return c;

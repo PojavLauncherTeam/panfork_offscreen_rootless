@@ -1581,16 +1581,12 @@
     <field name="Slots" size="8" start="16" type="hex"/>
   </struct>
 
-  <!-- TODO: This appears to be a mask -->
-  <enum name="CS Iterator">
-    <value name="Compute" value="1"/>
-    <value name="Fragment" value="2"/>
-    <value name="Blit" value="3"/>
-    <value name="Vertex" value="13"/>
-  </enum>
-
-  <struct name="CS Set Iterator" layout="ins" op="34">
-    <field name="Iterator" size="56" start="0" type="CS Iterator"/>
+  <struct name="CS Resources" layout="ins" op="34">
+    <field name="Mask" size="56" start="0" type="hex"/>
+    <field name="Compute" size="1" start="0" type="bool"/>
+    <field name="Fragment" size="1" start="1" type="bool"/>
+    <field name="Tiler" size="1" start="2" type="bool"/>
+    <field name="IDVS" size="1" start="3" type="bool"/>
   </struct>
 
   <struct name="CS Call" layout="ins" op="32">

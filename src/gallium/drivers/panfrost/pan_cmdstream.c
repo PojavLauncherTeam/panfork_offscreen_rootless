@@ -2811,7 +2811,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // TODO: What does this need to be?
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
-        if (cs->endpoints & 12) {
+        if (cs->hw_resources & 12) {
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
                         cfg.type = MALI_HEAP_STATISTIC_V_T_START;
                 }
@@ -2841,7 +2841,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 #endif
 
         /* TODO define a macro... this is tiler|idvs */
-        if (cs->endpoints & 12) {
+        if (cs->hw_resources & 12) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
@@ -2849,7 +2849,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
-        if (false && cs->endpoints & 2) {
+        if (false && cs->hw_resources & 2) {
                 /* Skip the next operation if the batch doesn't use a tiler
                  * heap (i.e. it's just a blit) */
                 pan_emit_cs_ins(c, 22, 0x560030000001); /* b.ne w56, skip 1 */
@@ -2898,7 +2898,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 //}
         }
 
-        if (cs->endpoints & 2) {
+        if (cs->hw_resources & 2) {
                 pan_emit_cs_32(c, 0x54, 0);
                 pan_emit_cs_ins(c, 0x24, 0x2540000f80211);
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 1; }
@@ -2974,7 +2974,7 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         c->ptr = cs->bo->ptr.cpu;
 
         // four instructions == 32 bytes
-        pan_pack_ins(c, CS_SET_ITERATOR, cfg) { cfg.iterator = cs->endpoints; }
+        pan_pack_ins(c, CS_RESOURCES, cfg) { cfg.mask = cs->hw_resources; }
         pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; }
         pan_emit_cs_48(c, 0x48, ctx->kbase_ctx->tiler_heap_va);
         pan_pack_ins(c, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
