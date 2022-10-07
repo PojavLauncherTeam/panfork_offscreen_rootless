@@ -1063,12 +1063,12 @@ cs_init(struct state *s, struct test *t)
 
         for (unsigned i = 0; i < CS_QUEUE_COUNT; ++i) {
                 CS_WRITE_REGISTER(s, i, CS_INSERT, 0);
-                pan_pack_ins(s->cs + i, CS_SET_ITERATOR, cfg) {
+                pan_pack_ins(s->cs + i, CS_RESOURCES, cfg) {
                         switch (i) {
-                        case 0: cfg.iterator = MALI_CS_ITERATOR_COMPUTE; break;
-                        case 1: cfg.iterator = MALI_CS_ITERATOR_BLIT; break;
-                        case 2: cfg.iterator = MALI_CS_ITERATOR_VERTEX; break;
-                        case 3: cfg.iterator = MALI_CS_ITERATOR_FRAGMENT; break;
+                        case 0: cfg.compute = true; break;
+                        case 1: cfg.compute = true; cfg.fragment = true; break;
+                        case 2: cfg.compute = true; cfg.tiler = true; cfg.idvs = true; break;
+                        case 3: cfg.fragment = true; break;
                         }
                 }
                 pan_pack_ins(s->cs + i, CS_SLOT, cfg) {
