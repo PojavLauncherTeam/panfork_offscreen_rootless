@@ -96,7 +96,7 @@ S32_TO_F32 r1, ^r1
 
 RSHIFT_OR.i32 r2, ^r60, 0x03020100.b22, 0x0
 S32_TO_F32 r2, ^r2
-#FADD.f32 r0, ^r0, r2
+FADD.f32 r0, ^r0, r2.neg
 #FADD.f32 r1, ^r1, ^r2
 S32_TO_F32 r2, ^r60
 #MOV.i32 r1, 0x0
@@ -169,6 +169,27 @@ descriptors = {
     ],
 
     "tiler_ctx": [
+        0, 0,
+        # Hierarchy mask,
+        # Single-sampled
+        # Last provoking vertex
+        0x6 | (0 << 18),
+        0x00ff00ff,
+        # Layer
+        0, 0,
+        "tiler_heap",
+        ("idk", 0x10),
+        #("tiler_heap", -0xfff0),
+        # "Weights"
+    ] + ([0] * (32 - 10)) + [
+        # "State"
+        0,
+        31,
+        0,
+        0x10000000,
+    ],
+
+    "tiler_ctx2": [
         0, 0,
         # Hierarchy mask,
         # Single-sampled
@@ -351,11 +372,14 @@ cmds = """
 @ Some time is required for the change to become active
 @ Just submitting a second job appears to be enough
 resources compute fragment tiler idvs
-slot 6
 mov x48, #0x6000000000
 heapctx x48
 
 !cs 0
+
+slot 3
+wait 3
+heapinc vt_start
 
 @ Base vertex count
 mov w24, 0
@@ -424,20 +448,48 @@ mov x36, $point_index
 @idvs 0x4a42, mode points, index uint32
 
 mov w21, 400000
-@mov w21, 40
-idvs 0x4a42, mode triangles, index none
+mov w21, 18
+@idvs 0x4a42, mode triangles, index none
 
 @idvs 0x4a42, mode points, index none
 @idvs 0x4a42, mode line-loop, index none
 
 flush_tiler
+wait 3
+heapinc vt_end
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
 
 UNK 00 24, #0x5f0000000233
-wait 1
+wait all
 
 !dump64 tiler_heap 0 4096
 @!dump idk 0 1048576
 @!dump position_data 0 4096
+
+!cs 0
+
+UNK 00 24, #0x5f0000000233
+wait all
+
+slot 4
+wait 4
+heapinc vt_start
+
+mov x28, $tiler_ctx2
+idvs 0x4002, mode triangles, index none
+flush_tiler
+wait 4
+heapinc vt_end
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
+
+UNK 00 24, #0x5f0000000233
+wait all
+
+!dump64 tiler_heap 0 4096
 
 !cs 0
 
@@ -461,14 +513,22 @@ str w40, [x2c]
 
 fragment
 
+@ Does this actually do anytihng?
 mov x48, $tiler_ctx
 ldr x4a, [x48, 40]
 ldr x4c, [x48, 48]
-wait 0,2
+wait 0,4
 UNK 02 0b, 0x4a4c00400001
 
+mov x48, $tiler_ctx2
+ldr x4a, [x48, 40]
+ldr x4c, [x48, 48]
+wait 0,4
+UNK 02 0b, 0x4a4c00400001
+
+UNK 02 24, #0x5f0000f80211
 @UNK 00 24, #0x5f0000000233
-@wait 1
+wait 1
 
 mov x54, $plane_0
 ldr x56, [x54]
@@ -483,6 +543,7 @@ evstr w5f, [x50], unk 0xfd, irq
 !fdump heap 0 1048576
 !tiler heap 0 1048576
 
+
 @!dump rt_buffer 0 4096
 !dump y 0 4096
 @!dump plane_0 0 524288
@@ -491,7 +552,9 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump occlusion 0 4096
 @!dump ssbo 0 4096
 
+!dump64 tiler_heap 0 4096
 !dump tiler_ctx 0 4096
+!dump tiler_ctx2 0 4096
 
 
 @!fdump heap 0 1048576
