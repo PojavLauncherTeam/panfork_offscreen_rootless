@@ -353,7 +353,7 @@ cmds = """
 resources compute fragment tiler idvs
 slot 6
 mov x48, #0x6000000000
-UNK 00 30, #0x480000000000
+heapctx x48
 
 !cs 0
 
@@ -424,7 +424,7 @@ mov x36, $point_index
 @idvs 0x4a42, mode points, index uint32
 
 mov w21, 400000
-mov w21, 40
+@mov w21, 40
 idvs 0x4a42, mode triangles, index none
 
 @idvs 0x4a42, mode points, index none
@@ -435,12 +435,11 @@ flush_tiler
 UNK 00 24, #0x5f0000000233
 wait 1
 
-@ TODO: Why does this raise CS_INVALID_INSTRUCTION?
-@UNK 00 31, #0x100000000
-
-@!dump tiler_heap 0 4096
+!dump64 tiler_heap 0 4096
 @!dump idk 0 1048576
 @!dump position_data 0 4096
+
+!cs 0
 
 mov x50, $ev
 
@@ -495,7 +494,7 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump tiler_ctx 0 4096
 
 
-!fdump heap 0 1048576
+@!fdump heap 0 1048576
 """
 
 docopy = """
@@ -1187,13 +1186,14 @@ class Context:
                 flags = val(s[3]) if len(s) == 4 else 0x280f
                 self.allocs[alloc_id] = Alloc(size, flags)
                 continue
-            elif s[0] in ("!dump", "!fdump", "!delta", "!tiler"):
+            elif s[0] in ("!dump", "!dump64", "!fdump", "!delta", "!tiler"):
                 assert(len(s) == 4)
                 alloc_id = s[1]
                 offset = val(s[2])
                 size = val(s[3])
                 mode = {
                     "!dump": "hex",
+                    "!dump64": "hex64",
                     "!fdump": "filehex",
                     "!delta": "delta",
                     "!tiler": "tiler",

@@ -1104,6 +1104,30 @@ buffers_elem(struct util_dynarray *buffers, unsigned index)
 }
 
 static void
+dump_hex64(FILE *fp, uint64_t *values, unsigned size)
+{
+        bool zero = false;
+        for (unsigned i = 0; i < size / 8; i += 2) {
+                uint64_t a = values[i];
+                uint64_t b = values[i + 1];
+
+                if (!a && !b) {
+                        if (!zero)
+                                fprintf(fp, "%06X  *\n", i * 8);
+                        zero = true;
+                        continue;
+                }
+
+                zero = false;
+
+                fprintf(fp, "%06X  %16"PRIx64" %16"PRIx64"\n",
+                        i * 8, a, b);
+        }
+
+        fprintf(fp, "\n");
+}
+
+static void
 dump_delta(FILE *fp, uint64_t *values, unsigned size)
 {
         uint64_t old = 0;
@@ -1321,6 +1345,8 @@ cs_test(struct state *s, struct test *t)
 
                         if (!strcmp(mode, "hex"))
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
+                        else if (!strcmp(mode, "hex64"))
+                                dump_hex64(stdout, s->cpu + offset, size);
                         else if (!strcmp(mode, "delta"))
                                 dump_delta(stdout, s->cpu + offset, size);
                         else if (!strcmp(mode, "tiler"))
