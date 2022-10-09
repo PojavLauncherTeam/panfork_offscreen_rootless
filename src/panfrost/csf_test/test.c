@@ -564,6 +564,8 @@ tiler_heap_create(struct state *s, struct test *t)
 
         s->tiler_heap_va = init.out.gpu_heap_va;
         s->tiler_heap_header = init.out.first_chunk_va;
+        printf("heap va: %lx, heap header: %lx\n",
+               s->tiler_heap_va, s->tiler_heap_header);
 
         return true;
 }
@@ -1252,6 +1254,8 @@ cs_test(struct state *s, struct test *t)
 
                         *buffers_elem(&buffers, dst) = buffer;
 
+                        //printf("buffer %lu == 0x%lx\n", dst, buffer.gpu);
+
                         uint64_t *fill = buffer.cpu;
 
                         for (unsigned i = 0; i < size / 8; ++i) {
@@ -1337,6 +1341,18 @@ cs_test(struct state *s, struct test *t)
 
                         dump_heatmap(stdout, s->cpu + offset, size,
                                      gran, length, stride);
+
+                } else if (strcmp(line, "td\n") == 0) {
+
+                        void *ptr = mmap(NULL, 1 << 21, PROT_READ | PROT_WRITE, MAP_SHARED, s->mali_fd,
+                                         s->tiler_heap_header);
+                        pan_hexdump(stdout, ptr, 4096, false);
+                        munmap(ptr, 1 << 21);
+
+                        ptr = mmap(NULL, 1 << 21, PROT_READ | PROT_WRITE, MAP_SHARED, s->mali_fd,
+                                         s->tiler_heap_header + (1 << 21));
+                        pan_hexdump(stdout, ptr, 4096, false);
+                        munmap(ptr, 1 << 21);
 
                 } else {
                         fprintf(stderr, "unknown command '%s'\n", line);

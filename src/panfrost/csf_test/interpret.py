@@ -96,18 +96,18 @@ S32_TO_F32 r1, ^r1
 
 RSHIFT_OR.i32 r2, ^r60, 0x03020100.b22, 0x0
 S32_TO_F32 r2, ^r2
-FADD.f32 r0, ^r0, r2
-FADD.f32 r1, ^r1, ^r2
+#FADD.f32 r0, ^r0, r2
+#FADD.f32 r1, ^r1, ^r2
 S32_TO_F32 r2, ^r60
 #MOV.i32 r1, 0x0
 
 FADD.f32 r0, ^r0, 0x40490FDB
 FADD.f32 r1, ^r1, 0x40490FDB
-FMA.f32 r2, ^r2, 0x3DCCCCCD, 0x0
-#MOV.i32 r2, 0x3DCCCCCD
+#FMA.f32 r2, ^r2, 0x3DCCCCCD, 0x0
+MOV.i32 r2, 0x3DCCCCCD
 MOV.i32 r3, 0x0
 
-STORE.i128.slot0 @r0:r1:r2:r3, thread_local_pointer, offset:0
+#STORE.i128.slot0 @r0:r1:r2:r3, thread_local_pointer, offset:0
 
 IADD_IMM.i32 r8, 0x0, #0x00004000
 STORE.i16.istream.slot0 @r8, r4, offset:64
@@ -163,8 +163,9 @@ descriptors = {
     "fau2": [("ev", 8 + (0 << 34)), 7, 0],
 
     "tiler_heap": [
-        0x029, HEAP_SIZE,
-        "heap", ("heap", 64), ("heap", HEAP_SIZE),
+        0x029, 1 << 21, #HEAP_SIZE,
+        0x1000, 0x60, 0x1040, 0x60, 0x1000 + (1 << 21), 0x60
+        #"heap", ("heap", 64), ("heap", HEAP_SIZE),
     ],
 
     "tiler_ctx": [
@@ -347,100 +348,13 @@ descriptors = {
 cmds = """
 !cs 0
 
-slot 4
-wait 4
-
-mov x48, $y
-UNK 00 30, #0x480000000000
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0x100000000
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0x100000000
-
-!dump y 0 4096
-!cs 0
-
-UNK 00 31, #0x100000000
-
-!dump y 0 4096
-!cs 0
-
-@ Does this do anything?
-UNK 00 31, #0x200000000
-
-@ Well this certainly does something!
-UNK 00 31, #0x300000000
-UNK 00 31, #0x300000000
-UNK 00 31, #0x300000000
-UNK 00 31, #0x300000000
-
-!dump y 0 4096
-!cs 0
-
-mov x48, $y
-add x44, x48, 128
-UNK 00 30, #0x440000000000
-wait all
-
-mov x20, 0x12345
-str w20, [x48, 0x1c]
-
-!dump y 0 4096
-
-"""
-
-cmds = """
-!cs 0
-
-slot 4
-wait 4
-
-mov x48, $y
-heapctx x48
-
-!dump y 0 4096
-!cs 0
-
-heapinc vt_start
-heapinc vt_end
-heapinc frag_end
-
-!dump y 0 4096
-!cs 0
-
-UNK 05 31, #0x10ffff000
-UNK 00 31, #0x900000000
-
-!dump y 0 4096
-"""
-
-oldcmds = """
-!cs 0
-
 @ Some time is required for the change to become active
 @ Just submitting a second job appears to be enough
 resources compute fragment tiler idvs
+slot 6
+mov x48, #0x6000000000
+UNK 00 30, #0x480000000000
+
 !cs 0
 
 @ Base vertex count
@@ -456,7 +370,8 @@ mov w38, 0x430000
 @@ Draw
 @ Pixel kill etc.
 @   Enable occlusion query
-mov w39, 0xc000
+@mov w39, 0xc000
+mov w39, 0
 @ Unk...
 mov w26, 0x1000
 @ Sample mask / render target mask
@@ -508,8 +423,10 @@ mov x36, $point_index
 
 @idvs 0x4a42, mode points, index uint32
 
-mov w21, 4
-@idvs 0x4a42, mode triangle-strip, index none
+mov w21, 400000
+mov w21, 40
+idvs 0x4a42, mode triangles, index none
+
 @idvs 0x4a42, mode points, index none
 @idvs 0x4a42, mode line-loop, index none
 
@@ -545,8 +462,14 @@ str w40, [x2c]
 
 fragment
 
-UNK 00 24, #0x5f0000000233
-wait 1
+mov x48, $tiler_ctx
+ldr x4a, [x48, 40]
+ldr x4c, [x48, 48]
+wait 0,2
+UNK 02 0b, 0x4a4c00400001
+
+@UNK 00 24, #0x5f0000000233
+@wait 1
 
 mov x54, $plane_0
 ldr x56, [x54]
@@ -557,6 +480,7 @@ str x56, [x52]
 
 evstr w5f, [x50], unk 0xfd, irq
 
+!raw td
 !fdump heap 0 1048576
 !tiler heap 0 1048576
 
@@ -567,6 +491,11 @@ evstr w5f, [x50], unk 0xfd, irq
 !heatmap plane_0 0 8192 gran 0x04 len 0x20 stride 0x400
 !dump occlusion 0 4096
 @!dump ssbo 0 4096
+
+!dump tiler_ctx 0 4096
+
+
+!fdump heap 0 1048576
 """
 
 docopy = """
@@ -643,6 +572,8 @@ evstr w5f, [x58], unk 0xfd, irq
 
 oldcmds = """
 !cs 0
+endpt compute
+!cs 0
 
 @ Workgroup size 1x1x1, merging allowed
 mov w21, 0x80000000
@@ -674,7 +605,7 @@ movp x0e, $fau+0x0200000000000000
 slot 2
 wait 2
 
-UNK 0400ff0000008200
+UNK 0400000000008200
 
 mov x58, $fau
 ldr x56, [x58]
@@ -704,9 +635,9 @@ slot 2
 wait 2
 
 add w22, w22, 1
-UNK 0400ff0000008200
+@UNK 0400ff0000008200
 
-b.ne w40, 1b
+@b.ne w40, 1b
 
 !dump x 0 4096
 !dump y 0 4096
@@ -1285,6 +1216,9 @@ class Context:
                 self.exe.append(("heatmap", self.allocs[alloc_id].id,
                                  offset, size, granularity, length, stride))
                 continue
+            elif s[0] == "!raw":
+                self.exe.append(s[1:])
+                continue
             elif s[0] == "movp":
                 assert(len(s) == 3)
                 assert(s[1][0] == "x")
@@ -1679,6 +1613,7 @@ def interpret(text):
     c.add_memory(memory)
     c.add_descriptors(descriptors)
     c.interpret(text)
+    #print(str(c))
     return str(c)
 
 def run(text, capture=False):
