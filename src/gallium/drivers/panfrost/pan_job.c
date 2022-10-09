@@ -923,7 +923,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 pclose(stream);
         }
 
-        dev->mali.heap_recreate(&dev->mali, ctx->kbase_ctx);
+        //dev->mali.heap_recreate(&dev->mali, ctx->kbase_ctx);
 
         if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
                 void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +

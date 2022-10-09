@@ -2847,7 +2847,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
-        if (false && cs->hw_resources & 2) {
+        if (cs->hw_resources & 2) {
                 /* Skip the next operation if the batch doesn't use a tiler
                  * heap (i.e. it's just a blit) */
                 pan_emit_cs_ins(c, 22, 0x560030000001); /* b.ne w56, skip 1 */
@@ -3243,6 +3243,44 @@ panfrost_update_state_3d(struct panfrost_batch *batch)
 }
 
 #if PAN_ARCH >= 6
+
+#if PAN_ARCH >= 10
+static mali_ptr
+panfrost_get_tiler_heap_desc(struct panfrost_batch *batch)
+{
+        struct panfrost_context *ctx = batch->ctx;
+        struct panfrost_device *dev = pan_device(ctx->base.screen);
+
+        if (ctx->tiler_heap_desc)
+                return ctx->tiler_heap_desc;
+
+        struct panfrost_bo *bo = panfrost_bo_create(dev, 4096, 0, "Tiler heap descriptor");
+
+        pan_pack(bo->ptr.cpu, TILER_HEAP, heap) {
+                heap.size = ctx->kbase_ctx->tiler_heap_chunk_size;
+                heap.base = ctx->kbase_ctx->tiler_heap_header;
+                heap.bottom = heap.base + 64;
+                heap.top = heap.base + heap.size;
+        }
+
+        ctx->tiler_heap_desc = bo->ptr.gpu;
+        return bo->ptr.gpu;
+}
+#else
+static mali_ptr
+panfrost_get_tiler_heap_desc(struct panfrost_batch *batch)
+{
+        struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
+
+        struct panfrost_ptr t =
+                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
+
+        GENX(pan_emit_tiler_heap)(dev, t.cpu);
+
+        return t.gpu;
+}
+#endif
+
 static mali_ptr
 panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_count)
 {
@@ -3254,26 +3292,11 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         if (batch->tiler_ctx.bifrost)
                 return batch->tiler_ctx.bifrost;
 
+        mali_ptr heap = panfrost_get_tiler_heap_desc(batch);
+
         mali_ptr scratch = 0;
 
-        struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
-
-#if PAN_ARCH < 10
-        GENX(pan_emit_tiler_heap)(dev, t.cpu);
-#else
-#if 1
-        // TODO: I think this needs to be shared between all concurrent users
-        // of the heap
-        pan_pack(t.cpu, TILER_HEAP, heap) {
-                heap.size = batch->ctx->kbase_ctx->tiler_heap_chunk_size;
-                heap.base = batch->ctx->kbase_ctx->tiler_heap_header;
-                heap.bottom = heap.base + 64;
-                heap.top = heap.base + heap.size;
-        }
-#else
-        GENX(pan_emit_tiler_heap)(dev, t.cpu);
-#endif
+#if PAN_ARCH >= 10
         // TODO: Dynamically size?
         unsigned scratch_bits = 16;
 
@@ -3288,9 +3311,8 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         scratch = sc.gpu + scratch_bits;
 #endif
 
-        mali_ptr heap = t.gpu;
-
-        t = pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
+        struct panfrost_ptr t =
+                pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
         GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
                                  util_framebuffer_get_num_samples(&batch->key),
                                  pan_tristate_get(batch->first_provoking_vertex),

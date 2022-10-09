@@ -1368,7 +1368,7 @@ cs_test(struct state *s, struct test *t)
                         dump_heatmap(stdout, s->cpu + offset, size,
                                      gran, length, stride);
 
-                } else if (strcmp(line, "td\n") == 0) {
+                } else if (strcmp(line, "td\n") == 0 || strcmp(line, "td") == 0) {
 
                         void *ptr;
 

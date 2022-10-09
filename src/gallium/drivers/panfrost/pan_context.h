@@ -243,9 +243,10 @@ struct panfrost_context {
         uint32_t in_sync_obj;
 
         struct kbase_context *kbase_ctx;
-	struct panfrost_bo *event_bo;
-	struct panfrost_cs kbase_cs_vertex;
-	struct panfrost_cs kbase_cs_fragment;
+        struct panfrost_bo *event_bo;
+        struct panfrost_cs kbase_cs_vertex;
+        struct panfrost_cs kbase_cs_fragment;
+        mali_ptr tiler_heap_desc;
 };
 
 /* Corresponds to the CSO */
