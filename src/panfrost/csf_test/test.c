@@ -1370,14 +1370,18 @@ cs_test(struct state *s, struct test *t)
 
                 } else if (strcmp(line, "td\n") == 0) {
 
-                        void *ptr = mmap(NULL, 1 << 21, PROT_READ | PROT_WRITE, MAP_SHARED, s->mali_fd,
+                        void *ptr;
+
+                        ptr = mmap(NULL, 1 << 21, PROT_READ | PROT_WRITE, MAP_SHARED, s->mali_fd,
                                          s->tiler_heap_header);
                         pan_hexdump(stdout, ptr, 4096, false);
+                        pan_hexdump(stdout, ptr + (1 << 21) - 4096, 4096, false);
                         munmap(ptr, 1 << 21);
 
                         ptr = mmap(NULL, 1 << 21, PROT_READ | PROT_WRITE, MAP_SHARED, s->mali_fd,
                                          s->tiler_heap_header + (1 << 21));
                         pan_hexdump(stdout, ptr, 4096, false);
+                        pan_hexdump(stdout, ptr + (1 << 21) - 4096, 4096, false);
                         munmap(ptr, 1 << 21);
 
                 } else {
