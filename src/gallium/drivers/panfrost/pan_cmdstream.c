@@ -2810,6 +2810,8 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
         if (cs->hw_resources & 12) {
+                pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 3; }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
                         cfg.type = MALI_HEAP_STATISTIC_V_T_START;
                 }
@@ -2841,7 +2843,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         /* TODO define a macro... this is tiler|idvs */
         if (cs->hw_resources & 12) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
-                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 2; }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
                         cfg.type = MALI_HEAP_STATISTIC_V_T_END;
                 }
@@ -2865,12 +2867,12 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                         cfg.addr = 0x56;
                         cfg.register_base = 0x4c;
                 }
-                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = (1 << 0) | (1 << 2); }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = (1 << 0) | (1 << 3); }
 
                 pan_pack_ins(c, CS_HEAPCLEAR, cfg) {
                         cfg.start = 0x4a;
                         cfg.end = 0x4c;
-                        cfg.slots = 1 << 2;
+                        cfg.slots = 1 << 3;
                 }
 
                 /* Reset the fields so that the clear operation isn't done again */
@@ -2954,8 +2956,9 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         // TODO genxmlify... this is a 64-bit EVWAIT instruction
         pan_emit_cs_ins(cf, 53, 0x484a10000000);
 
-        pan_emit_cs_32(cf, 0x54, 0);
-        pan_emit_cs_ins(cf, 0x24, 0x540000000200);
+        // What does this instruction do?
+        //pan_emit_cs_32(cf, 0x54, 0);
+        //pan_emit_cs_ins(cf, 0x24, 0x540000000200);
 
         pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
