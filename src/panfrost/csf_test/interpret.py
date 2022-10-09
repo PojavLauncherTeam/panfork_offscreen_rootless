@@ -168,7 +168,8 @@ descriptors = {
         #"heap", ("heap", 64), ("heap", HEAP_SIZE),
     ],
 
-    "tiler_ctx": [
+} | {
+    x: [
         0, 0,
         # Hierarchy mask,
         # Single-sampled
@@ -187,28 +188,8 @@ descriptors = {
         31,
         0,
         0x10000000,
-    ],
-
-    "tiler_ctx2": [
-        0, 0,
-        # Hierarchy mask,
-        # Single-sampled
-        # Last provoking vertex
-        0x6 | (0 << 18),
-        0x00ff00ff,
-        # Layer
-        0, 0,
-        "tiler_heap",
-        ("idk", 0x10),
-        #("tiler_heap", -0xfff0),
-        # "Weights"
-    ] + ([0] * (32 - 10)) + [
-        # "State"
-        0,
-        31,
-        0,
-        0x10000000,
-    ],
+    ] for x in ("tiler_ctx", "tiler_ctx2", "tiler_ctx3")
+} | {
 
     "thread_storage": [
         1, 31,
@@ -483,11 +464,11 @@ flush_tiler
 wait 4
 heapinc vt_end
 
-mov x50, $ev
-evstr w5f, [x50], unk 0xfd, irq
-
 UNK 00 24, #0x5f0000000233
 wait all
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
 
 !dump64 tiler_heap 0 4096
 
@@ -496,7 +477,7 @@ wait all
 mov x50, $ev
 
 @ Bound min
-mov w2a, 0x00000000
+mov w2a, i16:0,0
 @ Bound max
 mov w2b, i16:255,255
 mov x28, $framebuffer+1
@@ -518,13 +499,13 @@ mov x48, $tiler_ctx
 ldr x4a, [x48, 40]
 ldr x4c, [x48, 48]
 wait 0,4
-UNK 02 0b, 0x4a4c00400001
+UNK 02 0b, 0x4a4c00100001
 
 mov x48, $tiler_ctx2
 ldr x4a, [x48, 40]
 ldr x4c, [x48, 48]
 wait 0,4
-UNK 02 0b, 0x4a4c00400001
+UNK 02 0b, 0x4a4c00100001
 
 UNK 02 24, #0x5f0000f80211
 @UNK 00 24, #0x5f0000000233
@@ -556,8 +537,34 @@ evstr w5f, [x50], unk 0xfd, irq
 !dump tiler_ctx 0 4096
 !dump tiler_ctx2 0 4096
 
-
 @!fdump heap 0 1048576
+
+!cs 0
+
+slot 3
+wait 3
+heapinc vt_start
+
+mov x28, $tiler_ctx3
+mov w2c, float:0
+mov w2d, float:1.0
+mov x2e, $occlusion
+
+idvs 0x4002, mode triangles, index none
+flush_tiler
+wait 3
+heapinc vt_end
+
+UNK 00 24, #0x5f0000000233
+wait all
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
+
+!dump64 tiler_heap 0 4096
+!dump tiler_ctx 0 4096
+!raw td
+
 """
 
 docopy = """
