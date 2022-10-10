@@ -1317,6 +1317,23 @@ kbase_cs_term(kbase k, struct kbase_cs *cs)
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
 }
 
+static bool
+kbase_cs_kick(kbase k, struct kbase_cs *cs)
+{
+        struct kbase_ioctl_cs_queue_kick kick = {
+                .buffer_gpu_addr = cs->va,
+        };
+
+        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
+                return false;
+        }
+
+        return true;
+}
+
 #define CS_RING_DOORBELL(cs) \
         *((uint32_t *)(cs->user_io)) = 1
 
@@ -1378,16 +1395,7 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 active = CS_READ_REGISTER(cs, CS_ACTIVE);
                 LOG("active is now %i\n", active);
         } else {
-                struct kbase_ioctl_cs_queue_kick kick = {
-                        .buffer_gpu_addr = cs->va,
-                };
-
-                int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
-
-                if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
-                        return false;
-                }
+                kbase_cs_kick(k, cs);
         }
 
         {
