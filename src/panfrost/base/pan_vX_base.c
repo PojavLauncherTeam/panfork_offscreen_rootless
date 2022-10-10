@@ -1455,9 +1455,9 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
                         uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
                         unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 
-                        fprintf(stderr, "CS_EXTRACT (%li) != %li, "
+                        fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
                                 "CS_ACTIVE (%i)\n",
-                                e, extract_offset, a);
+                                cs->csi, e, extract_offset, a);
 
                         cs->last_extract = e;
 
@@ -1486,14 +1486,21 @@ kbase_cs_wait_idle(kbase k, struct kbase_cs *cs)
         if (!cs->user_io)
                 return;
 
+        unsigned i;
+
         // Evidently this is unreliable... sometimes the GPU can be powered
         // off with this still set?
-        for (unsigned i = 0; i < 100; ++i) {
+        for (i = 0; i < 100; ++i) {
                 if (!CS_READ_REGISTER(cs, CS_ACTIVE))
-                        return;
+                        break;
 
                 usleep(1 * 1000);
         }
+
+        unsigned r = CS_READ_REGISTER(cs, CS_ACTIVE);
+        printf("active: %u / %u\n", i, r);
+
+        kbase_cs_kick(k, cs);
 }
 #endif
 
