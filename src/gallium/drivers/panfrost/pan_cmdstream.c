@@ -5043,10 +5043,6 @@ init_batch(struct panfrost_batch *batch)
                 panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_FRAGMENT,
                                          "Fragment batch command stream");
 
-        // TODO: Is there a better way to handle this?
-        memset(batch->cs_vertex_bo->ptr.cpu, 0, batch->cs_vertex_bo->size);
-        memset(batch->cs_fragment_bo->ptr.cpu, 0, batch->cs_fragment_bo->size);
-
         batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
         batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
 
