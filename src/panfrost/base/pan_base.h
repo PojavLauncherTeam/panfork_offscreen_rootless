@@ -132,7 +132,7 @@ struct kbase {
         void (*cache_invalidate)(void *ptr, size_t size);
 
         void (*poll_event)(kbase k, int64_t timeout_ns);
-        void (*handle_events)(kbase k);
+        bool (*handle_events)(kbase k);
 
         /* <= v9 GPUs */
         int (*submit)(kbase k, uint64_t va, unsigned req,

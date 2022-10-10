@@ -777,7 +777,7 @@ kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
         return dup;
 }
 
-static void
+static bool
 kbase_handle_events(kbase k);
 
 static bool
@@ -873,20 +873,22 @@ kbase_poll_event(kbase k, int64_t timeout_ns)
 }
 
 #if PAN_BASE_API < 2
-static void
+static bool
 kbase_handle_events(kbase k)
 {
         struct base_jd_event_v2 event;
+        bool ret = true;
 
         for (;;) {
                 int ret = read(k->fd, &event, sizeof(event));
 
                 if (ret == -1) {
-                        if (errno == EAGAIN)
-                                return;
-
-                        perror("read(mali fd)");
-                        return;
+                        if (errno == EAGAIN) {
+                                return true;
+                        } else {
+                                perror("read(mali fd)");
+                                return false;
+                        }
                 }
 
                 struct kbase_syncobj *o = (void *)event.udata.blob[0];
@@ -896,9 +898,11 @@ kbase_handle_events(kbase k)
                         kbase_syncobj_unref(o);
                 }
 
-                if (event.event_code != BASE_JD_EVENT_DONE)
+                if (event.event_code != BASE_JD_EVENT_DONE) {
                         fprintf(stderr, "Atom %i reported event 0x%x!\n",
                                 event.atom_number, event.event_code);
+                        ret = false;
+                }
 
                 pthread_mutex_lock(&k->handle_lock);
 
@@ -918,6 +922,8 @@ kbase_handle_events(kbase k)
 
                 pthread_mutex_unlock(&k->handle_lock);
         }
+
+        return ret;
 }
 
 #else
@@ -929,15 +935,18 @@ kbase_read_event(kbase k)
         int ret = read(k->fd, &event, sizeof(event));
 
         if (ret == -1) {
-                if (errno != EAGAIN)
+                if (errno == EAGAIN) {
+                        return true;
+                } else {
                         perror("read(mali_fd)");
-                return false;
+                        return false;
+                }
         }
 
         if (ret != sizeof(event)) {
                 fprintf(stderr, "read(mali_fd) returned %i, expected %i!\n",
                         ret, (int) sizeof(event));
-                return true;
+                return false;
         }
 
         switch (event.type) {
@@ -992,7 +1001,7 @@ kbase_read_event(kbase k)
                 fprintf(stderr, "Unknown error type!\n");
         }
 
-        return true;
+        return false;
 }
 
 static void
@@ -1025,12 +1034,12 @@ kbase_update_syncobjs(kbase k,
         }
 }
 
-static void
+static bool
 kbase_handle_events(kbase k)
 {
         /* This will clear the event count, so there's no need to do it in a
          * loop. */
-        kbase_read_event(k);
+        bool ret = kbase_read_event(k);
 
         uint64_t *event_mem = k->event_mem.cpu;
 
@@ -1053,11 +1062,15 @@ kbase_handle_events(kbase k)
                 /* TODO: Atomic operations? */
                 k->event_slots[i].last = seqnum;
         }
+
+        return ret;
 }
 
-static void
+static bool
 kbase_wait_all_syncobjs(kbase k)
 {
+        bool ret = true;
+
         for (unsigned i = 0; i < 5; ++i) {
                 bool all = true;
 
@@ -1069,13 +1082,15 @@ kbase_wait_all_syncobjs(kbase k)
                 }
 
                 if (all)
-                        return;
+                        return ret;
 
                 LOG("waiting for syncobjs\n");
 
                 kbase_poll_event(k, 200 * 1000000);
-                kbase_handle_events(k);
+                ret &= kbase_handle_events(k);
         }
+
+        return ret;
 }
 
 #endif
@@ -1430,6 +1445,7 @@ kbase_cs_timeout(kbase k, struct kbase_cs *cs)
 static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 {
+        bool ret = true;
         unsigned count = 0;
 
         if (!cs->user_io) {
@@ -1448,7 +1464,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 
                 // TODO: Reduce timeout
                 kbase_poll_event(k, 200 * 1000000);
-                kbase_handle_events(k);
+                ret &= kbase_handle_events(k);
                 ++count;
 
                 if (count > 10) {
@@ -1469,13 +1485,13 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 
         cs->last_extract = extract_offset;
 
-        kbase_handle_events(k);
+        ret &= kbase_handle_events(k);
 
         // everything is broken, let's avoid fixing it by waiting for every
         // syncobj!
         kbase_wait_all_syncobjs(k);
 
-        return true;
+        return ret;
 }
 #endif
 
