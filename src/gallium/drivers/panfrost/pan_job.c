@@ -896,12 +896,6 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         if (log)
                 printf("About to submit\n");
-        // sigh... so for some reason we need to wait for the GPU to be
-        // powered off before starting the vertex job?
-        // Perhaps the fragment job does not do enough cleanup work at the
-        // end, leaving caches dirty?
-        dev->mali.cs_wait_idle(&dev->mali, &ctx->kbase_cs_vertex.base);
-        dev->mali.cs_wait_idle(&dev->mali, &ctx->kbase_cs_fragment.base);
 
         dev->mali.cs_submit(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset,
                             ctx->syncobj_kbase, ctx->kbase_cs_vertex.seqnum);
