@@ -2974,14 +2974,16 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         cs->offset = 0;
         c->ptr = cs->bo->ptr.cpu;
 
-        // four instructions == 32 bytes
+        // eight instructions == 64 bytes
         pan_pack_ins(c, CS_RESOURCES, cfg) { cfg.mask = cs->hw_resources; }
         pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 2; }
         pan_emit_cs_48(c, 0x48, ctx->kbase_ctx->tiler_heap_va);
         pan_pack_ins(c, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
+        for (unsigned i = 0; i < 4; ++i)
+                pan_pack_ins(c, CS_NOP, _);
 
-        dev->mali.cs_submit(&dev->mali, &cs->base, 32, NULL, 0);
-        //dev->mali.cs_wait(&dev->mali, &cs->base, 32);
+        dev->mali.cs_submit(&dev->mali, &cs->base, 64, NULL, 0);
+        //dev->mali.cs_wait(&dev->mali, &cs->base, 64);
 }
 
 #endif
