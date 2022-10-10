@@ -73,6 +73,7 @@ static const struct debug_named_value panfrost_debug_options[] = {
         {"overflow",  PAN_DBG_OVERFLOW, "Check for buffer overflows in pool uploads"},
 #endif
         {"tiler",     PAN_DBG_TILER,    "Decode the tiler heap"},
+        {"bolog",     PAN_DBG_BO_LOG,   "Log BO allocations/deallocations"},
         DEBUG_NAMED_VALUE_END
 };
 

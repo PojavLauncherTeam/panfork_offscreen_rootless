@@ -452,11 +452,13 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
                         pandecode_inject_mmap(bo->ptr.gpu, bo->ptr.cpu, bo->size, NULL);
         }
 
-        struct timespec tp;
-        clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-        fprintf(dev->bo_log, "%li.%09li alloc %lx to %lx size %zu label %s\n",
-                tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
-        fflush(NULL);
+        if (dev->bo_log) {
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%li.%09li alloc %lx to %lx size %zu label %s\n",
+                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
+                fflush(NULL);
+        }
 
         return bo;
 }
@@ -484,11 +486,13 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
 
         pthread_mutex_lock(&dev->bo_map_lock);
 
-        struct timespec tp;
-        clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-        fprintf(dev->bo_log, "%li.%09li free %lx to %lx size %zu label %s\n",
-                tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
-        fflush(NULL);
+        if (dev->bo_log) {
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%li.%09li free %lx to %lx size %zu label %s\n",
+                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
+                fflush(NULL);
+        }
 
         /* Someone might have imported this BO while we were waiting for the
          * lock, let's make sure it's still not referenced before freeing it.
