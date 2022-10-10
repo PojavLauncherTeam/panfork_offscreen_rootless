@@ -324,6 +324,8 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
         if (!dev->model)
                 return;
 
+        dev->bo_log = fopen("/tmp/bo_log", "w");
+
         dev->core_count = panfrost_query_core_count(dev, &dev->core_id_range);
         dev->thread_tls_alloc = panfrost_query_thread_tls_alloc(dev, dev->arch);
         dev->optimal_tib_size = panfrost_query_optimal_tib_size(dev);
