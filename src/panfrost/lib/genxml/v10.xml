@@ -1533,6 +1533,8 @@
     <section name="Draw" offset="128" type="Draw"/>
   </aggregate>
 
+  <struct name="CS NOP" layout="ins" op="0"/>
+
   <struct name="CS Add Imm" layout="ins" op="17">
     <field name="Value" size="32" start="0" type="int"/>
     <field name="Src" size="8" start="40" type="register"/>
@@ -1553,7 +1555,19 @@
       <field name="Register Base" size="8" start="48" type="register"/>
   </struct>
 
+  <!-- TODO: The next four are all just about equivalent... they
+       should have a shared definition. -->
   <struct name="CS EVADD" layout="ins" op="37">
+    <field name="Unk Flag" size="1" start="0" type="bool" default="true"/>
+    <field name="No IRQ" size="1" start="2" type="bool" default="false"/>
+    <field name="Unk 2" size="16" start="16" type="hex" default="253"/>
+    <!-- TODO: Separate types for 32-bit and 64-bit registers -->
+    <field name="Value" size="8" start="32" type="register"/>
+    <field name="Addr" size="8" start="40" type="register"/>
+    <field name="Unk 3" size="8" start="48" type="hex" default="1"/>
+  </struct>
+
+  <struct name="CS EVADD 64" layout="ins" op="51">
     <field name="Unk Flag" size="1" start="0" type="bool" default="true"/>
     <field name="No IRQ" size="1" start="2" type="bool" default="false"/>
     <field name="Unk 2" size="16" start="16" type="hex" default="253"/>
@@ -1571,6 +1585,37 @@
     <field name="Value" size="8" start="32" type="register"/>
     <field name="Addr" size="8" start="40" type="register"/>
     <field name="Unk 3" size="8" start="48" type="hex" default="1"/>
+  </struct>
+
+  <struct name="CS EVSTR 64" layout="ins" op="52">
+    <field name="Unk Flag" size="1" start="0" type="bool" default="true"/>
+    <field name="No IRQ" size="1" start="2" type="bool" default="false"/>
+    <field name="Unk 2" size="16" start="16" type="hex" default="253"/>
+    <!-- TODO: Separate types for 32-bit and 64-bit registers -->
+    <field name="Value" size="8" start="32" type="register"/>
+    <field name="Addr" size="8" start="40" type="register"/>
+    <field name="Unk 3" size="8" start="48" type="hex" default="1"/>
+  </struct>
+
+  <!-- Arm uses "greater than" and "less or equal", but I chose these
+       names to match up with AArch64 comparison names - these are
+       unsigned, while branch instructions are signed. -->
+  <enum name="Wait Condition">
+    <value name="Lower or same" value="0"/>
+    <value name="Higher" value="1"/>
+  </enum>
+
+  <!-- TODO: Use a single instruction with two opcodes for bitness -->
+  <struct name="CS EVWAIT" layout="ins" op="39">
+    <field name="Condition" size="1" start="28" type="Wait Condition"/>
+    <field name="Value" size="8" start="32" type="register"/>
+    <field name="Addr" size="8" start="40" type="register"/>
+  </struct>
+
+  <struct name="CS EVWAIT 64" layout="ins" op="53">
+    <field name="Condition" size="1" start="28" type="Wait Condition"/>
+    <field name="Value" size="8" start="32" type="register"/>
+    <field name="Addr" size="8" start="40" type="register"/>
   </struct>
 
   <struct name="CS Slot" layout="ins" op="23">
