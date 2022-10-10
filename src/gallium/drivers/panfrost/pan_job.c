@@ -860,12 +860,20 @@ mmu_dump(struct panfrost_device *dev)
 {
         unsigned size = 16 * 1024 * 1024;
 
+        sleep(30);
+
+        fprintf(stderr, "dumping MMU tables\n");
+        sleep(1);
+
         void *mem = mmap(NULL, size, PROT_READ, MAP_SHARED,
                          dev->mali.fd, BASE_MEM_MMU_DUMP_HANDLE);
         if (mem == MAP_FAILED) {
                 perror("mmap(BASE_MEM_MMU_DUMP_HANDLE)");
                 return;;
         }
+
+        fprintf(stderr, "writing to file\n");
+        sleep(1);
 
         char template[] = {"/tmp/mmu-dump.XXXXXX"};
         int fd = mkstemp(template);
