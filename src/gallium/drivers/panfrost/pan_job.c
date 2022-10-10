@@ -853,11 +853,43 @@ done:
         return ret;
 }
 
+#define BASE_MEM_MMU_DUMP_HANDLE (1 << 12)
+
+static void
+mmu_dump(struct panfrost_device *dev)
+{
+        unsigned size = 16 * 1024 * 1024;
+
+        void *mem = mmap(NULL, size, PROT_READ, MAP_SHARED,
+                         dev->mali.fd, BASE_MEM_MMU_DUMP_HANDLE);
+        if (mem == MAP_FAILED) {
+                perror("mmap(BASE_MEM_MMU_DUMP_HANDLE)");
+                return;;
+        }
+
+        char template[] = {"/tmp/mmu-dump.XXXXXX"};
+        int fd = mkstemp(template);
+        if (fd == -1) {
+                perror("mkstemp(/tmp/mmu-dump.XXXXXX)");
+                goto unmap;
+        }
+
+        write(fd, mem, size);
+        close(fd);
+
+unmap:
+        munmap(mem, size);
+}
+
 // TODO: Often we have to reset the whole group, not just a single CS
 static void
 reset_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
 {
-        struct panfrost_screen *screen = pan_screen(ctx->base.screen);
+        struct pipe_screen *pscreen = ctx->base.screen;
+        struct panfrost_screen *screen = pan_screen(pscreen);
+        struct panfrost_device *dev = pan_device(pscreen);
+
+        mmu_dump(dev);
 
         cs->base.last_insert = 0;
         cs->base.last_extract = 0;
