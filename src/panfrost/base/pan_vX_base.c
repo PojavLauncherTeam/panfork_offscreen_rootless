@@ -1477,31 +1477,6 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 
         return true;
 }
-
-static void
-kbase_cs_wait_idle(kbase k, struct kbase_cs *cs)
-{
-        //return;
-
-        if (!cs->user_io)
-                return;
-
-        unsigned i;
-
-        // Evidently this is unreliable... sometimes the GPU can be powered
-        // off with this still set?
-        for (i = 0; i < 100; ++i) {
-                if (!CS_READ_REGISTER(cs, CS_ACTIVE))
-                        break;
-
-                usleep(1 * 1000);
-        }
-
-        unsigned r = CS_READ_REGISTER(cs, CS_ACTIVE);
-        printf("active: %u / %u\n", i, r);
-
-        kbase_cs_kick(k, cs);
-}
 #endif
 
 static void
@@ -1564,7 +1539,6 @@ kbase_open_csf
         k->cs_term = kbase_cs_term;
         k->cs_submit = kbase_cs_submit;
         k->cs_wait = kbase_cs_wait;
-        k->cs_wait_idle = kbase_cs_wait_idle;
 #endif
 
         k->syncobj_create = kbase_syncobj_create;

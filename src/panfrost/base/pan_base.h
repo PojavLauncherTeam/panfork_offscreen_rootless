@@ -152,7 +152,6 @@ struct kbase {
         bool (*cs_submit)(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                           struct kbase_syncobj *o, uint64_t seqnum);
         bool (*cs_wait)(kbase k, struct kbase_cs *cs, uint64_t extract_offset);
-        void (*cs_wait_idle)(kbase k, struct kbase_cs *cs);
 
         /* syncobj functions */
         struct kbase_syncobj *(*syncobj_create)(kbase k);
