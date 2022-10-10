@@ -2920,10 +2920,10 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // TODO genxmlify...  this is a 64-bit EVSTR instruction
         pan_emit_cs_ins(c, 52, 0x01484a00040001);
 
-        // TODO: is this just a weird ddk thing, or does it help performance
+        // TODO: is this just a weird ddk thing, or is it required?
         // Probably it just lessens the WC impact
-        // TODO: this would only work if the memory is zeroed!
-        //c->ptr = (void *)ALIGN_POT((uintptr_t)c->ptr, 64);
+        while ((uintptr_t)c->ptr & 63)
+                pan_emit_cs_ins(c, 0, 0);
 
         assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
 #endif
