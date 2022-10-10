@@ -16,6 +16,36 @@ fork, so not supported by upstream.
 
 Upstream source is at https://gitlab.freedesktop.org/mesa/mesa.
 
+Depdendencies
+-------------
+
+For Debian-based distributions:
+
+.. code-block:: sh
+
+  $ sudo apt install build-essential meson git python3-mako libexpat1-dev bison flex libwayland-egl-backend-dev libxext-dev libxfixes-dev libxcb-glx0-dev libxcb-shm0-dev libxcb-dri2-0-dev libxcb-dri3-dev libxcb-present-dev libxshmfence-dev libxxf86vm-dev libxrandr-dev
+
+Also needed is ``libdrm`` and ``wayland-protocols``, but those
+packages are too old in Debian Bullseye, and must be compiled from
+source:
+
+.. code-block:: sh
+
+  $ git clone https://gitlab.freedesktop.org/mesa/drm
+  $ mkdir drm/build
+  $ cd drm/build
+  $ meson
+  $ sudo ninja install
+
+.. code-block:: sh
+
+  $ git clone https://gitlab.freedesktop.org/wayland/wayland-protocols
+  $ mkdir wayland-protocols/build
+  $ cd wayland-protocols/build
+  $ git checkout 1.24
+  $ meson
+  $ sudo ninja install
+
 Build & install
 ---------------
 
