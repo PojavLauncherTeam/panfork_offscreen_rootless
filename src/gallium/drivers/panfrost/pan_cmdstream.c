@@ -2809,6 +2809,15 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // TODO: What does this need to be?
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
 
+        /* Fragment jobs need to wait for the vertex job */
+        if (cs->hw_resources & 2) {
+                pan_pack_ins(c, CS_EVWAIT_64, cfg) {
+                        cfg.condition = MALI_WAIT_CONDITION_HIGHER;
+                        cfg.value = 0x4e;
+                        cfg.addr = 0x4c;
+                }
+        }
+
         if (cs->hw_resources & 12) {
                 pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 3; }
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
@@ -2954,10 +2963,8 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         // TODO: this assumes SAME_VA
         mali_ptr seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_vertex.event_ptr;
 
-        pan_emit_cs_48(cf, 0x48, seqnum_ptr);
-        pan_emit_cs_48(cf, 0x4a, vertex_seqnum);
-        // TODO genxmlify... this is a 64-bit EVWAIT instruction
-        pan_emit_cs_ins(cf, 53, 0x484a10000000);
+        pan_emit_cs_48(cf, 0x4c, seqnum_ptr);
+        pan_emit_cs_48(cf, 0x4e, vertex_seqnum);
 
         // What does this instruction do?
         //pan_emit_cs_32(cf, 0x54, 0);
