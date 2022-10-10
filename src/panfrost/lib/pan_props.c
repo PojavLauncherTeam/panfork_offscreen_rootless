@@ -299,7 +299,7 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
         if (kbase_open(&dev->mali, fd, 4, (dev->debug & PAN_DBG_PERF))) {
                 // TODO: Remove this once bugs are fixed
                 if (!dev->debug)
-                        dev->debug = PAN_DBG_NO_CACHE | PAN_DBG_LINEAR | PAN_DBG_NO_AFBC | PAN_DBG_NO_CRC;
+                        dev->debug = PAN_DBG_CSF_DEFAULT;
                 dev->kbase = true;
                 fd = -1;
         }
