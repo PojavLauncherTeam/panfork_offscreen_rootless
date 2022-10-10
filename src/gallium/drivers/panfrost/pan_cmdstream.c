@@ -2917,8 +2917,11 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
         // TODO: What about overflow... just use EVADD instead?
         pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1);
-        // TODO genxmlify...  this is a 64-bit EVSTR instruction
-        pan_emit_cs_ins(c, 52, 0x01484a00040001);
+        pan_pack_ins(c, CS_EVSTR_64, cfg) {
+                cfg.unk_2 = 4;
+                cfg.value = 0x4a;
+                cfg.addr = 0x48;
+        }
 
         // TODO: is this just a weird ddk thing, or is it required?
         // Probably it just lessens the WC impact
