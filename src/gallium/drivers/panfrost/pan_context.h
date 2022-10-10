@@ -247,6 +247,8 @@ struct panfrost_context {
         struct panfrost_cs kbase_cs_vertex;
         struct panfrost_cs kbase_cs_fragment;
         mali_ptr tiler_heap_desc;
+
+        struct list_head tiler_ctx_bos;
 };
 
 /* Corresponds to the CSO */

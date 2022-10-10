@@ -3326,14 +3326,18 @@ panfrost_batch_get_bifrost_tiler(struct panfrost_batch *batch, unsigned vertex_c
         scratch = sc.gpu + scratch_bits;
 #endif
 
-        struct panfrost_ptr t =
-                pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
+        /* Don't use the batch pool for the tiler context descriptor,
+         * because... otherwise weird bugs happen??? */
+        // TODO: Do we really need a separate BO for each job?
+        struct panfrost_bo *bo = panfrost_bo_create(dev, 4096, 0, "Tiler context descriptor");
+
         GENX(pan_emit_tiler_ctx)(dev, batch->key.width, batch->key.height,
                                  util_framebuffer_get_num_samples(&batch->key),
                                  pan_tristate_get(batch->first_provoking_vertex),
-                                 heap, scratch, t.cpu);
+                                 heap, scratch, bo->ptr.cpu);
 
-        batch->tiler_ctx.bifrost = t.gpu;
+        batch->tiler_ctx_bo = bo;
+        batch->tiler_ctx.bifrost = bo->ptr.gpu;
         return batch->tiler_ctx.bifrost;
 }
 #endif

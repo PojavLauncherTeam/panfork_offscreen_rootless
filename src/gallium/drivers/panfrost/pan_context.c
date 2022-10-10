@@ -1017,6 +1017,8 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
                 ctx->kbase_cs_fragment = panfrost_cs_create(ctx, 65536, 2);
         }
 
+        list_inithead(&ctx->tiler_ctx_bos);
+
         /* Prepare for render! */
 
         /* By default mask everything on */

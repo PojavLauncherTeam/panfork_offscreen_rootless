@@ -157,6 +157,7 @@ struct panfrost_batch {
 
         /* Tiler context */
         struct pan_tiler_context tiler_ctx;
+        struct panfrost_bo *tiler_ctx_bo;
 
         /* Indirect draw data */
         struct panfrost_ptr indirect_draw_ctx;
