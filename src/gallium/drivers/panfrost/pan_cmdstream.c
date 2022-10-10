@@ -3279,7 +3279,7 @@ panfrost_get_tiler_heap_desc(struct panfrost_batch *batch)
         }
 
         ctx->tiler_heap_desc = bo->ptr.gpu;
-        return bo->ptr.gpu;
+        return ctx->tiler_heap_desc;
 }
 #else
 static mali_ptr
