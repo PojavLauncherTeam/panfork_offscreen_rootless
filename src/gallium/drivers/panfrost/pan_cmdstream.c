@@ -2924,7 +2924,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         }
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
-        // TODO: What about overflow... just use EVADD instead?
+        // TODO: What about 48-bit overflow... just use EVADD instead?
         pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1);
         pan_pack_ins(c, CS_EVSTR_64, cfg) {
                 cfg.unk_2 = 4;
