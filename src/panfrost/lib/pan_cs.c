@@ -288,6 +288,7 @@ pan_prepare_crc(const struct pan_fb_info *fb, int rt_crc,
                 ext->crc_clear_color = clear_val | 0xc000000000000000 |
                                        (((uint64_t)clear_val & 0xffff) << 32);
 #else
+                // TODO: Is this correct?
                 ext->crc_unk = 0x1f;
 #endif
         }
