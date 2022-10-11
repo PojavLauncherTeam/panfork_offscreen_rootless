@@ -860,10 +860,8 @@ mmu_dump(struct panfrost_device *dev)
 {
         unsigned size = 16 * 1024 * 1024;
 
-        sleep(30);
-
         fprintf(stderr, "dumping MMU tables\n");
-        sleep(1);
+        sleep(3);
 
         void *mem = mmap(NULL, size, PROT_READ, MAP_SHARED,
                          dev->mali.fd, BASE_MEM_MMU_DUMP_HANDLE);
