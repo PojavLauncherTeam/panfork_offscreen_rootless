@@ -895,7 +895,7 @@ reset_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         struct panfrost_screen *screen = pan_screen(pscreen);
         struct panfrost_device *dev = pan_device(pscreen);
 
-        mmu_dump(dev);
+        //mmu_dump(dev);
 
         cs->base.last_insert = 0;
         cs->base.last_extract = 0;
