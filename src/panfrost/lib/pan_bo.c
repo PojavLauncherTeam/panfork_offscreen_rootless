@@ -487,10 +487,12 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
         pthread_mutex_lock(&dev->bo_map_lock);
 
         if (dev->bo_log) {
+                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
+
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%li.%09li free %lx to %lx size %zu label %s\n",
-                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
+                fprintf(dev->bo_log, "%li.%09li free %lx to %lx size %zu label %s fd %i\n",
+                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
                 fflush(NULL);
         }
 
@@ -532,6 +534,8 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
         pthread_mutex_lock(&dev->bo_map_lock);
         bo = pan_lookup_bo(dev, gem_handle);
 
+        bool found = false;
+
         if (!bo->dev) {
                 get_bo_offset.handle = gem_handle;
                 if (dev->kbase) {
@@ -557,6 +561,8 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                 bo->gem_handle = gem_handle;
                 p_atomic_set(&bo->refcnt, 1);
         } else {
+                found = true;
+
                 /* bo->refcnt == 0 can happen if the BO
                  * was being released but panfrost_bo_import() acquired the
                  * lock before panfrost_bo_unreference(). In that case, refcnt
@@ -573,6 +579,17 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                         panfrost_bo_reference(bo);
         }
         pthread_mutex_unlock(&dev->bo_map_lock);
+
+        if (dev->bo_log) {
+                int new_fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
+
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%li.%09li import %lx to %lx size %zu fd %i new %i handle %i found %i\n",
+                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size,
+                        fd, new_fd, gem_handle, found);
+                fflush(NULL);
+        }
 
         return bo;
 }
