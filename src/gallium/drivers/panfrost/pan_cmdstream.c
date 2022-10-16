@@ -5044,7 +5044,7 @@ init_batch(struct panfrost_batch *batch)
                 panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_VERTEX,
                                          "Vertex batch command stream");
         batch->cs_fragment_bo =
-                panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_FRAGMENT,
+                panfrost_batch_create_bo(batch, 1 << 12, 0, PIPE_SHADER_FRAGMENT,
                                          "Fragment batch command stream");
 
         batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
