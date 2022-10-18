@@ -778,10 +778,16 @@ panfrost_emit_viewport(struct panfrost_batch *batch)
         maxx--;
         maxy--;
 
-        batch->minimum_z = rast->depth_clip_near ? minz : -INFINITY;
-        batch->maximum_z = rast->depth_clip_far  ? maxz : +INFINITY;
-
 #if PAN_ARCH <= 7
+        /* Proper depth clamp support was only introduced in v9, before then
+         * all that can be done is disabling clipping by adjusting the
+         * viewport. This means that the result will be wrong for float depth
+         * buffers or non-[0, 1] depth range. */
+        if (!rast->depth_clip_near)
+                minz = -INFINITY;
+        if (!rast->depth_clip_far)
+                maxz = +INFINITY;
+
         struct panfrost_ptr T = pan_pool_alloc_desc(&batch->pool.base, VIEWPORT);
 
         pan_pack(T.cpu, VIEWPORT, cfg) {
@@ -790,8 +796,8 @@ panfrost_emit_viewport(struct panfrost_batch *batch)
                 cfg.scissor_maximum_x = maxx;
                 cfg.scissor_maximum_y = maxy;
 
-                cfg.minimum_z = batch->minimum_z;
-                cfg.maximum_z = batch->maximum_z;
+                cfg.minimum_z = minz;
+                cfg.maximum_z = maxz;
         }
 
         return T.gpu;
@@ -802,6 +808,9 @@ panfrost_emit_viewport(struct panfrost_batch *batch)
                 cfg.scissor_maximum_x = maxx;
                 cfg.scissor_maximum_y = maxy;
         }
+
+        batch->minimum_z = minz;
+        batch->maximum_z = maxz;
 
         return 0;
 #endif
@@ -838,6 +847,14 @@ panfrost_emit_depth_stencil(struct panfrost_batch *batch)
                 cfg.depth_units = rast->base.offset_units * 2.0f;
                 cfg.depth_factor = rast->base.offset_scale;
                 cfg.depth_bias_clamp = rast->base.offset_clamp;
+
+                if (rast->base.depth_clip_near && rast->base.depth_clip_far) {
+                        cfg.depth_clamp_mode = MALI_DEPTH_CLAMP_MODE_0_1;
+                        cfg.depth_cull_enable = true;
+                } else {
+                        cfg.depth_clamp_mode = MALI_DEPTH_CLAMP_MODE_BOUNDS;
+                        cfg.depth_cull_enable = false;
+                }
         }
 
         pan_merge(dynamic, zsa->desc, DEPTH_STENCIL);
@@ -3352,7 +3369,7 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
                         mali_ptr indices, bool secondary_shader, void *out)
 {
         struct panfrost_context *ctx = batch->ctx;
-        UNUSED struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
+        struct pipe_rasterizer_state *rast = &ctx->rasterizer->base;
 
         bool lines = (info->mode == PIPE_PRIM_LINES ||
                       info->mode == PIPE_PRIM_LINE_LOOP ||
@@ -3390,6 +3407,15 @@ panfrost_emit_primitive(struct panfrost_batch *batch,
 
                 /* Non-fixed restart indices should have been lowered */
                 assert(!cfg.primitive_restart || panfrost_is_implicit_prim_restart(info));
+
+                /* TODO: This is in a hot function, optimise? */
+                if (ctx->pipe_viewport.scale[2] > 0) {
+                        cfg.low_depth_cull = rast->depth_clip_near;
+                        cfg.high_depth_cull = rast->depth_clip_far;
+                } else {
+                        cfg.low_depth_cull = rast->depth_clip_far;
+                        cfg.high_depth_cull = rast->depth_clip_near;
+                }
 #endif
 
                 cfg.index_count = ctx->indirect_draw ? 1 : draw->count;
