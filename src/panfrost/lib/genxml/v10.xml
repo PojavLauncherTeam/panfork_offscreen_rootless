@@ -597,11 +597,6 @@
     <value name="FP32" value="3"/>
   </enum>
 
-  <enum name="Primitive Restart">
-    <value name="None" value="0"/>
-    <value name="Explicit" value="1"/>
-  </enum>
-
   <struct name="Tiler launch" layout="ins" op="5">
   </struct>
 
@@ -629,7 +624,7 @@
     <field name="Low Depth Cull" size="1" start="0x38:16" type="bool"/>
     <field name="High Depth Cull" size="1" start="0x38:17" type="bool"/>
     <field name="Secondary Shader" size="1" start="0x38:18" type="bool"/>
-    <field name="Primitive restart" size="1" start="0x38:19" type="Primitive Restart"/>
+    <field name="Primitive restart" size="1" start="0x38:19" type="bool"/>
     <!-- Set to 2 when writing point size, 1 otherwise. 0 appears to be fine in any case. -->
     <field name="Unk" size="2" start="0x38:22" type="uint"/>
 
