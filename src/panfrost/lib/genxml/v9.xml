@@ -612,8 +612,8 @@
     <field name="Primitive Index Enable" size="1" start="0:13" type="bool"/>
     <field name="Primitive Index Writeback" size="1" start="0:14" type="bool"/>
     <field name="Allow rotating primitives" size="1" start="0:15" type="bool" default="true"/>
-    <field name="Low Depth Cull" size="1" start="0:16" type="bool" default="true"/>
-    <field name="High Depth Cull" size="1" start="0:17" type="bool" default="true"/>
+    <field name="Low Depth Cull" size="1" start="0:16" type="bool"/>
+    <field name="High Depth Cull" size="1" start="0:17" type="bool"/>
     <field name="Secondary Shader" size="1" start="0:18" type="bool"/>
     <field name="Primitive restart" size="2" start="0:19" type="Primitive Restart"/>
     <field name="Layer index enable" size="1" start="0:20" type="bool"/>
@@ -1363,8 +1363,8 @@
     <field name="Back value mask" size="8" start="1:24" type="hex"/>
     <field name="Front reference value" size="8" start="2:0" type="hex"/>
     <field name="Back reference value" size="8" start="2:8" type="hex"/>
-    <field name="Depth cull enable" size="1" start="4:22" type="bool" default="true"/>
-    <field name="Depth clamp mode" size="2" start="4:23" type="Depth Clamp Mode" default="[0, 1]"/>
+    <field name="Depth cull enable" size="1" start="4:22" type="bool"/>
+    <field name="Depth clamp mode" size="2" start="4:23" type="Depth Clamp Mode"/>
     <field name="Depth source" size="2" start="4:25" type="Depth Source" default="Fixed function"/>
     <field name="Depth write enable" size="1" start="4:27" type="bool"/>
     <field name="Depth bias enable" size="1" start="4:28" type="bool"/>
