@@ -2900,7 +2900,7 @@ bi_emit_alu(bi_builder *b, nir_alu_instr *instr)
                 break;
 
         case nir_op_i2i16:
-                assert(src_sz == 8 || src_sz == 32);
+                assert(src_sz == 32 || src_sz == 16 || src_sz == 8);
 
                 if (src_sz == 8)
                         bi_v2s8_to_v2s16_to(b, dst, s0);
@@ -2909,7 +2909,7 @@ bi_emit_alu(bi_builder *b, nir_alu_instr *instr)
                 break;
 
         case nir_op_u2u16:
-                assert(src_sz == 8 || src_sz == 32);
+                assert(src_sz == 32 || src_sz == 16 || src_sz == 8);
 
                 if (src_sz == 8)
                         bi_v2u8_to_v2u16_to(b, dst, s0);
