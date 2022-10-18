@@ -864,7 +864,7 @@ kbase_poll_event(kbase k, int64_t timeout_ns)
 
         int ret = ppoll(&pfd, 1, &t, NULL);
 
-        if (ret == -1)
+        if (ret == -1 && errno != EINTR)
                 perror("poll(mali fd)");
 
         LOG("poll returned %i\n", pfd.revents);
