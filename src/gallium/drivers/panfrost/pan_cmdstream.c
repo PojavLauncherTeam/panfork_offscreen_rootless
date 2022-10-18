@@ -3892,9 +3892,6 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
 #if PAN_ARCH < 10
                 /* TODO: Indexing. Also, this is a legacy feature... */
                 cfg.compute.attribute_offset = batch->ctx->offset_start;
-#else
-                if (batch->ctx->offset_start)
-                        mesa_logw_once("offset_start field is unknown");
 #endif
 
                 /* Transform feedback shaders do not use barriers or shared
