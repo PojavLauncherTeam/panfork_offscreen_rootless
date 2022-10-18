@@ -1240,11 +1240,23 @@ kbase_context_destroy(kbase k, struct kbase_context *ctx)
         free(ctx);
 }
 
-static void
-kbase_heap_recreate(kbase k, struct kbase_context *ctx)
+static bool
+kbase_context_recreate(kbase k, struct kbase_context *ctx)
 {
         tiler_heap_term(k, ctx);
-        tiler_heap_create(k, ctx);
+        cs_group_term(k, ctx);
+
+        if (!cs_group_create(k, ctx)) {
+                free(ctx);
+                return false;
+        }
+
+        if (!tiler_heap_create(k, ctx)) {
+                free(ctx);
+                return false;
+        }
+
+        return true;
 }
 
 static struct kbase_cs
@@ -1330,6 +1342,20 @@ kbase_cs_term(kbase k, struct kbase_cs *cs)
         };
 
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
+
+        /* Clean up old syncobjs so we don't keep waiting for them */
+        kbase_update_syncobjs(k, &k->event_slots[cs->event_mem_offset], ~0ULL);
+}
+
+static void
+kbase_cs_rebind(kbase k, struct kbase_cs *cs)
+{
+        struct kbase_cs new;
+        new = kbase_cs_bind_noevent(k, cs->ctx, cs->va, cs->size, cs->csi);
+
+        cs->user_io = new.user_io;
+
+        fprintf(stderr, "bound csi %i again\n", cs->csi);
 }
 
 static bool
@@ -1426,32 +1452,14 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
         return true;
 }
 
-static void
-kbase_cs_timeout(kbase k, struct kbase_cs *cs)
-{
-        kbase_cs_term(k, cs);
-
-        /* Clean up old syncobjs so we don't keep waiting for them */
-        kbase_update_syncobjs(k, &k->event_slots[cs->event_mem_offset], ~0ULL);
-
-        struct kbase_cs new;
-        new = kbase_cs_bind_noevent(k, cs->ctx, cs->va, cs->size, cs->csi);
-
-        cs->user_io = new.user_io;
-
-        fprintf(stderr, "bound csi %i again\n", cs->csi);
-}
-
 static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 {
         bool ret = true;
         unsigned count = 0;
 
-        if (!cs->user_io) {
-                kbase_cs_timeout(k, cs);
+        if (!cs->user_io)
                 return false;
-        }
 
         // Clearly it's useless to check CS_EXTRACT... at least without the
         // necessary synchronisation commands?
@@ -1476,8 +1484,6 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
                                 cs->csi, e, extract_offset, a);
 
                         cs->last_extract = e;
-
-                        kbase_cs_timeout(k, cs);
 
                         return false;
                 }
@@ -1549,10 +1555,11 @@ kbase_open_csf
 #else
         k->context_create = kbase_context_create;
         k->context_destroy = kbase_context_destroy;
-        k->heap_recreate = kbase_heap_recreate;
+        k->context_recreate = kbase_context_recreate;
 
         k->cs_bind = kbase_cs_bind;
         k->cs_term = kbase_cs_term;
+        k->cs_rebind = kbase_cs_rebind;
         k->cs_submit = kbase_cs_submit;
         k->cs_wait = kbase_cs_wait;
 #endif

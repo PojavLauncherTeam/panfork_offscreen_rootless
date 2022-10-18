@@ -142,12 +142,13 @@ struct kbase {
         /* >= v10 GPUs */
         struct kbase_context *(*context_create)(kbase k);
         void (*context_destroy)(kbase k, struct kbase_context *ctx);
-        void (*heap_recreate)(kbase k, struct kbase_context *ctx);
+        bool (*context_recreate)(kbase k, struct kbase_context *ctx);
 
         // TODO: Pass in a priority?
         struct kbase_cs (*cs_bind)(kbase k, struct kbase_context *ctx,
                                    base_va va, unsigned size);
         void (*cs_term)(kbase k, struct kbase_cs *cs);
+        void (*cs_rebind)(kbase k, struct kbase_cs *cs);
 
         bool (*cs_submit)(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                           struct kbase_syncobj *o, uint64_t seqnum);
