@@ -66,9 +66,11 @@
 #include "mali_kbase_gpuprops.h"
 
 #define LOG(fmt, ...) do { \
-                struct timespec tp; \
-                clock_gettime(CLOCK_MONOTONIC_RAW, &tp); \
-                if (k->verbose) printf("%li.%09li\t" fmt, tp.tv_sec, tp.tv_nsec __VA_OPT__(,) __VA_ARGS__); \
+                if (k->verbose) { \
+                        struct timespec tp; \
+                        clock_gettime(CLOCK_MONOTONIC_RAW, &tp); \
+                        printf("%li.%09li\t" fmt, tp.tv_sec, tp.tv_nsec __VA_OPT__(,) __VA_ARGS__); \
+                } \
         } while (0)
 
 #if PAN_BASE_API == 0
