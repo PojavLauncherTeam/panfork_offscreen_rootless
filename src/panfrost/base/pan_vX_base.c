@@ -516,6 +516,19 @@ kbase_get_pan_gpuprop(kbase k, unsigned name, uint64_t *value)
         }
 }
 
+static void
+kbase_free_ioctl(kbase k, base_va va)
+{
+        struct kbase_ioctl_mem_free f = {
+                .gpu_addr = va
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_FREE, &f);
+
+        if (ret == -1)
+                perror("ioctl(KBASE_IOCTL_MEM_FREE)");
+}
+
 static struct base_ptr
 kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 {
@@ -599,6 +612,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
         if (ptr == MAP_FAILED) {
                 perror("mmap(GPU BO)");
+                kbase_free_ioctl(k, a.out.gpu_va);
                 return r;
         }
 
@@ -614,6 +628,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
                 if (ptr == MAP_FAILED) {
                         perror("mmap(GPU EXEC BO)");
+                        kbase_free_ioctl(k, gpu_va);
                         return r;
                 }
         }
@@ -627,17 +642,6 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 static void
 kbase_free(kbase k, base_va va)
 {
-        // TODO
-        return;
-
-        struct kbase_ioctl_mem_free f = {
-                .gpu_addr = va
-        };
-
-        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_FREE, &f);
-
-        if (ret == -1)
-                perror("ioctl(KBASE_IOCTL_MEM_FREE)");
 }
 
 static int
