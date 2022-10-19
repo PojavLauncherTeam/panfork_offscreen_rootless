@@ -427,8 +427,13 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (!bo)
                 bo = panfrost_bo_cache_fetch(dev, size, flags, label, false);
         if (!bo) {
-                panfrost_bo_cache_evict_all(dev);
-                bo = panfrost_bo_alloc(dev, size, flags, label);
+                for (unsigned i = 0; i < 5; ++i) {
+                        usleep(20 * 1000 * i * i);
+                        panfrost_bo_cache_evict_all(dev);
+                        bo = panfrost_bo_alloc(dev, size, flags, label);
+                        if (bo)
+                                break;
+                }
         }
 
         if (!bo) {
