@@ -303,7 +303,7 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
          * still supported as it is core GLES3.0 functionality
          */
         case PIPE_CAP_PRIMITIVE_RESTART:
-                return dev->arch <= 7;
+                return is_gl3 || dev->arch <= 7;
 
         case PIPE_CAP_FLATSHADE:
         case PIPE_CAP_TWO_SIDED_COLOR:
