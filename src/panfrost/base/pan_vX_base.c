@@ -1467,10 +1467,6 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
         if (!cs->user_io)
                 return false;
 
-        // Clearly it's useless to check CS_EXTRACT... at least without the
-        // necessary synchronisation commands?
-        //usleep(100000);
-
         // TODO: This only works for waiting for the latest job
         while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
                 LOG("extract: %p %li (want %li)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
