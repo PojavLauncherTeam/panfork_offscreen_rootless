@@ -118,6 +118,11 @@ struct panfrost_bo {
 
         /* Human readable description of the BO for debugging. */
         const char *label;
+
+        /* Sometimes we don't access the BO through kbase's mapping of the
+         * memory, in that case we need to save the pointer to pass to
+         * munmap to avoid leaking memory. */
+        void *munmap_ptr;
 };
 
 bool

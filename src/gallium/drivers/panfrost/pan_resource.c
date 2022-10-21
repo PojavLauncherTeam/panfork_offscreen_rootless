@@ -33,6 +33,7 @@
 #include <xf86drm.h>
 #include <fcntl.h>
 #include "drm-uapi/drm_fourcc.h"
+#include "drm-uapi/drm.h"
 
 #include "frontend/winsys_handle.h"
 #include "util/format/u_format.h"
@@ -594,6 +595,39 @@ panfrost_resource_set_damage_region(struct pipe_screen *screen,
 
 }
 
+/* The kbase kernel driver always maps imported BOs with caching. We don't
+ * handle that yet, so instead do mmap from the display driver side to get a
+ * write-combine mapping.
+ */
+static void
+panfrost_bo_mmap_scanout(struct panfrost_bo *bo,
+                         struct renderonly *ro,
+                         struct renderonly_scanout *scanout)
+{
+        struct drm_mode_map_dumb map_dumb = {
+                .handle = scanout->handle,
+        };
+
+        int err = drmIoctl(ro->kms_fd, DRM_IOCTL_MODE_MAP_DUMB, &map_dumb);
+        if (err < 0) {
+                fprintf(stderr, "DRM_IOCTL_MODE_MAP_DUMB failed: %s\n",
+                        strerror(errno));
+                return;
+        }
+
+        void *addr = mmap(NULL, bo->size,
+                          PROT_READ | PROT_WRITE, MAP_SHARED,
+                          ro->kms_fd, map_dumb.offset);
+        if (addr == MAP_FAILED) {
+                fprintf(stderr, "kms_fd mmap failed: %s\n",
+                        strerror(errno));
+                return;
+        }
+
+        bo->munmap_ptr = bo->ptr.cpu;
+        bo->ptr.cpu = addr;
+}
+
 static struct pipe_resource *
 panfrost_resource_create_with_modifier(struct pipe_screen *screen,
                          const struct pipe_resource *template,
@@ -704,6 +738,8 @@ panfrost_resource_create_with_modifier(struct pipe_screen *screen,
                         free(so);
                         return NULL;
                 }
+
+                panfrost_bo_mmap_scanout(so->image.data.bo, dev->ro, so->scanout);
         } else {
                 /* We create a BO immediately but don't bother mapping, since we don't
                  * care to map e.g. FBOs which the CPU probably won't touch */

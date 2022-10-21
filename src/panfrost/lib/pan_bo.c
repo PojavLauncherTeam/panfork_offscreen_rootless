@@ -119,6 +119,8 @@ panfrost_bo_free(struct panfrost_bo *bo)
 
         if (dev->kbase) {
                 os_munmap(bo->ptr.cpu, bo->size);
+                if (bo->munmap_ptr)
+                        os_munmap(bo->munmap_ptr, bo->size);
                 dev->mali.free(&dev->mali, bo->ptr.gpu);
                 kbase_free_gem_handle(&dev->mali, bo->gem_handle);
                 ret = 0;
