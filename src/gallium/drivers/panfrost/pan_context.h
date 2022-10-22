@@ -249,6 +249,7 @@ struct panfrost_context {
         mali_ptr tiler_heap_desc;
 
         struct list_head tiler_ctx_bos;
+        unsigned tiler_ctx_bo_count;
 };
 
 /* Corresponds to the CSO */

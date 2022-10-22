@@ -199,23 +199,19 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
 
         util_dynarray_fini(&batch->bos);
 
-        struct timespec time;
-        clock_gettime(CLOCK_MONOTONIC_COARSE, &time);
+        list_for_each_entry_safe(struct panfrost_bo, entry,
+                                 &ctx->tiler_ctx_bos, lru_link) {
+                if (ctx->tiler_ctx_bo_count < 64)
+                        break;
 
-        {
-                list_for_each_entry_safe(struct panfrost_bo, entry,
-                                         &ctx->tiler_ctx_bos, lru_link) {
-                        if (time.tv_sec - entry->last_used <= 2)
-                                break;
-
-                        list_del(&entry->lru_link);
-                        panfrost_bo_unreference(entry);
-                }
+                list_del(&entry->lru_link);
+                panfrost_bo_unreference(entry);
+                --ctx->tiler_ctx_bo_count;
         }
 
         if (batch->tiler_ctx_bo) {
-                batch->tiler_ctx_bo->last_used = time.tv_sec;
                 list_addtail(&batch->tiler_ctx_bo->lru_link, &ctx->tiler_ctx_bos);
+                ++ctx->tiler_ctx_bo_count;
         }
 
         memset(batch, 0, sizeof(*batch));
