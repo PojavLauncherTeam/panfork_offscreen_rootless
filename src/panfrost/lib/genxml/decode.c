@@ -1362,7 +1362,6 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                      uint32_t *buffer, uint32_t *buffer_unk,
                      unsigned gpu_id)
 {
-        gpu_id = 1;
         uint8_t op = command >> 56;
         uint8_t addr = (command >> 48) & 0xff;
         uint64_t value = command & 0xffffffffffffULL;
