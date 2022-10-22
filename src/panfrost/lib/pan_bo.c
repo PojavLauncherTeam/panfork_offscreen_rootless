@@ -450,6 +450,9 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (!(flags & (PAN_BO_INVISIBLE | PAN_BO_DELAY_MMAP)))
                 panfrost_bo_mmap(bo);
 
+        if ((dev->debug & PAN_DBG_BO_CLEAR) && !(flags & PAN_BO_INVISIBLE))
+                memset(bo->ptr.cpu, 0, bo->size);
+
         p_atomic_set(&bo->refcnt, 1);
 
         if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC)) {
