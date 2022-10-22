@@ -650,12 +650,6 @@ panfrost_batch_to_fb_info(struct panfrost_batch *batch,
         }
 }
 
-static void
-pandecode_cs_bo(struct panfrost_bo *bo, unsigned gpu_id)
-{
-        pandecode_cs(bo->ptr.gpu, bo->size, gpu_id);
-}
-
 static int
 panfrost_batch_submit_kbase(struct panfrost_device *dev,
                             struct drm_panfrost_submit *submit,
@@ -937,9 +931,13 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
 
         if (dev->debug & PAN_DBG_TRACE) {
-                // TODO: decode toplevel commands
-                pandecode_cs_bo(batch->cs_vertex_bo, dev->gpu_id);
-                pandecode_cs_bo(batch->cs_fragment_bo, dev->gpu_id);
+                pandecode_cs(batch->cs_vertex_bo->ptr.gpu,
+                             (void *)batch->cs_vertex.ptr - batch->cs_vertex_bo->ptr.cpu,
+                             dev->gpu_id);
+
+                pandecode_cs(batch->cs_fragment_bo->ptr.gpu,
+                             (void *)batch->cs_fragment.ptr - batch->cs_fragment_bo->ptr.cpu,
+                             dev->gpu_id);
         }
 
         // TODO: Make a new debug flag?
