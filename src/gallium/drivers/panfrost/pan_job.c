@@ -888,6 +888,10 @@ reset_context(struct panfrost_context *ctx)
         struct panfrost_screen *screen = pan_screen(pscreen);
         struct panfrost_device *dev = pan_device(pscreen);
 
+        /* Don't recover from the fault if PAN_MESA_DEBUG=sync is specified,
+         * to somewhat mimic behaviour with JM GPUs. TODO: Just abort? */
+        bool recover = !(dev->debug & PAN_DBG_SYNC);
+
         dev->mali.cs_term(&dev->mali, &ctx->kbase_cs_vertex.base);
         dev->mali.cs_term(&dev->mali, &ctx->kbase_cs_fragment.base);
 
@@ -895,8 +899,13 @@ reset_context(struct panfrost_context *ctx)
 
         //mmu_dump(dev);
 
-        dev->mali.cs_rebind(&dev->mali, &ctx->kbase_cs_vertex.base);
-        dev->mali.cs_rebind(&dev->mali, &ctx->kbase_cs_fragment.base);
+        if (recover) {
+                dev->mali.cs_rebind(&dev->mali, &ctx->kbase_cs_vertex.base);
+                dev->mali.cs_rebind(&dev->mali, &ctx->kbase_cs_fragment.base);
+        } else {
+                ctx->kbase_cs_vertex.base.user_io = NULL;
+                ctx->kbase_cs_fragment.base.user_io = NULL;
+        }
 
         ctx->kbase_cs_vertex.base.last_insert = 0;
         ctx->kbase_cs_vertex.base.last_extract = 0;
