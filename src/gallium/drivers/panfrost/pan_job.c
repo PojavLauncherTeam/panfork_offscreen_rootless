@@ -892,6 +892,8 @@ reset_context(struct panfrost_context *ctx)
          * to somewhat mimic behaviour with JM GPUs. TODO: Just abort? */
         bool recover = !(dev->debug & PAN_DBG_SYNC);
 
+        mesa_loge("Context reset");
+
         dev->mali.cs_term(&dev->mali, &ctx->kbase_cs_vertex.base);
         dev->mali.cs_term(&dev->mali, &ctx->kbase_cs_fragment.base);
 
