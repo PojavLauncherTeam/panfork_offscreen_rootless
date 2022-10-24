@@ -4992,6 +4992,8 @@ bi_compile_variant_nir(nir_shader *nir,
 
         bi_validate(ctx, "NIR -> BIR");
 
+        _mesa_hash_table_u64_destroy(ctx->allocated_vec);
+
         /* If the shader doesn't write any colour or depth outputs, it may
          * still need an ATEST at the very end! */
         bool need_dummy_atest =
