@@ -165,6 +165,20 @@ kbase_get_mali_gpuprop(kbase k, unsigned name, uint64_t *value)
 #endif
 
 static bool
+alloc_handles(kbase k)
+{
+        util_dynarray_init(&k->gem_handles, NULL);
+        return true;
+}
+
+static bool
+free_handles(kbase k)
+{
+        util_dynarray_fini(&k->gem_handles);
+        return true;
+}
+
+static bool
 set_flags(kbase k)
 {
         struct kbase_ioctl_set_flags flags = {
@@ -454,6 +468,7 @@ struct kbase_op {
 };
 
 static struct kbase_op kbase_main[] = {
+        { alloc_handles, free_handles, "Allocate handle array" },
 #if PAN_BASE_API >= 1
         { set_flags, NULL, "Set flags" },
 #endif
