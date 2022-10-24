@@ -97,6 +97,12 @@ struct kbase {
         // "sets" into a single group...
         unsigned cs_queue_count;
 
+        /* Must not hold handle_lock while acquiring event_read_lock */
+        pthread_mutex_t handle_lock;
+        pthread_mutex_t event_read_lock;
+        pthread_mutex_t event_cnd_lock;
+        pthread_cond_t event_cnd;
+
         unsigned gpuprops_size;
         void *gpuprops;
 
@@ -109,8 +115,6 @@ struct kbase {
         unsigned event_slot_usage;
 
         uint8_t atom_number;
-
-        pthread_mutex_t handle_lock;
 
         struct util_dynarray gem_handles;
         struct util_dynarray atom_bos[256];
@@ -131,7 +135,8 @@ struct kbase {
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);
 
-        void (*poll_event)(kbase k, int64_t timeout_ns);
+        /* Returns false on timeout */
+        bool (*poll_event)(kbase k, int64_t timeout_ns);
         bool (*handle_events)(kbase k);
 
         /* <= v9 GPUs */
@@ -182,5 +187,18 @@ int kbase_alloc_gem_handle_locked(kbase k, base_va va, int fd);
 void kbase_free_gem_handle(kbase k, int handle);
 kbase_handle kbase_gem_handle_get(kbase k, int handle);
 int kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers);
+
+/* Event waiting */
+struct kbase_wait_ctx {
+        kbase k;
+        struct timespec until;
+        bool has_lock;
+        bool wait;
+};
+
+struct kbase_wait_ctx kbase_wait_init(kbase k, int64_t timeout_ns);
+/* Returns false on timeout, kbase_wait_fini must still be called */
+bool kbase_wait_for_event(struct kbase_wait_ctx *ctx);
+void kbase_wait_fini(struct kbase_wait_ctx ctx);
 
 #endif

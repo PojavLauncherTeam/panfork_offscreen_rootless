@@ -485,6 +485,9 @@ kbase_close(kbase k)
         }
 
         pthread_mutex_destroy(&k->handle_lock);
+        pthread_mutex_destroy(&k->event_read_lock);
+        pthread_mutex_destroy(&k->event_cnd_lock);
+        pthread_cond_destroy(&k->event_cnd);
 }
 
 static bool
@@ -785,45 +788,24 @@ kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
 }
 
 static bool
-kbase_handle_events(kbase k);
-
-static bool
 kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 {
-        unsigned try_count = 0;
+        if (!p_atomic_read(&o->job_count))
+                return true;
 
-        while (p_atomic_read(&o->job_count)) {
+        struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
 
-                /* There are currently-executing jobs which reference this
-                 * syncobj, wait for an event. */
-
-                struct pollfd pfd[1] = {
-                        {
-                                .fd = k->fd,
-                                .events = POLLIN,
-                        },
-                };
-
-                int ret = poll(pfd, 1, 200);
-                if (ret == -1)
-                        perror("poll(syncobj)");
-
-                if (ret == 0 && try_count > 10) {
-                        fprintf(stderr, "syncobj wait timeout, %p returning\n", o);
-                        return false;
+        while (kbase_wait_for_event(&wait)) {
+                if (!p_atomic_read(&o->job_count)) {
+                        kbase_wait_fini(wait);
+                        return true;
                 }
-
-                if (ret == 0) {
-                        ++try_count;
-                        fprintf(stderr, "syncobj wait timeout %p\n", o);
-                        continue;
-                }
-
-                if (pfd[0].revents || try_count > 10)
-                        kbase_handle_events(k);
         }
 
-        return true;
+        kbase_wait_fini(wait);
+
+        fprintf(stderr, "syncobj %p wait timeout\n", o);
+        return false;
 }
 
 static void
@@ -856,7 +838,7 @@ kbase_syncobj_dec_jobs(struct kbase_syncobj *o)
         pthread_mutex_unlock(&o->child_mtx);
 }
 
-static void
+static bool
 kbase_poll_event(kbase k, int64_t timeout_ns)
 {
         struct pollfd pfd = {
@@ -876,7 +858,7 @@ kbase_poll_event(kbase k, int64_t timeout_ns)
 
         LOG("poll returned %i\n", pfd.revents);
 
-        return;
+        return ret != 0;
 }
 
 #if PAN_BASE_API < 2
@@ -1050,7 +1032,6 @@ kbase_handle_events(kbase k)
 
         uint64_t *event_mem = k->event_mem.cpu;
 
-        /* TODO: Locking? */
         for (unsigned i = 0; i < k->event_slot_usage; ++i) {
                 uint64_t seqnum = event_mem[i * 2];
                 uint64_t cmp = k->event_slots[i].last;
@@ -1076,9 +1057,9 @@ kbase_handle_events(kbase k)
 static bool
 kbase_wait_all_syncobjs(kbase k)
 {
-        bool ret = true;
+        struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
 
-        for (unsigned i = 0; i < 5; ++i) {
+        while (kbase_wait_for_event(&wait)) {
                 bool all = true;
 
                 for (unsigned i = 0; i < k->event_slot_usage; ++i) {
@@ -1089,15 +1070,15 @@ kbase_wait_all_syncobjs(kbase k)
                 }
 
                 if (all)
-                        return ret;
+                        break;
 
                 LOG("waiting for syncobjs\n");
-
-                kbase_poll_event(k, 200 * 1000000);
-                ret &= kbase_handle_events(k);
         }
 
-        return ret;
+        kbase_wait_fini(wait);
+
+        /* TODO: Work out if I need to return an error */
+        return true;
 }
 
 #endif
@@ -1463,38 +1444,33 @@ static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 {
         bool ret = true;
-        unsigned count = 0;
 
         if (!cs->user_io)
                 return false;
 
-        // TODO: This only works for waiting for the latest job
-        while (CS_READ_REGISTER(cs, CS_EXTRACT) != extract_offset) {
+        struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
+
+        while (kbase_wait_for_event(&wait)) {
                 LOG("extract: %p %li (want %li)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
                     extract_offset);
 
-                // TODO: Reduce timeout
-                kbase_poll_event(k, 200 * 1000000);
-                ret &= kbase_handle_events(k);
-                ++count;
-
-                if (count > 10) {
-                        uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
-                        unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
-
-                        fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
-                                "CS_ACTIVE (%i)\n",
-                                cs->csi, e, extract_offset, a);
-
-                        cs->last_extract = e;
-
-                        return false;
-                }
+                if (CS_READ_REGISTER(cs, CS_EXTRACT) >= extract_offset)
+                        break;
         }
 
-        cs->last_extract = extract_offset;
+        kbase_wait_fini(wait);
 
-        ret &= kbase_handle_events(k);
+        cs->last_extract = CS_READ_REGISTER(cs, CS_EXTRACT);
+
+        if (cs->last_extract < extract_offset) {
+                unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
+
+                fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
+                        "CS_ACTIVE (%i)\n",
+                        cs->csi, cs->last_extract, extract_offset, a);
+
+                return false;
+        }
 
         // everything is broken, let's avoid fixing it by waiting for every
         // syncobj!
@@ -1534,6 +1510,14 @@ kbase_open_csf
         k->api = PAN_BASE_API;
 
         pthread_mutex_init(&k->handle_lock, NULL);
+        pthread_mutex_init(&k->event_read_lock, NULL);
+        pthread_mutex_init(&k->event_cnd_lock, NULL);
+
+        pthread_condattr_t attr;
+        pthread_condattr_init(&attr);
+        pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+        pthread_cond_init(&k->event_cnd, &attr);
+        pthread_condattr_destroy(&attr);
 
         /* For later APIs, we've already checked the version in pan_base.c */
 #if PAN_BASE_API == 0

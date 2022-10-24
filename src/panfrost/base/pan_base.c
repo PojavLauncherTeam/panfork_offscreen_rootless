@@ -150,23 +150,114 @@ kbase_gem_handle_get(kbase k, int handle)
 int
 kbase_wait_bo(kbase k, int handle, int64_t timeout_ns, bool wait_readers)
 {
-        for (;;) {
+        struct kbase_wait_ctx wait = kbase_wait_init(k, timeout_ns);
+
+        while (kbase_wait_for_event(&wait)) {
                 pthread_mutex_lock(&k->handle_lock);
                 if (handle >= util_dynarray_num_elements(&k->gem_handles, kbase_handle)) {
-                        errno = EINVAL;
                         pthread_mutex_unlock(&k->handle_lock);
+                        kbase_wait_fini(wait);
+                        errno = EINVAL;
                         return -1;
                 }
                 kbase_handle *ptr = util_dynarray_element(&k->gem_handles, kbase_handle, handle);
                 if (!ptr->use_count) {
                         pthread_mutex_unlock(&k->handle_lock);
+                        kbase_wait_fini(wait);
                         return 0;
                 }
-
                 pthread_mutex_unlock(&k->handle_lock);
+        }
 
-                /* TODO: We can't just keep waiting against the timeout... */
-                k->poll_event(k, timeout_ns);
-                k->handle_events(k);
+        kbase_wait_fini(wait);
+        errno = ETIMEDOUT;
+        return -1;
+}
+
+static void
+adjust_time(struct timespec *tp, int64_t ns)
+{
+        ns += tp->tv_nsec;
+        tp->tv_nsec = ns % 1000000000;
+        tp->tv_sec += ns / 1000000000;
+}
+
+static int64_t
+ns_until(struct timespec tp)
+{
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        int64_t sec = (tp.tv_sec - now.tv_sec) * 1000000000;
+        int64_t ns = tp.tv_nsec - now.tv_nsec;
+
+        /* Clamp the value to zero to avoid errors from ppoll */
+        return MAX2(sec + ns, 0);
+}
+
+static void
+kbase_wait_signal(kbase k)
+{
+        /* We must acquire the event condition lock, otherwise another
+         * thread could be between the trylock and the cond_wait, and
+         * not notice the broadcast. */
+        pthread_mutex_lock(&k->event_cnd_lock);
+        pthread_cond_broadcast(&k->event_cnd);
+        pthread_mutex_unlock(&k->event_cnd_lock);
+}
+
+struct kbase_wait_ctx
+kbase_wait_init(kbase k, int64_t timeout_ns)
+{
+        struct timespec tp;
+        clock_gettime(CLOCK_MONOTONIC, &tp);
+
+        adjust_time(&tp, timeout_ns);
+
+        return (struct kbase_wait_ctx) {
+                .k = k,
+                .until = tp,
+        };
+}
+
+bool
+kbase_wait_for_event(struct kbase_wait_ctx *ctx)
+{
+        kbase k = ctx->k;
+
+        /* Return instantly the first time so that a check outside the
+         * wait_for_Event loop is not required */
+        if (!ctx->wait) {
+                ctx->wait = true;
+                return true;
+        }
+
+        if (!ctx->has_lock) {
+                pthread_mutex_lock(&k->event_cnd_lock);
+                if (pthread_mutex_trylock(&k->event_read_lock) == 0) {
+                        ctx->has_lock = true;
+                        pthread_mutex_unlock(&k->event_cnd_lock);
+                } else {
+                        int ret = pthread_cond_timedwait(&k->event_cnd,
+                                         &k->event_cnd_lock, &ctx->until);
+                        pthread_mutex_unlock(&k->event_cnd_lock);
+                        return ret != ETIMEDOUT;
+                }
+        }
+
+        bool event = k->poll_event(k, ns_until(ctx->until));
+        k->handle_events(k);
+        kbase_wait_signal(k);
+        return event;
+}
+
+void
+kbase_wait_fini(struct kbase_wait_ctx ctx)
+{
+        kbase k = ctx.k;
+
+        if (ctx.has_lock) {
+                pthread_mutex_unlock(&k->event_read_lock);
+                kbase_wait_signal(k);
         }
 }
