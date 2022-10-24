@@ -98,6 +98,9 @@ struct panfrost_bo {
         /* Atomic reference count */
         int32_t refcnt;
 
+        /* Reference count for GPU jobs */
+        int32_t gpu_refcnt;
+
         struct panfrost_device *dev;
 
         /* Mapping for the entire object (all levels) */

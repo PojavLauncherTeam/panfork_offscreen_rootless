@@ -482,6 +482,47 @@ panfrost_bo_reference(struct panfrost_bo *bo)
         }
 }
 
+static void
+panfrost_bo_fini(struct panfrost_bo *bo)
+{
+        struct panfrost_device *dev = bo->dev;
+
+        /* When the reference count goes to zero, we need to cleanup */
+        panfrost_bo_munmap(bo);
+
+        if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC))
+                pandecode_inject_free(bo->ptr.gpu, bo->size);
+
+        /* Rather than freeing the BO now, we'll cache the BO for later
+         * allocations if we're allowed to.
+         */
+        if (!panfrost_bo_cache_put(bo))
+                panfrost_bo_free(bo);
+}
+
+static void
+panfrost_bo_free_gpu(void *data)
+{
+        struct panfrost_bo *bo = data;
+        struct panfrost_device *dev = bo->dev;
+
+        /* Don't free if there are still references */
+        if (p_atomic_dec_return(&bo->gpu_refcnt))
+                return;
+
+        if (dev->bo_log) {
+                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
+
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%li.%09li gpufree %lx to %lx size %zu label %s fd %i\n",
+                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
+                fflush(NULL);
+        }
+
+        panfrost_bo_fini(bo);
+}
+
 void
 panfrost_bo_unreference(struct panfrost_bo *bo)
 {
@@ -494,8 +535,6 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
 
         struct panfrost_device *dev = bo->dev;
 
-        pthread_mutex_lock(&dev->bo_map_lock);
-
         if (dev->bo_log) {
                 int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
 
@@ -506,23 +545,29 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
                 fflush(NULL);
         }
 
+        pthread_mutex_lock(&dev->bo_map_lock);
+
         /* Someone might have imported this BO while we were waiting for the
          * lock, let's make sure it's still not referenced before freeing it.
          */
-        if (p_atomic_read(&bo->refcnt) == 0) {
-                /* When the reference count goes to zero, we need to cleanup */
-                panfrost_bo_munmap(bo);
-
-                if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC))
-                        pandecode_inject_free(bo->ptr.gpu, bo->size);
-
-                /* Rather than freeing the BO now, we'll cache the BO for later
-                 * allocations if we're allowed to.
-                 */
-                if (!panfrost_bo_cache_put(bo))
-                        panfrost_bo_free(bo);
-
+        if (p_atomic_read(&bo->refcnt) != 0) {
+                pthread_mutex_unlock(&dev->bo_map_lock);
+                return;
         }
+
+        if (dev->kbase) {
+                /* Assume that all queues are using this BO, and so free the
+                 * BO only after all currently-submitted jobs have finished.
+                 * This could eventually be optimised to only wait on a subset
+                 * of queues.
+                 */
+                dev->mali.callback_all_queues(&dev->mali,
+                                              &bo->gpu_refcnt,
+                                              panfrost_bo_free_gpu, bo);
+        } else {
+                panfrost_bo_fini(bo);
+        }
+
         pthread_mutex_unlock(&dev->bo_map_lock);
 }
 
