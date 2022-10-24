@@ -38,8 +38,9 @@ struct kbase_syncobj;
 /* The job is done when the queue seqnum > seqnum */
 struct kbase_sync_link {
         struct kbase_sync_link *next; /* must be first */
-        struct kbase_syncobj *o;
         uint64_t seqnum;
+        void (*callback)(void *);
+        void *data;
 };
 
 struct kbase_event_slot {
@@ -102,6 +103,8 @@ struct kbase {
         pthread_mutex_t event_read_lock;
         pthread_mutex_t event_cnd_lock;
         pthread_cond_t event_cnd;
+        /* TODO: Per-context/queue locks? */
+        pthread_mutex_t queue_lock;
 
         unsigned gpuprops_size;
         void *gpuprops;

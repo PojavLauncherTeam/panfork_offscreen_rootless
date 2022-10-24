@@ -487,6 +487,7 @@ kbase_close(kbase k)
         pthread_mutex_destroy(&k->handle_lock);
         pthread_mutex_destroy(&k->event_read_lock);
         pthread_mutex_destroy(&k->event_cnd_lock);
+        pthread_mutex_destroy(&k->queue_lock);
         pthread_cond_destroy(&k->event_cnd);
 }
 
@@ -811,7 +812,8 @@ kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 static void
 kbase_syncobj_inc_jobs(struct kbase_syncobj *o)
 {
-        /* TODO: Avoid taking so many locks */
+        /* TODO: Avoid taking so many locks. Or just take queue_lock
+         * instead? */
         pthread_mutex_lock(&o->child_mtx);
 
         /* Might as well not bother with the atomic, given the locking... */
@@ -1008,9 +1010,8 @@ kbase_update_syncobjs(kbase k,
 
                 /* Remove the link if the syncobj is now signaled */
                 if (seqnum > link->seqnum) {
-                        LOG("syncobj %p done!\n", link->o);
-                        kbase_syncobj_dec_jobs(link->o);
-                        kbase_syncobj_unref(link->o);
+                        LOG("done, calling %p(%p)\n", link->callback, link->data);
+                        link->callback(link->data);
                         *list = link->next;
                         if (&link->next == back)
                                 slot->back = list;
@@ -1032,6 +1033,8 @@ kbase_handle_events(kbase k)
 
         uint64_t *event_mem = k->event_mem.cpu;
 
+        pthread_mutex_lock(&k->queue_lock);
+
         for (unsigned i = 0; i < k->event_slot_usage; ++i) {
                 uint64_t seqnum = event_mem[i * 2];
                 uint64_t cmp = k->event_slots[i].last;
@@ -1050,6 +1053,8 @@ kbase_handle_events(kbase k)
                 /* TODO: Atomic operations? */
                 k->event_slots[i].last = seqnum;
         }
+
+        pthread_mutex_unlock(&k->queue_lock);
 
         return ret;
 }
@@ -1201,6 +1206,15 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
 }
 
 #else
+static void
+kbase_syncobj_done(void *data)
+{
+        struct kbase_syncobj *o = data;
+
+        kbase_syncobj_dec_jobs(o);
+        kbase_syncobj_unref(o);
+}
+
 static struct kbase_context *
 kbase_context_create(kbase k)
 {
@@ -1391,21 +1405,24 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 // TODO: Don't add multiple links to one queue
                 struct kbase_sync_link *link = malloc(sizeof(*link));
                 *link = (struct kbase_sync_link) {
-                        .o = o,
-                        // TODO: Adjust this?
-                        .seqnum = seqnum,
                         .next = NULL,
+                        .seqnum = seqnum,
+                        .callback = kbase_syncobj_done,
+                        .data = o,
                 };
 
                 struct kbase_event_slot *slot =
                         &k->event_slots[cs->event_mem_offset];
 
-                // TODO: Atomic operations?
+                pthread_mutex_lock(&k->queue_lock);
+
                 struct kbase_sync_link **list = slot->back;
                 slot->back = &link->next;
 
                 assert(!*list);
                 *list = link;
+
+                pthread_mutex_unlock(&k->queue_lock);
         }
 
         __asm__ volatile ("dmb sy" ::: "memory");
@@ -1512,6 +1529,7 @@ kbase_open_csf
         pthread_mutex_init(&k->handle_lock, NULL);
         pthread_mutex_init(&k->event_read_lock, NULL);
         pthread_mutex_init(&k->event_cnd_lock, NULL);
+        pthread_mutex_init(&k->queue_lock, NULL);
 
         pthread_condattr_t attr;
         pthread_condattr_init(&attr);
