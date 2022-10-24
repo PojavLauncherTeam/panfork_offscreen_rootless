@@ -996,23 +996,6 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 pclose(stream);
         }
 
-        //dev->mali.heap_recreate(&dev->mali, ctx->kbase_ctx);
-
-        if (false && ctx->kbase_cs_vertex.base.last_extract != vs_offset) {
-                void *x = ctx->kbase_cs_vertex.bo->ptr.cpu +
-                        ctx->kbase_cs_vertex.base.last_extract;
-                uint64_t *a = x;
-                // TODO: Avoid buffer overflows
-                fprintf(stderr, "V 0x%lx 0x%lx 0x%lx\n", a[-1], a[0], a[1]);
-        }
-
-        if (false && ctx->kbase_cs_fragment.base.last_extract != vs_offset) {
-                void *x = ctx->kbase_cs_fragment.bo->ptr.cpu +
-                        ctx->kbase_cs_fragment.base.last_extract;
-                uint64_t *a = x;
-                fprintf(stderr, "F 0x%lx 0x%lx 0x%lx\n", a[-1], a[0], a[1]);
-        }
-
         if (reset)
                 reset_context(ctx);
 
