@@ -557,8 +557,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 if (PAN_BASE_API >= 1)
                         flags |= BASE_MEM_COHERENT_LOCAL;
 
-                /* TODO: What about heap BOs? */
-                /* ++difficulty_level */
+                /* TODO: ++difficulty_level */
                 //if (PAN_BASE_API >= 1)
                 //        flags |= BASE_MEM_CACHED_CPU;
         }
@@ -593,12 +592,13 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 return r;
         }
 
+        // TODO: Is this always true, even in the face of multithreading?
         if (PAN_BASE_API == 0)
                 a.out.gpu_va = 0x41000;
 
         if ((flags & BASE_MEM_SAME_VA) &&
-            (!(a.out.flags & BASE_MEM_SAME_VA) ||
-             a.out.gpu_va != 0x41000)) {
+            !((a.out.flags & BASE_MEM_SAME_VA) &&
+              a.out.gpu_va < 0x80000)) {
 
                 fprintf(stderr, "Flags: 0x%"PRIx64", VA: 0x%"PRIx64"\n",
                         (uint64_t) a.out.flags, (uint64_t) a.out.gpu_va);
@@ -642,6 +642,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 static void
 kbase_free(kbase k, base_va va)
 {
+        /* BOs are freed on munmap, no need to do anything special. */
 }
 
 static int
