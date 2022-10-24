@@ -166,10 +166,6 @@ struct kbase {
         /* TODO: timeout? (and for cs_wait) */
         bool (*syncobj_wait)(kbase k, struct kbase_syncobj *o);
 
-        void (*ctr_open)(kbase k);
-        void (*ctr_set_enabled)(kbase k, bool enable);
-        void (*ctr_dump)(kbase k);
-
         void (*mem_sync)(kbase k, base_va gpu, void *cpu, unsigned size,
                          bool invalidate);
 };
