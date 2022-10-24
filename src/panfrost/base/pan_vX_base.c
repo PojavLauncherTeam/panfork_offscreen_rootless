@@ -1512,6 +1512,52 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 }
 #endif
 
+// TODO: Only define for CSF kbases?
+static void
+kbase_callback_all_queues(kbase k, int32_t *count,
+                          void (*callback)(void *), void *data)
+{
+        pthread_mutex_lock(&k->queue_lock);
+
+        int32_t queue_count = 0;
+
+        for (unsigned i = 0; i < k->event_slot_usage; ++i) {
+                struct kbase_event_slot *slot = &k->event_slots[i];
+
+                if (!slot->back || slot->back == &slot->syncobjs)
+                        continue;
+
+                struct kbase_sync_link *last =
+                        container_of(slot->back, struct kbase_sync_link, next);
+
+                struct kbase_sync_link *link = malloc(sizeof(*link));
+                *link = (struct kbase_sync_link) {
+                        .next = NULL,
+                        .seqnum = last->seqnum,
+                        .callback = callback,
+                        .data = data,
+                };
+
+                // TODO: Put insertion code into its own function
+                struct kbase_sync_link **list = slot->back;
+                slot->back = &link->next;
+                assert(!*list);
+                *list = link;
+
+                ++queue_count;
+        }
+
+        *count = queue_count;
+
+        pthread_mutex_unlock(&k->queue_lock);
+
+        // TODO: Leave the caller to do this?
+        if (!queue_count) {
+                *count = 1;
+                callback(data);
+        }
+}
+
 static void
 kbase_mem_sync(kbase k, base_va gpu, void *cpu, unsigned size,
                bool invalidate)
@@ -1588,6 +1634,8 @@ kbase_open_csf
         k->syncobj_destroy = kbase_syncobj_destroy;
         k->syncobj_dup = kbase_syncobj_dup;
         k->syncobj_wait = kbase_syncobj_wait;
+
+        k->callback_all_queues = kbase_callback_all_queues;
 
         k->mem_sync = kbase_mem_sync;
 
