@@ -99,29 +99,29 @@ source:
 Build & install
 ---------------
 
+To install to ``/opt/panfrost``:
+
 .. code-block:: sh
 
   $ mkdir build
   $ cd build
-  $ meson .. -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dllvm=disabled --prefix=/opt/panfrost
+  $ meson -Dgallium-drivers=panfrost -Dvulkan-drivers= -Dllvm=disabled --prefix=/opt/panfrost
   $ sudo ninja install
 
 Usage
 -----
 
-So far testing has been done from a Weston session launched with the
-blob, but other setups might work:
+To run an application with Panfrost (note the windowing system support
+section above):
 
 .. code-block:: sh
 
   $ LD_LIBRARY_PATH=/opt/panfrost/lib/aarch64-linux-gnu glmark2-es2-wayland
 
-The exact path to the library directory (which should contain
-``libGL.so`` etc.) may differ between distros.
-
-To avoid the blob completely, Sway seems to work with Panfrost, though
-Xwayland seems to be broken at the moment:
+To use Panfrost by default, add the directory where you installed it
+to the library search path:
 
 .. code-block:: sh
 
-  $ LD_LIBRARY_PATH=/opt/panfrost/lib/aarch64-linux-gnu sway
+  $ echo /opt/panfrost/lib/aarch64-linux-gnu | sudo tee /etc/ld.so.conf.d/0-panfrost.conf
+  $ sudo ldconfig
