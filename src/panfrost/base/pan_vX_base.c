@@ -1446,7 +1446,8 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
 }
 
 static bool
-kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
+kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
+              struct kbase_syncobj *o)
 {
         bool ret = true;
 
@@ -1456,23 +1457,21 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
         struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
 
         while (kbase_wait_for_event(&wait)) {
-                LOG("extract: %p %li (want %li)\n", cs, CS_READ_REGISTER(cs, CS_EXTRACT),
-                    extract_offset);
-
-                if (CS_READ_REGISTER(cs, CS_EXTRACT) >= extract_offset)
+                if (!p_atomic_read(&o->job_count))
                         break;
         }
 
         kbase_wait_fini(wait);
 
-        uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
 
-        if (e < extract_offset) {
+        if (o->job_count) {
+                uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
                 unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 
                 fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
-                        "CS_ACTIVE (%i)\n",
-                        cs->csi, e, extract_offset, a);
+                        "CS_ACTIVE (%i), job count == %i\n",
+                        cs->csi, e, extract_offset, a,
+                        o->job_count);
 
                 return false;
         }

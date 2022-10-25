@@ -963,12 +963,12 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         if (log)
                 printf("Wait vertex\n");
         // TODO: How will we know to reset a CS when waiting is not done?
-        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset))
+        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, ctx->syncobj_kbase))
                 reset = true;
 
         if (log)
                 printf("Wait fragment\n");
-        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset))
+        if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, ctx->syncobj_kbase))
                 reset = true;
 
         if (dev->debug & PAN_DBG_TILER) {
