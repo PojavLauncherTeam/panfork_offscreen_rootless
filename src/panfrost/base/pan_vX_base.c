@@ -1432,16 +1432,6 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 kbase_cs_kick(k, cs);
         }
 
-        {
-                int ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
-                ret = ioctl(k->fd, KBASE_IOCTL_CS_EVENT_SIGNAL);
-
-                if (ret == -1) {
-                        perror("ioctl(KBASE_IOCTL_CS_EVENT_SIGNAL)");
-                        return false;
-                }
-        }
-
         return true;
 }
 
