@@ -227,20 +227,19 @@ kbase_wait_for_event(struct kbase_wait_ctx *ctx)
 
         /* Return instantly the first time so that a check outside the
          * wait_for_Event loop is not required */
-        if (!ctx->wait) {
-                ctx->wait = true;
+        if (!ctx->has_cnd_lock) {
+                pthread_mutex_lock(&k->event_cnd_lock);
+                ctx->has_cnd_lock = true;
                 return true;
         }
 
         if (!ctx->has_lock) {
-                pthread_mutex_lock(&k->event_cnd_lock);
                 if (pthread_mutex_trylock(&k->event_read_lock) == 0) {
                         ctx->has_lock = true;
                         pthread_mutex_unlock(&k->event_cnd_lock);
                 } else {
                         int ret = pthread_cond_timedwait(&k->event_cnd,
                                          &k->event_cnd_lock, &ctx->until);
-                        pthread_mutex_unlock(&k->event_cnd_lock);
                         return ret != ETIMEDOUT;
                 }
         }
@@ -259,5 +258,7 @@ kbase_wait_fini(struct kbase_wait_ctx ctx)
         if (ctx.has_lock) {
                 pthread_mutex_unlock(&k->event_read_lock);
                 kbase_wait_signal(k);
+        } else if (ctx.has_cnd_lock) {
+                pthread_mutex_unlock(&k->event_cnd_lock);
         }
 }

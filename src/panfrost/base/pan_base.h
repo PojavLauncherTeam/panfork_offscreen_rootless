@@ -195,7 +195,7 @@ struct kbase_wait_ctx {
         kbase k;
         struct timespec until;
         bool has_lock;
-        bool wait;
+        bool has_cnd_lock;
 };
 
 struct kbase_wait_ctx kbase_wait_init(kbase k, int64_t timeout_ns);
