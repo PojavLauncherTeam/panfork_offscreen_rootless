@@ -51,9 +51,6 @@
 #define PAN_DBG_BO_LOG        0x020000
 #define PAN_DBG_BO_CLEAR      0x040000
 
-#define PAN_DBG_CSF_DEFAULT (PAN_DBG_NO_CACHE | PAN_DBG_LINEAR | \
-                             PAN_DBG_NO_AFBC | PAN_DBG_NO_CRC)
-
 #ifndef NDEBUG
 #define PAN_DBG_OVERFLOW        0x8000
 #endif
