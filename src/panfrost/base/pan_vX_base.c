@@ -1465,14 +1465,14 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 
         kbase_wait_fini(wait);
 
-        cs->last_extract = CS_READ_REGISTER(cs, CS_EXTRACT);
+        uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
 
-        if (cs->last_extract < extract_offset) {
+        if (e < extract_offset) {
                 unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 
                 fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
                         "CS_ACTIVE (%i)\n",
-                        cs->csi, cs->last_extract, extract_offset, a);
+                        cs->csi, e, extract_offset, a);
 
                 return false;
         }

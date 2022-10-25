@@ -906,10 +906,7 @@ reset_context(struct panfrost_context *ctx)
         }
 
         ctx->kbase_cs_vertex.base.last_insert = 0;
-        ctx->kbase_cs_vertex.base.last_extract = 0;
-
         ctx->kbase_cs_fragment.base.last_insert = 0;
-        ctx->kbase_cs_fragment.base.last_extract = 0;
 
         screen->vtbl.init_cs(ctx, &ctx->kbase_cs_vertex);
         screen->vtbl.init_cs(ctx, &ctx->kbase_cs_fragment);
