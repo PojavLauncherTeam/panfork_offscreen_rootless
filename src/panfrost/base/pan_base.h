@@ -203,4 +203,6 @@ struct kbase_wait_ctx kbase_wait_init(kbase k, int64_t timeout_ns);
 bool kbase_wait_for_event(struct kbase_wait_ctx *ctx);
 void kbase_wait_fini(struct kbase_wait_ctx ctx);
 
+void kbase_ensure_handle_events(kbase k);
+
 #endif

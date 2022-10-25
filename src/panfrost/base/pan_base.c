@@ -262,3 +262,15 @@ kbase_wait_fini(struct kbase_wait_ctx ctx)
                 pthread_mutex_unlock(&k->event_cnd_lock);
         }
 }
+
+void
+kbase_ensure_handle_events(kbase k)
+{
+        /* If we don't manage to take the lock, then events have recently/will
+         * soon be handled, there is no need to do anything. */
+        if (pthread_mutex_trylock(&k->event_read_lock) == 0) {
+                k->handle_events(k);
+                pthread_mutex_unlock(&k->event_read_lock);
+                kbase_wait_signal(k);
+        }
+}

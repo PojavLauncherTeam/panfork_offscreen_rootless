@@ -970,6 +970,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 printf("Wait fragment\n");
         if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, ctx->syncobj_kbase))
                 reset = true;
+        kbase_ensure_handle_events(&dev->mali);
 
         if (dev->debug & PAN_DBG_TILER) {
                 fflush(stdout);
