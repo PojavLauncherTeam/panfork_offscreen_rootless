@@ -1315,6 +1315,9 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         cs.event_mem_offset = k->event_slot_usage++;
         k->event_slots[cs.event_mem_offset].back =
                 &k->event_slots[cs.event_mem_offset].syncobjs;
+
+        /* We use the "Higher" wait condition, so initialise to 1 to allow
+         * waiting before writing.... */
         *((uint64_t *)(k->event_mem.cpu + cs.event_mem_offset * 16)) = 1;
 
         return cs;

@@ -203,6 +203,8 @@ struct panfrost_batch {
 
         pan_command_stream cs_vertex;
         pan_command_stream cs_fragment;
+
+        bool needs_sync;
 };
 
 /* Functions for managing the above */
