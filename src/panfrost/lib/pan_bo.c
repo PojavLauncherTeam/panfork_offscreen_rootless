@@ -236,21 +236,31 @@ panfrost_bo_cache_fetch(struct panfrost_device *dev,
 
                 /* If the oldest BO in the cache is busy, likely so is
                  * everything newer, so bail. */
-                if (!panfrost_bo_wait(entry, dontwait ? 0 : INT64_MAX,
-                                      PAN_BO_ACCESS_RW))
-                        break;
+
+                /* For kbase, BOs are not added to the cache until the GPU is
+                 * done with them, so there is no need to wait. */
+                if (!dev->kbase) {
+                        if (!panfrost_bo_wait(entry, dontwait ? 0 : INT64_MAX,
+                                              PAN_BO_ACCESS_RW))
+                                break;
+                }
 
                 struct drm_panfrost_madvise madv = {
                         .handle = entry->gem_handle,
                         .madv = PANFROST_MADV_WILLNEED,
                 };
-                int ret;
+                int ret = 0;
 
                 /* This one works, splice it out of the cache */
                 list_del(&entry->bucket_link);
                 list_del(&entry->lru_link);
 
-                ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_MADVISE, &madv);
+                if (dev->kbase) {
+                        /* With kbase, BOs are never freed from the cache */
+                        madv.retained = true;
+                } else {
+                        ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_MADVISE, &madv);
+                }
                 if (!ret && !madv.retained) {
                         panfrost_bo_free(entry);
                         continue;
@@ -312,7 +322,10 @@ panfrost_bo_cache_put(struct panfrost_bo *bo)
         madv.madv = PANFROST_MADV_DONTNEED;
 	madv.retained = 0;
 
-        drmIoctl(dev->fd, DRM_IOCTL_PANFROST_MADVISE, &madv);
+        // TODO: Allow freeing madvise'd BOs with kbase... not that it really
+        // matters for boards with 16 GB RAM
+        if (!dev->kbase)
+                drmIoctl(dev->fd, DRM_IOCTL_PANFROST_MADVISE, &madv);
 
         /* Add us to the bucket */
         list_addtail(&bo->bucket_link, bucket);
@@ -388,6 +401,8 @@ panfrost_bo_mmap(struct panfrost_bo *bo)
 static void
 panfrost_bo_munmap(struct panfrost_bo *bo)
 {
+        /* We can't munmap BOs when using kbase, as that frees the storage and
+         * the GPU might still be using the BO. */
         if (bo->dev->kbase)
                 return;
 
