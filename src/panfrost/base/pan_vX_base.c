@@ -1074,33 +1074,6 @@ kbase_handle_events(kbase k)
         return ret;
 }
 
-static bool
-kbase_wait_all_syncobjs(kbase k)
-{
-        struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
-
-        while (kbase_wait_for_event(&wait)) {
-                bool all = true;
-
-                for (unsigned i = 0; i < k->event_slot_usage; ++i) {
-                        if (k->event_slots[i].syncobjs) {
-                                LOG("slot %i has syncobjs\n", i);
-                                all = false;
-                        }
-                }
-
-                if (all)
-                        break;
-
-                LOG("waiting for syncobjs\n");
-        }
-
-        kbase_wait_fini(wait);
-
-        /* TODO: Work out if I need to return an error */
-        return true;
-}
-
 #endif
 
 #if PAN_BASE_API < 2
@@ -1503,10 +1476,6 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset)
 
                 return false;
         }
-
-        // everything is broken, let's avoid fixing it by waiting for every
-        // syncobj!
-        kbase_wait_all_syncobjs(k);
 
         return ret;
 }
