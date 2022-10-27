@@ -385,5 +385,6 @@ panfrost_close_device(struct panfrost_device *dev)
                 drmFreeVersion(dev->kernel_version);
         if (dev->kbase)
                 dev->mali.close(&dev->mali);
-        close(dev->fd);
+        else
+                close(dev->fd);
 }

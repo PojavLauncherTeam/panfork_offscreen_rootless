@@ -120,5 +120,5 @@ struct pipe_screen *
 panfrost_drm_screen_create_renderonly(struct renderonly *ro)
 {
    ro->create_for_resource = panfrost_create_kms_dumb_buffer_for_resource;
-   return panfrost_create_screen(ro->gpu_fd, ro);
+   return panfrost_create_screen(os_dupfd_cloexec(ro->gpu_fd), ro);
 }

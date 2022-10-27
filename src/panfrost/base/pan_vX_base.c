@@ -504,6 +504,8 @@ kbase_close(kbase k)
         pthread_mutex_destroy(&k->event_cnd_lock);
         pthread_mutex_destroy(&k->queue_lock);
         pthread_cond_destroy(&k->event_cnd);
+
+        close(k->fd);
 }
 
 static bool
@@ -1359,7 +1361,7 @@ kbase_cs_kick(kbase k, struct kbase_cs *cs)
                 .buffer_gpu_addr = cs->va,
         };
 
-        int ret = ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_KICK, &kick);
 
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_CS_QUEUE_KICK)");
