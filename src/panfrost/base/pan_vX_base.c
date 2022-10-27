@@ -709,14 +709,14 @@ kbase_import_dmabuf(kbase k, int fd)
         if (ret == -1) {
                 perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
                 handle = -1;
-        } else {
-                assert(import.out.flags & BASE_MEM_NEED_MMAP);
-
+        } else if (import.out.flags & BASE_MEM_NEED_MMAP) {
                 uint64_t va = (uintptr_t) mmap(NULL, import.out.va_pages * k->page_size,
                                                PROT_READ | PROT_WRITE,
                                                MAP_SHARED, k->fd, import.out.gpu_va);
 
                 handle = kbase_alloc_gem_handle_locked(k, va, dup);
+        } else {
+                handle = kbase_alloc_gem_handle_locked(k, import.out.gpu_va, dup);
         }
 
         pthread_mutex_unlock(&k->handle_lock);
