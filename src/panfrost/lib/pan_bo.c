@@ -121,7 +121,8 @@ panfrost_bo_free(struct panfrost_bo *bo)
                 os_munmap(bo->ptr.cpu, bo->size);
                 if (bo->munmap_ptr)
                         os_munmap(bo->munmap_ptr, bo->size);
-                dev->mali.free(&dev->mali, bo->ptr.gpu);
+                if (bo->free_ioctl)
+                        dev->mali.free(&dev->mali, bo->ptr.gpu);
                 kbase_free_gem_handle(&dev->mali, bo->gem_handle);
                 ret = 0;
         } else {
@@ -617,7 +618,10 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
                 bo->dev = dev;
                 bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
-                bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
+                if (sizeof(void *) > 4 || get_bo_offset.offset < (1LL << 32))
+                        bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
+                else
+                        bo->free_ioctl = true;
                 bo->size = lseek(fd, 0, SEEK_END);
                 /* Sometimes this can fail and return -1. size of -1 is not
                  * a nice thing for mmap to try mmap. Be more robust also

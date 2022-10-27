@@ -126,6 +126,11 @@ struct panfrost_bo {
          * memory, in that case we need to save the pointer to pass to
          * munmap to avoid leaking memory. */
         void *munmap_ptr;
+
+        /* For 32-bit applications we may not even be able to that, because
+         * the VA may be too high for kbase to map to an equivalent CPU
+         * address, in which case we must use the memory free icotl. */
+        bool free_ioctl;
 };
 
 bool

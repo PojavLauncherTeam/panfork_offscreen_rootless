@@ -536,7 +536,7 @@ kbase_get_pan_gpuprop(kbase k, unsigned name, uint64_t *value)
 }
 
 static void
-kbase_free_ioctl(kbase k, base_va va)
+kbase_free(kbase k, base_va va)
 {
         struct kbase_ioctl_mem_free f = {
                 .gpu_addr = va
@@ -631,7 +631,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
         if (ptr == MAP_FAILED) {
                 perror("mmap(GPU BO)");
-                kbase_free_ioctl(k, a.out.gpu_va);
+                kbase_free(k, a.out.gpu_va);
                 return r;
         }
 
@@ -647,7 +647,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 
                 if (ptr == MAP_FAILED) {
                         perror("mmap(GPU EXEC BO)");
-                        kbase_free_ioctl(k, gpu_va);
+                        kbase_free(k, gpu_va);
                         return r;
                 }
         }
@@ -656,12 +656,6 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
         r.gpu = gpu_va;
 
         return r;
-}
-
-static void
-kbase_free(kbase k, base_va va)
-{
-        /* BOs are freed on munmap, no need to do anything special. */
 }
 
 static int
