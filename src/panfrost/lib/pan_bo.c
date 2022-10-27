@@ -480,8 +480,8 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (dev->bo_log) {
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%li.%09li alloc %lx to %lx size %zu label %s\n",
-                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
+                fprintf(dev->bo_log, "%"PRIu64".%09li alloc %"PRIx64" to %"PRIx64" size %zu label %s\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label);
                 fflush(NULL);
         }
 
@@ -530,8 +530,8 @@ panfrost_bo_free_gpu(void *data)
 
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%li.%09li gpufree %lx to %lx size %zu label %s fd %i\n",
-                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
+                fprintf(dev->bo_log, "%"PRIu64".%09li gpufree %"PRIx64" to %"PRIx64" size %zu label %s fd %i\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
                 fflush(NULL);
         }
 
@@ -555,8 +555,8 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
 
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%li.%09li free %lx to %lx size %zu label %s fd %i\n",
-                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
+                fprintf(dev->bo_log, "%"PRIu64".%09li free %"PRIx64" to %"PRIx64" size %zu label %s fd %i\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
                 fflush(NULL);
         }
 
@@ -617,7 +617,7 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
                 bo->dev = dev;
                 bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
-                bo->ptr.cpu = (void *) get_bo_offset.offset;
+                bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
                 bo->size = lseek(fd, 0, SEEK_END);
                 /* Sometimes this can fail and return -1. size of -1 is not
                  * a nice thing for mmap to try mmap. Be more robust also
@@ -655,8 +655,8 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%li.%09li import %lx to %lx size %zu fd %i new %i handle %i found %i\n",
-                        tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size,
+                fprintf(dev->bo_log, "%"PRIu64".%09li import %"PRIx64" to %"PRIx64" size %zu fd %i new %i handle %i found %i\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size,
                         fd, new_fd, gem_handle, found);
                 fflush(NULL);
         }
