@@ -43,7 +43,7 @@ Applications using KMS/DRM will also work.
 
 .. code-block:: sh
 
-  $ apt install xserver-xorg-core="$(apt-cache show xserver-xorg-core | grep Version | grep -v "$(dpkg -s xserver-xorg-core | grep Version)" | cut -d" " -f2)"
+  $ sudo apt install xserver-xorg-core="$(apt-cache show xserver-xorg-core | grep Version | grep -v "$(dpkg -s xserver-xorg-core | grep Version)" | cut -d" " -f2)"
 
 Broken combinations:
 
