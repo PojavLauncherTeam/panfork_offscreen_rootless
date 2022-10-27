@@ -38,8 +38,11 @@ Applications using KMS/DRM will also work.
        be enabled anyway.
 
 .. [2] For Radxa Debian/Ubuntu, the ``xserver-xorg-core`` version
-       installed by default is not compatible with Panfrost. To switch
-       between the upstream and Rockchip versions, run:
+       installed by default is not compatible with Panfrost. But note
+       that upstream Xorg does not work will the blob, so Mesa must be
+       installed so that it is used by default. (see the "Usage"
+       section below). To switch between the upstream and Rockchip
+       versions, run:
 
 .. code-block:: sh
 
