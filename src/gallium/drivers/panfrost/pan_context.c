@@ -578,8 +578,18 @@ panfrost_destroy(struct pipe_context *pipe)
                 panfrost_bo_unreference(entry);
         }
 
-        if (dev->kbase && dev->mali.context_create)
+        if (dev->kbase && dev->mali.context_create) {
+                dev->mali.cs_term(&dev->mali, &panfrost->kbase_cs_vertex.base);
+                dev->mali.cs_term(&dev->mali, &panfrost->kbase_cs_fragment.base);
+
                 dev->mali.context_destroy(&dev->mali, panfrost->kbase_ctx);
+
+                panfrost_bo_unreference(panfrost->kbase_cs_vertex.bo);
+                panfrost_bo_unreference(panfrost->kbase_cs_fragment.bo);
+        }
+
+        if (panfrost->tiler_heap_desc)
+                panfrost_bo_unreference(panfrost->tiler_heap_desc);
 
         _mesa_hash_table_destroy(panfrost->writers, NULL);
 

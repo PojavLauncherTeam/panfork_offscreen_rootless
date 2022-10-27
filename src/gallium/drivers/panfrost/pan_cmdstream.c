@@ -3294,19 +3294,18 @@ panfrost_get_tiler_heap_desc(struct panfrost_batch *batch)
         struct panfrost_device *dev = pan_device(ctx->base.screen);
 
         if (ctx->tiler_heap_desc)
-                return ctx->tiler_heap_desc;
+                return ctx->tiler_heap_desc->ptr.gpu;
 
-        struct panfrost_bo *bo = panfrost_bo_create(dev, 4096, 0, "Tiler heap descriptor");
+        ctx->tiler_heap_desc = panfrost_bo_create(dev, 4096, 0, "Tiler heap descriptor");
 
-        pan_pack(bo->ptr.cpu, TILER_HEAP, heap) {
+        pan_pack(ctx->tiler_heap_desc->ptr.cpu, TILER_HEAP, heap) {
                 heap.size = ctx->kbase_ctx->tiler_heap_chunk_size;
                 heap.base = ctx->kbase_ctx->tiler_heap_header;
                 heap.bottom = heap.base + 64;
                 heap.top = heap.base + heap.size;
         }
 
-        ctx->tiler_heap_desc = bo->ptr.gpu;
-        return ctx->tiler_heap_desc;
+        return ctx->tiler_heap_desc->ptr.gpu;
 }
 #else
 static mali_ptr
