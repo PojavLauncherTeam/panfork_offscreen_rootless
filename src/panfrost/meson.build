@@ -96,6 +96,23 @@ csf_test = executable(
   build_by_default : true
 )
 
+custom_target(
+  'panfrost_panloader',
+  output: ['panfrost_panloader.txt'],
+  depends : [
+    libpanfrost_lib,
+    libpanfrost_util,
+    _libmesa_util,
+    libpanfrost_decode,
+    libpanfrost_decode_per_arch,
+    libpanfrost_midgard_disasm,
+    libpanfrost_bifrost_disasm,
+    libpanfrost_valhall_disasm,
+  ],
+  command: ['touch', '@OUTPUT@'],
+  build_by_default : false,
+)
+
 if with_panfrost_vk
   subdir('vulkan')
 endif
