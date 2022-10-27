@@ -69,7 +69,7 @@
                 if (k->verbose) { \
                         struct timespec tp; \
                         clock_gettime(CLOCK_MONOTONIC_RAW, &tp); \
-                        printf("%li.%09li\t" fmt, tp.tv_sec, tp.tv_nsec __VA_OPT__(,) __VA_ARGS__); \
+                        printf("%"PRIu64".%09li\t" fmt, (uint64_t) tp.tv_sec, tp.tv_nsec __VA_OPT__(,) __VA_ARGS__); \
                 } \
         } while (0)
 
@@ -636,7 +636,7 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
         }
 
         uint64_t gpu_va = (a.out.flags & BASE_MEM_SAME_VA) ?
-                (uint64_t) ptr : a.out.gpu_va;
+                (uintptr_t) ptr : a.out.gpu_va;
 
         if (exec_align) {
                 gpu_va = ALIGN_POT(gpu_va, 1 << 24);
@@ -897,7 +897,7 @@ kbase_handle_events(kbase k)
                         }
                 }
 
-                struct kbase_syncobj *o = (void *)event.udata.blob[0];
+                struct kbase_syncobj *o = (void *)(uintptr_t)event.udata.blob[0];
 
                 if (o) {
                         kbase_syncobj_dec_jobs(o);
@@ -1021,7 +1021,7 @@ kbase_update_syncobjs(kbase k,
         while (*list) {
                 struct kbase_sync_link *link = *list;
 
-                LOG("seq %lx %lx\n", seqnum, link->seqnum);
+                LOG("seq %"PRIu64" %"PRIu64"\n", seqnum, link->seqnum);
 
                 /* Remove the link if the syncobj is now signaled */
                 if (seqnum > link->seqnum) {
@@ -1054,7 +1054,7 @@ kbase_handle_events(kbase k)
                 uint64_t seqnum = event_mem[i * 2];
                 uint64_t cmp = k->event_slots[i].last;
 
-                LOG("MAIN SEQ %lx > %lx?\n", seqnum, cmp);
+                LOG("MAIN SEQ %"PRIu64" > %"PRIu64"?\n", seqnum, cmp);
 
                 if (seqnum < cmp) {
                         if (false)
@@ -1381,8 +1381,8 @@ static bool
 kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 struct kbase_syncobj *o, uint64_t seqnum)
 {
-        LOG("submit %p, seq %li, insert %li -> %li\n", cs, seqnum,
-            cs->last_insert, insert_offset);
+        LOG("submit %p, seq %"PRIu64", insert %"PRIu64" -> %"PRIu64"\n",
+            cs, seqnum, cs->last_insert, insert_offset);
 
         if (!cs->user_io)
                 return false;
@@ -1461,7 +1461,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
                 uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
                 unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
 
-                fprintf(stderr, "CSI %i CS_EXTRACT (%li) != %li, "
+                fprintf(stderr, "CSI %i CS_EXTRACT (%"PRIu64") != %"PRIu64", "
                         "CS_ACTIVE (%i), job count == %i\n",
                         cs->csi, e, extract_offset, a,
                         o->job_count);
