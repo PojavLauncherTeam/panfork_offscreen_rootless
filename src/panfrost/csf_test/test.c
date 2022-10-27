@@ -70,16 +70,21 @@ dump_end(FILE *f)
                 fprintf(f, "\x1b[39m");
 }
 
+/* TODO: Use KBASE_IOCTL_MEM_SYNC for 32-bit systems */
 static void
 cache_clean(volatile void *addr)
 {
+#ifdef __aarch64__
         __asm__ volatile ("dc cvac, %0" :: "r" (addr) : "memory");
+#endif
 }
 
 static void
 cache_invalidate(volatile void *addr)
 {
+#ifdef __aarch64__
         __asm__ volatile ("dc civac, %0" :: "r" (addr) : "memory");
+#endif
 }
 
 static void
@@ -564,7 +569,7 @@ tiler_heap_create(struct state *s, struct test *t)
 
         s->tiler_heap_va = init.out.gpu_heap_va;
         s->tiler_heap_header = init.out.first_chunk_va;
-        printf("heap va: %lx, heap header: %lx\n",
+        printf("heap va: %"PRIx64", heap header: %"PRIx64"\n",
                s->tiler_heap_va, s->tiler_heap_header);
 
         return true;
@@ -695,7 +700,7 @@ alloc_ioctl(struct state *s, union kbase_ioctl_mem_alloc *a)
         }
 
         uint64_t gpu_va = (a->out.flags & BASE_MEM_SAME_VA) ?
-                (uint64_t) ptr : a->out.gpu_va;
+                (uintptr_t) ptr : a->out.gpu_va;
 
         pandecode_inject_mmap(gpu_va, ptr, s->page_size * va_pages, NULL);
 
