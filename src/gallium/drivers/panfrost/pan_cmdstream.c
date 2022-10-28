@@ -4813,6 +4813,30 @@ panfrost_create_sampler_view(
         return (struct pipe_sampler_view *) so;
 }
 
+static void
+panfrost_init_logicop_blend_state(struct panfrost_blend_state *so)
+{
+        for (unsigned c = 0; c < so->pan.rt_count; ++c) {
+                unsigned g = so->base.independent_blend_enable ? c : 0;
+                const struct pipe_rt_blend_state pipe = so->base.rt[g];
+
+                struct pan_blend_equation equation = {0};
+
+                equation.color_mask = pipe.colormask;
+                equation.blend_enable = false;
+
+                so->info[c] = (struct pan_blend_info) {
+                        .enabled = (pipe.colormask != 0),
+                        .load_dest = true,
+                        .fixed_function = false,
+                };
+
+                so->pan.rts[c].equation = equation;
+
+                so->load_dest_mask |= BITFIELD_BIT(c);
+        }
+}
+
 /* A given Gallium blend state can be encoded to the hardware in numerous,
  * dramatically divergent ways due to the interactions of blending with
  * framebuffer formats. Conceptually, there are two modes:
@@ -4852,6 +4876,11 @@ panfrost_create_blend_state(struct pipe_context *pipe,
         so->pan.logicop_func = blend->logicop_func;
         so->pan.rt_count = blend->max_rt + 1;
 
+        if (blend->logicop_enable) {
+                panfrost_init_logicop_blend_state(so);
+                return so;
+        }
+
         for (unsigned c = 0; c < so->pan.rt_count; ++c) {
                 unsigned g = blend->independent_blend_enable ? c : 0;
                 const struct pipe_rt_blend_state pipe = blend->rt[g];
@@ -4881,12 +4910,10 @@ panfrost_create_blend_state(struct pipe_context *pipe,
                         .opaque = pan_blend_is_opaque(equation),
                         .constant_mask = constant_mask,
 
-                        /* TODO: check the dest for the logicop */
-                        .load_dest = blend->logicop_enable ||
-                                pan_blend_reads_dest(equation),
+                        .load_dest = pan_blend_reads_dest(equation),
 
                         /* Could this possibly be fixed-function? */
-                        .fixed_function = !blend->logicop_enable &&
+                        .fixed_function =
                                 pan_blend_can_fixed_function(equation,
                                                              supports_2src) &&
                                 (!constant_mask ||
