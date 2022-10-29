@@ -531,8 +531,9 @@ panfrost_bo_free_gpu(void *data)
 
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%"PRIu64".%09li gpufree %"PRIx64" to %"PRIx64" size %zu label %s fd %i\n",
-                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
+                fprintf(dev->bo_log, "%"PRIu64".%09li gpufree %"PRIx64" to %"PRIx64" size %zu label %s obj (%p,%i,%i)\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label,
+                        bo, bo->gem_handle, fd);
                 fflush(NULL);
         }
 
@@ -556,8 +557,9 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
 
                 struct timespec tp;
                 clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-                fprintf(dev->bo_log, "%"PRIu64".%09li free %"PRIx64" to %"PRIx64" size %zu label %s fd %i\n",
-                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label, fd);
+                fprintf(dev->bo_log, "%"PRIu64".%09li free %"PRIx64" to %"PRIx64" size %zu label %s obj (%p,%i,%i)\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label,
+                        bo, bo->gem_handle, fd);
                 fflush(NULL);
         }
 
@@ -584,6 +586,17 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
                         pthread_mutex_unlock(&dev->bo_map_lock);
                         return;
                 }
+        }
+
+        if (dev->bo_log) {
+                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
+
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%"PRIu64".%09li immfree %"PRIx64" to %"PRIx64" size %zu label %s obj (%p,%i,%i)\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label,
+                        bo, bo->gem_handle, fd);
+                fflush(NULL);
         }
 
         panfrost_bo_fini(bo);
