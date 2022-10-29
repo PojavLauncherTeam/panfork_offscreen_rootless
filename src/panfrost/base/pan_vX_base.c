@@ -1289,6 +1289,14 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
 {
         struct kbase_cs cs = kbase_cs_bind_noevent(k, ctx, va, size, ctx->num_csi++);
 
+        // TODO: Fix this problem properly
+        if (k->event_slot_usage >= 256) {
+                fprintf(stderr, "error: Too many contexts created!\n");
+
+                /* *very* dangerous, but might just work */
+                --k->event_slot_usage;
+        }
+
         // TODO: This is a misnomer... it isn't a byte offset
         cs.event_mem_offset = k->event_slot_usage++;
         k->event_slots[cs.event_mem_offset].back =
