@@ -1320,17 +1320,13 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
 }
 
 static void
-kbase_cs_free_user_io(kbase k, struct kbase_cs *cs)
-{
-        if (cs->user_io)
-                munmap(cs->user_io,
-                       k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES);
-}
-
-static void
 kbase_cs_term(kbase k, struct kbase_cs *cs)
 {
-        kbase_cs_free_user_io(k, cs);
+        if (cs->user_io) {
+                LOG("unmapping %p user_io %p\n", cs, cs->user_io);
+                munmap(cs->user_io,
+                       k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES);
+        }
 
         struct kbase_ioctl_cs_queue_terminate term = {
                 .buffer_gpu_addr = cs->va,
@@ -1348,8 +1344,8 @@ kbase_cs_rebind(kbase k, struct kbase_cs *cs)
         struct kbase_cs new;
         new = kbase_cs_bind_noevent(k, cs->ctx, cs->va, cs->size, cs->csi);
 
-        kbase_cs_free_user_io(k, cs);
         cs->user_io = new.user_io;
+        LOG("remapping %p user_io %p\n", cs, cs->user_io);
 
         fprintf(stderr, "bound csi %i again\n", cs->csi);
 }
