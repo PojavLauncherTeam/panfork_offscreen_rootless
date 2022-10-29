@@ -157,15 +157,7 @@ panfrost_fence_create(struct panfrost_context *ctx)
                 if (!f)
                         return NULL;
 
-                struct kbase_syncobj *new =
-                        dev->mali.syncobj_dup(&dev->mali, ctx->syncobj_kbase);
-
-                /* The syncobj emulation code has different semantics to
-                 * normal syncobjs... so we need to swap the objects and set
-                 * the context's syncobj to the one returned from dup(). */
-                f->kbase = ctx->syncobj_kbase;
-                ctx->syncobj_kbase = new;
-
+                f->kbase = dev->mali.syncobj_dup(&dev->mali, ctx->syncobj_kbase);
                 pipe_reference_init(&f->reference, 1);
                 return f;
         }

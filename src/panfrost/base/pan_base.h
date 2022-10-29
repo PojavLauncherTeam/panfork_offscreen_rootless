@@ -26,6 +26,7 @@
 #define PAN_BASE_H
 
 #include "util/u_dynarray.h"
+#include "util/list.h"
 
 typedef uint64_t base_va;
 struct base_ptr {
@@ -105,6 +106,8 @@ struct kbase {
         /* TODO: Per-context/queue locks? */
         pthread_mutex_t queue_lock;
 
+        struct list_head syncobjs;
+
         unsigned gpuprops_size;
         void *gpuprops;
 
@@ -120,7 +123,7 @@ struct kbase {
 
         struct util_dynarray gem_handles;
         struct util_dynarray atom_bos[256];
-
+        uint64_t job_seq;
 
         void (*close)(kbase k);
 

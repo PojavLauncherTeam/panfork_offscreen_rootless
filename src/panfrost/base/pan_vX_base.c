@@ -38,6 +38,7 @@
 #include <pthread.h>
 
 #include "util/macros.h"
+#include "util/list.h"
 #include "util/u_atomic.h"
 #include "util/os_file.h"
 
@@ -720,59 +721,69 @@ kbase_import_dmabuf(kbase k, int fd)
         return handle;
 }
 
+struct kbase_fence {
+        struct list_head link;
+
+        unsigned slot;
+        uint64_t value;
+};
+
 struct kbase_syncobj {
-        /* Use kbase_syncobj_ref / kbase_syncobj_unref */
-        unsigned ref_count;
+        struct list_head link;
 
-        /* syncobjs which are dup'd from this one */
-        pthread_mutex_t child_mtx;
-        unsigned child_count;
-        struct kbase_syncobj **children;
-
-        /* How many jobs are still executing? */
-        unsigned job_count;
+        struct list_head fences;
 };
 
 static struct kbase_syncobj *
 kbase_syncobj_create(kbase k)
 {
         struct kbase_syncobj *o = calloc(1, sizeof(*o));
-
-        o->ref_count = 1;
-
-        pthread_mutex_init(&o->child_mtx, NULL);
-
+        list_inithead(&o->fences);
+        pthread_mutex_lock(&k->queue_lock);
+        list_add(&o->link, &k->syncobjs);
+        pthread_mutex_unlock(&k->queue_lock);
         return o;
-}
-
-static void
-kbase_syncobj_ref(struct kbase_syncobj *o)
-{
-        ASSERTED unsigned ret = p_atomic_inc_return(&o->ref_count);
-        /* We need to have at least one existing reference to be able to call
-         * this function */
-        assert(ret > 1);
-}
-
-static void
-kbase_syncobj_unref(struct kbase_syncobj *o)
-{
-        unsigned ret = p_atomic_dec_return(&o->ref_count);
-
-        if (!ret) {
-                for (unsigned i = 0; i < o->child_count; ++i)
-                        kbase_syncobj_unref(o->children[i]);
-
-                pthread_mutex_destroy(&o->child_mtx);
-                free(o->children);
-                free(o);
-        }
 }
 
 static void
 kbase_syncobj_destroy(kbase k, struct kbase_syncobj *o)
 {
-        kbase_syncobj_unref(o);
+        pthread_mutex_lock(&k->queue_lock);
+        list_del(&o->link);
+        pthread_mutex_unlock(&k->queue_lock);
+
+        list_for_each_entry_safe(struct kbase_fence, fence, &o->fences, link) {
+                list_del(&fence->link);
+                free(fence);
+        }
+
+        free(o);
+}
+
+static void
+kbase_syncobj_add_fence(struct kbase_syncobj *o, unsigned slot, uint64_t value)
+{
+        struct kbase_fence *fence = calloc(1, sizeof(*fence));
+
+        fence->slot = slot;
+        fence->value = value;
+
+        list_add(&fence->link, &o->fences);
+}
+
+static void
+kbase_syncobj_update_fence(struct kbase_syncobj *o, unsigned slot, uint64_t value)
+{
+        list_for_each_entry(struct kbase_fence, fence, &o->fences, link) {
+                if (fence->slot == slot) {
+                        if (value > fence->value)
+                                fence->value = value;
+
+                        return;
+                }
+        }
+
+        kbase_syncobj_add_fence(o, slot, value);
 }
 
 static struct kbase_syncobj *
@@ -780,35 +791,46 @@ kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
 {
         struct kbase_syncobj *dup = kbase_syncobj_create(k);
 
-        /* Updates are passed from older to newer syncobjs, so reference the
-         * new object */
-        kbase_syncobj_ref(dup);
+        pthread_mutex_lock(&k->queue_lock);
 
-        pthread_mutex_lock(&o->child_mtx);
+        list_for_each_entry(struct kbase_fence, fence, &o->fences, link)
+                kbase_syncobj_add_fence(o, fence->slot, fence->value);
 
-        ++o->child_count;
-        o->children = reallocarray(o->children, o->child_count,
-                                   sizeof(*o->children));
-
-        o->children[o->child_count - 1] = dup;
-
-        dup->job_count = o->job_count;
-
-        pthread_mutex_unlock(&o->child_mtx);
+        pthread_mutex_unlock(&k->queue_lock);
 
         return dup;
+}
+
+static void
+kbase_syncobj_update(kbase k, struct kbase_syncobj *o)
+{
+        list_for_each_entry_safe(struct kbase_fence, fence, &o->fences, link) {
+                uint64_t value = k->event_slots[fence->slot].last;
+
+                if (value > fence->value) {
+                        LOG("syncobj %p slot %u value %"PRIu64" vs %"PRIu64"\n",
+                            o, fence->slot, fence->value, value);
+
+                        list_del(&fence->link);
+                        free(fence);
+                }
+        }
 }
 
 static bool
 kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 {
-        if (!p_atomic_read(&o->job_count))
+        if (list_is_empty(&o->fences)) {
+                LOG("syncobj has no fences\n");
                 return true;
+        }
 
         struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
 
         while (kbase_wait_for_event(&wait)) {
-                if (!p_atomic_read(&o->job_count)) {
+                kbase_syncobj_update(k, o);
+
+                if (list_is_empty(&o->fences)) {
                         kbase_wait_fini(wait);
                         return true;
                 }
@@ -818,37 +840,6 @@ kbase_syncobj_wait(kbase k, struct kbase_syncobj *o)
 
         fprintf(stderr, "syncobj %p wait timeout\n", o);
         return false;
-}
-
-static void
-kbase_syncobj_inc_jobs(struct kbase_syncobj *o)
-{
-        /* TODO: Avoid taking so many locks. Or just take queue_lock
-         * instead? */
-        pthread_mutex_lock(&o->child_mtx);
-
-        /* Might as well not bother with the atomic, given the locking... */
-        p_atomic_inc_return(&o->job_count);
-
-        for (unsigned i = 0; i < o->child_count; ++i)
-                kbase_syncobj_inc_jobs(o->children[i]);
-
-        pthread_mutex_unlock(&o->child_mtx);
-}
-
-static void
-kbase_syncobj_dec_jobs(struct kbase_syncobj *o)
-{
-        /* TODO: Avoid taking so many locks */
-        pthread_mutex_lock(&o->child_mtx);
-
-        /* Might as well not bother with the atomic, given the locking... */
-        p_atomic_dec_return(&o->job_count);
-
-        for (unsigned i = 0; i < o->child_count; ++i)
-                kbase_syncobj_dec_jobs(o->children[i]);
-
-        pthread_mutex_unlock(&o->child_mtx);
 }
 
 static bool
@@ -893,13 +884,6 @@ kbase_handle_events(kbase k)
                         }
                 }
 
-                struct kbase_syncobj *o = (void *)(uintptr_t)event.udata.blob[0];
-
-                if (o) {
-                        kbase_syncobj_dec_jobs(o);
-                        kbase_syncobj_unref(o);
-                }
-
                 if (event.event_code != BASE_JD_EVENT_DONE) {
                         fprintf(stderr, "Atom %i reported event 0x%x!\n",
                                 event.atom_number, event.event_code);
@@ -907,6 +891,8 @@ kbase_handle_events(kbase k)
                 }
 
                 pthread_mutex_lock(&k->handle_lock);
+
+                k->event_slots[event.atom_number].last = event.udata.blob[0];
 
                 unsigned size = util_dynarray_num_elements(&k->gem_handles,
                                                            kbase_handle);
@@ -1007,9 +993,9 @@ kbase_read_event(kbase k)
 }
 
 static void
-kbase_update_syncobjs(kbase k,
-                      struct kbase_event_slot *slot,
-                      uint64_t seqnum)
+kbase_update_queue_callbacks(kbase k,
+                             struct kbase_event_slot *slot,
+                             uint64_t seqnum)
 {
         struct kbase_sync_link **list = &slot->syncobjs;
         struct kbase_sync_link **back = slot->back;
@@ -1022,7 +1008,8 @@ kbase_update_syncobjs(kbase k,
                 /* Remove the link if the syncobj is now signaled */
                 if (seqnum > link->seqnum) {
                         LOG("done, calling %p(%p)\n", link->callback, link->data);
-                        link->callback(link->data);
+                        if (link->callback)
+                                link->callback(link->data);
                         *list = link->next;
                         if (&link->next == back)
                                 slot->back = list;
@@ -1058,7 +1045,8 @@ kbase_handle_events(kbase k)
                                         "from %"PRIu64" to %"PRIu64"!\n",
                                         i, cmp, seqnum);
                 } else /*if (seqnum > cmp)*/ {
-                        kbase_update_syncobjs(k, &k->event_slots[i], seqnum);
+                        kbase_update_queue_callbacks(k, &k->event_slots[i],
+                                                     seqnum);
                 }
 
                 /* TODO: Atomic operations? */
@@ -1092,11 +1080,6 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         struct util_dynarray buf;
         util_dynarray_init(&buf, NULL);
 
-        if (o) {
-                kbase_syncobj_ref(o);
-                kbase_syncobj_inc_jobs(o);
-        }
-
         memcpy(util_dynarray_resize(&buf, int32_t, num_handles),
                handles, num_handles * sizeof(int32_t));
 
@@ -1110,7 +1093,7 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         struct base_jd_atom_v2 atom = {
                 .jc = va,
                 .atom_number = nr,
-                .udata.blob[0] = (uintptr_t) o,
+                .udata.blob[0] = k->job_seq++,
         };
 
         for (unsigned i = 0; i < KBASE_SLOT_COUNT; ++i)
@@ -1148,6 +1131,14 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
         }
 
         pthread_mutex_unlock(&k->handle_lock);
+
+        /* TODO: Better work out the difference between handle_lock and
+         * queue_lock. */
+        if (o) {
+                pthread_mutex_lock(&k->queue_lock);
+                kbase_syncobj_update_fence(o, nr, atom.udata.blob[0]);
+                pthread_mutex_unlock(&k->queue_lock);
+        }
 
         assert(KBASE_SLOT_COUNT == 2);
         if (dep_slots[0] != nr) {
@@ -1190,15 +1181,6 @@ kbase_submit(kbase k, uint64_t va, unsigned req,
 }
 
 #else
-static void
-kbase_syncobj_done(void *data)
-{
-        struct kbase_syncobj *o = data;
-
-        kbase_syncobj_dec_jobs(o);
-        kbase_syncobj_unref(o);
-}
-
 static struct kbase_context *
 kbase_context_create(kbase k)
 {
@@ -1334,8 +1316,19 @@ kbase_cs_term(kbase k, struct kbase_cs *cs)
 
         kbase_ioctl(k->fd, KBASE_IOCTL_CS_QUEUE_TERMINATE, &term);
 
-        /* Clean up old syncobjs so we don't keep waiting for them */
-        kbase_update_syncobjs(k, &k->event_slots[cs->event_mem_offset], ~0ULL);
+        pthread_mutex_lock(&k->queue_lock);
+        kbase_update_queue_callbacks(k, &k->event_slots[cs->event_mem_offset],
+                                     ~0ULL);
+
+        k->event_slots[cs->event_mem_offset].last = ~0ULL;
+
+        /* Make sure that no syncobjs are referencing this CS */
+        list_for_each_entry(struct kbase_syncobj, o, &k->syncobjs, link)
+                kbase_syncobj_update(k, o);
+
+
+        k->event_slots[cs->event_mem_offset].last = 0;
+        pthread_mutex_unlock(&k->queue_lock);
 }
 
 static void
@@ -1389,31 +1382,24 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
         if (insert_offset == cs->last_insert)
                 return true;
 
-        if (o) {
-                kbase_syncobj_ref(o);
-                kbase_syncobj_inc_jobs(o);
-                // TODO: Don't add multiple links to one queue
-                struct kbase_sync_link *link = malloc(sizeof(*link));
-                *link = (struct kbase_sync_link) {
-                        .next = NULL,
-                        .seqnum = seqnum,
-                        .callback = kbase_syncobj_done,
-                        .data = o,
-                };
+        struct kbase_sync_link *link = malloc(sizeof(*link));
+        *link = (struct kbase_sync_link) {
+                .seqnum = seqnum,
+        };
 
-                struct kbase_event_slot *slot =
-                        &k->event_slots[cs->event_mem_offset];
+        struct kbase_event_slot *slot =
+                &k->event_slots[cs->event_mem_offset];
 
-                pthread_mutex_lock(&k->queue_lock);
+        pthread_mutex_lock(&k->queue_lock);
+        struct kbase_sync_link **list = slot->back;
+        slot->back = &link->next;
 
-                struct kbase_sync_link **list = slot->back;
-                slot->back = &link->next;
+        assert(!*list);
+        *list = link;
 
-                assert(!*list);
-                *list = link;
-
-                pthread_mutex_unlock(&k->queue_lock);
-        }
+        if (o)
+                kbase_syncobj_update_fence(o, cs->event_mem_offset, seqnum);
+        pthread_mutex_unlock(&k->queue_lock);
 
         __asm__ volatile ("dmb sy" ::: "memory");
 
@@ -1441,34 +1427,26 @@ static bool
 kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
               struct kbase_syncobj *o)
 {
-        bool ret = true;
-
         if (!cs->user_io)
                 return false;
 
-        struct kbase_wait_ctx wait = kbase_wait_init(k, 1 * 1000000000LL);
+        if (kbase_syncobj_wait(k, o))
+                return true;
 
-        while (kbase_wait_for_event(&wait)) {
-                if (!p_atomic_read(&o->job_count))
-                        break;
+        uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
+        unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
+
+        fprintf(stderr, "CSI %i CS_EXTRACT (%"PRIu64") != %"PRIu64", "
+                "CS_ACTIVE (%i)\n",
+                cs->csi, e, extract_offset, a);
+
+        fprintf(stderr, "fences:\n");
+        list_for_each_entry(struct kbase_fence, fence, &o->fences, link) {
+                fprintf(stderr, " slot %i: seqnum %"PRIu64"\n",
+                        fence->slot, fence->value);
         }
 
-        kbase_wait_fini(wait);
-
-
-        if (o->job_count) {
-                uint64_t e = CS_READ_REGISTER(cs, CS_EXTRACT);
-                unsigned a = CS_READ_REGISTER(cs, CS_ACTIVE);
-
-                fprintf(stderr, "CSI %i CS_EXTRACT (%"PRIu64") != %"PRIu64", "
-                        "CS_ACTIVE (%i), job count == %i\n",
-                        cs->csi, e, extract_offset, a,
-                        o->job_count);
-
-                return false;
-        }
-
-        return ret;
+        return false;
 }
 #endif
 
@@ -1557,6 +1535,8 @@ kbase_open_csf
         pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
         pthread_cond_init(&k->event_cnd, &attr);
         pthread_condattr_destroy(&attr);
+
+        list_inithead(&k->syncobjs);
 
         /* For later APIs, we've already checked the version in pan_base.c */
 #if PAN_BASE_API == 0
