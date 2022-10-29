@@ -526,6 +526,16 @@ panfrost_bo_free_gpu(void *data)
         if (p_atomic_dec_return(&bo->gpu_refcnt))
                 return;
 
+        pthread_mutex_lock(&dev->bo_map_lock);
+
+        /* Someone might have imported this BO while we were waiting for the
+         * lock, let's make sure it's still not referenced before freeing it.
+         */
+        if (p_atomic_read(&bo->refcnt) != 0) {
+                pthread_mutex_unlock(&dev->bo_map_lock);
+                return;
+        }
+
         if (dev->bo_log) {
                 int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
 
@@ -538,6 +548,8 @@ panfrost_bo_free_gpu(void *data)
         }
 
         panfrost_bo_fini(bo);
+
+        pthread_mutex_unlock(&dev->bo_map_lock);
 }
 
 void
