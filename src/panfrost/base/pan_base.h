@@ -172,7 +172,8 @@ struct kbase {
         /* TODO: timeout? (and for cs_wait) */
         bool (*syncobj_wait)(kbase k, struct kbase_syncobj *o);
 
-        void (*callback_all_queues)(kbase k, int32_t *count,
+        /* Returns false if there are no active queues */
+        bool (*callback_all_queues)(kbase k, int32_t *count,
                                     void (*callback)(void *), void *data);
 
         void (*mem_sync)(kbase k, base_va gpu, void *cpu, unsigned size,

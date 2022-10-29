@@ -577,12 +577,16 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
                  * This could eventually be optimised to only wait on a subset
                  * of queues.
                  */
-                dev->mali.callback_all_queues(&dev->mali,
-                                              &bo->gpu_refcnt,
-                                              panfrost_bo_free_gpu, bo);
-        } else {
-                panfrost_bo_fini(bo);
+                bool added = dev->mali.callback_all_queues(&dev->mali,
+                        &bo->gpu_refcnt, panfrost_bo_free_gpu, bo);
+
+                if (added) {
+                        pthread_mutex_unlock(&dev->bo_map_lock);
+                        return;
+                }
         }
+
+        panfrost_bo_fini(bo);
 
         pthread_mutex_unlock(&dev->bo_map_lock);
 }

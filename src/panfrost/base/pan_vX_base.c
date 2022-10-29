@@ -1459,7 +1459,7 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
 #endif
 
 // TODO: Only define for CSF kbases?
-static void
+static bool
 kbase_callback_all_queues(kbase k, int32_t *count,
                           void (*callback)(void *), void *data)
 {
@@ -1493,15 +1493,11 @@ kbase_callback_all_queues(kbase k, int32_t *count,
                 ++queue_count;
         }
 
-        *count = queue_count;
+        p_atomic_add(count, queue_count);
 
         pthread_mutex_unlock(&k->queue_lock);
 
-        // TODO: Leave the caller to do this?
-        if (!queue_count) {
-                *count = 1;
-                callback(data);
-        }
+        return queue_count != 0;
 }
 
 static void
