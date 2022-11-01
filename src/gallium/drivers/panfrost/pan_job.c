@@ -924,6 +924,21 @@ reset_context(struct panfrost_context *ctx)
         ctx->tiler_heap_desc = 0;
 }
 
+static void
+pandecode_cs_ring(struct panfrost_device *dev, struct panfrost_cs *cs,
+                  uint64_t insert)
+{
+        insert %= cs->base.size;
+        uint64_t start = cs->base.last_insert % cs->base.size;
+
+        if (insert < start) {
+                pandecode_cs(cs->base.va + start, cs->base.size - start, dev->gpu_id);
+                start = 0;
+        }
+
+        pandecode_cs(cs->base.va + start, insert - start, dev->gpu_id);
+}
+
 static int
 panfrost_batch_submit_csf(struct panfrost_batch *batch,
                           const struct pan_fb_info *fb)
@@ -944,13 +959,8 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 (void *)ctx->kbase_cs_fragment.cs.ptr - ctx->kbase_cs_fragment.bo->ptr.cpu;
 
         if (dev->debug & PAN_DBG_TRACE) {
-                pandecode_cs(batch->cs_vertex_bo->ptr.gpu,
-                             (void *)batch->cs_vertex.ptr - batch->cs_vertex_bo->ptr.cpu,
-                             dev->gpu_id);
-
-                pandecode_cs(batch->cs_fragment_bo->ptr.gpu,
-                             (void *)batch->cs_fragment.ptr - batch->cs_fragment_bo->ptr.cpu,
-                             dev->gpu_id);
+                pandecode_cs_ring(dev, &ctx->kbase_cs_vertex, vs_offset);
+                pandecode_cs_ring(dev, &ctx->kbase_cs_fragment, fs_offset);
         }
 
         // TODO: Make a new debug flag?
