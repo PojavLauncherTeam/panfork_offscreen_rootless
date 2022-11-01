@@ -2968,23 +2968,31 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         pan_command_stream *cv = &batch->ctx->kbase_cs_vertex.cs;
         pan_command_stream *cf = &batch->ctx->kbase_cs_fragment.cs;
 
-        pan_emit_cs_48(cv, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
-        pan_pack_ins(cv, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
+        bool vert = (batch->cs_vertex.ptr != batch->cs_vertex_bo->ptr.cpu);
+        bool frag = (batch->cs_fragment.ptr != batch->cs_fragment_bo->ptr.cpu);
+
+        // TODO: Clean up control-flow?
+
+        if (vert) {
+                pan_emit_cs_48(cv, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
+                pan_pack_ins(cv, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
+
+                uint64_t fragment_seqnum = batch->ctx->kbase_cs_fragment.seqnum;
+                // TODO: this assumes SAME_VA
+                mali_ptr fs_seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_fragment.event_ptr;
+
+                pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
+                pan_emit_cs_48(cv, 0x4e, fragment_seqnum);
+
+                emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo,
+                               batch->cs_vertex);
+        }
+
+        if (!frag)
+                return;
+
         pan_emit_cs_48(cf, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
         pan_pack_ins(cf, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
-
-        uint64_t fragment_seqnum = batch->ctx->kbase_cs_fragment.seqnum;
-        // TODO: this assumes SAME_VA
-        mali_ptr fs_seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_fragment.event_ptr;
-
-        pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
-        pan_emit_cs_48(cv, 0x4e, fragment_seqnum);
-
-        emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo, batch->cs_vertex);
-
-        // TODO: this is duplicated from emit_csf_queue
-        if (batch->cs_fragment.ptr == batch->cs_fragment_bo->ptr.cpu)
-                return;
 
         uint64_t vertex_seqnum = batch->ctx->kbase_cs_vertex.seqnum;
         // TODO: this assumes SAME_VA
@@ -2997,6 +3005,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         //pan_emit_cs_32(cf, 0x54, 0);
         //pan_emit_cs_ins(cf, 0x24, 0x540000000200);
 
+        assert(vert || batch->tiler_ctx.bifrost == 0);
         pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
         emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
