@@ -3008,6 +3008,8 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
         struct panfrost_device *dev = pan_device(ctx->base.screen);
         pan_command_stream *c = &cs->cs;
 
+        cs->seqnum = 0;
+
         cs->offset = 0;
         c->ptr = cs->bo->ptr.cpu;
 
