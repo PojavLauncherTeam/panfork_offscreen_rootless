@@ -2794,16 +2794,12 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
         return transfer.gpu;
 }
 
+#if PAN_ARCH >= 10
+
 // TODO: Rewrite this!
 static void
 emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
 {
-        // TODO clean up ifdef
-#if PAN_ARCH >= 10
-        // Nothing to emit :: TODO this should not be like this
-        if (s.ptr == bo->ptr.cpu)
-                return;
-
         assert((void *)s.ptr <= bo->ptr.cpu + bo->size);
 
         pan_command_stream *c = &cs->cs;
@@ -2958,10 +2954,8 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 pan_emit_cs_ins(c, 0, 0);
 
         assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
-#endif
 }
 
-#if PAN_ARCH >= 10
 static void
 emit_csf_toplevel(struct panfrost_batch *batch)
 {
