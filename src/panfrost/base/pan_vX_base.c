@@ -1513,7 +1513,7 @@ kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
                 .handle = gpu,
                 .user_addr = (uintptr_t) cpu,
                 .size = size,
-                .type = invalidate + (PAN_BASE_API == 0 ? 1 : 0),
+                .type = invalidate + (PAN_BASE_API == 0 ? 0 : 1),
         };
 
         int ret;
