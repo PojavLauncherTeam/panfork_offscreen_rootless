@@ -1368,6 +1368,8 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
                         struct panfrost_resource *trans_rsrc = pan_resource(trans->staging.rsrc);
                         struct panfrost_bo *trans_bo = trans_rsrc->image.data.bo;
 
+                        panfrost_bo_mem_clean(trans_bo, 0, trans_bo->size);
+
                         if (panfrost_should_linear_convert(dev, prsrc, transfer)) {
 
                                 panfrost_bo_unreference(prsrc->image.data.bo);
@@ -1378,7 +1380,6 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
                                 prsrc->image.data.bo = trans_bo;
                                 panfrost_bo_reference(prsrc->image.data.bo);
                         } else {
-                                panfrost_bo_mem_clean(trans_bo, 0, trans_bo->size);
                                 pan_blit_from_staging(pctx, trans);
                                 panfrost_flush_batches_accessing_rsrc(pan_context(pctx),
                                                 pan_resource(trans->staging.rsrc),
