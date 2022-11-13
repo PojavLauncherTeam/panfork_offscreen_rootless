@@ -1286,6 +1286,15 @@ class Context:
                 self.exe.append(("heatmap", self.allocs[alloc_id].id,
                                  offset, size, granularity, length, stride))
                 continue
+            elif s[0] == "!memset":
+                assert(len(s) == 5)
+                alloc_id = s[1]
+                offset = val(s[2])
+                value = val(s[3])
+                size = val(s[4])
+                self.exe.append(("memset", self.allocs[alloc_id].id,
+                                 offset, value, size))
+                continue
             elif s[0] == "!raw":
                 self.exe.append(s[1:])
                 continue

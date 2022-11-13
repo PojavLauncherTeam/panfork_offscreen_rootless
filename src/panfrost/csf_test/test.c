@@ -1377,6 +1377,21 @@ cs_test(struct state *s, struct test *t)
                         dump_heatmap(stdout, s->cpu + offset, size,
                                      gran, length, stride);
 
+                } else if (sscanf(line, "memset %lu %lu %lu %lu",
+                                  &src, &offset, &gran, &size) == 4) {
+
+                        struct panfrost_ptr *s = buffers_elem(&buffers, src);
+
+                        if (!s->gpu)
+                                fprintf(stderr, "memset on buffer that doesn't exist!\n");
+
+                        memset(s->cpu + offset, gran, size);
+                        cache_clean_range(s->cpu + offset, size);
+
+                } else if (sscanf(line, "sleep %lu", &size) == 1) {
+
+                        usleep(size * 1000);
+
                 } else if (strcmp(line, "td\n") == 0 || strcmp(line, "td") == 0) {
 
                         void *ptr;
