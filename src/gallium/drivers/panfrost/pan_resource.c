@@ -597,8 +597,8 @@ panfrost_resource_set_damage_region(struct pipe_screen *screen,
 
 }
 
-/* The kbase kernel driver always maps imported BOs with caching. We don't
- * handle that yet, so instead do mmap from the display driver side to get a
+/* The kbase kernel driver always maps imported BOs with caching. When we
+ * don't want that, instead do mmap from the display driver side to get a
  * write-combine mapping.
  */
 static void
@@ -606,6 +606,12 @@ panfrost_bo_mmap_scanout(struct panfrost_bo *bo,
                          struct renderonly *ro,
                          struct renderonly_scanout *scanout)
 {
+        struct panfrost_device *dev = bo->dev;
+
+        /* If we are fine with a cached mapping, just return */
+        if (!(dev->debug & PAN_DBG_UNCACHED_CPU))
+                return;
+
         struct drm_mode_map_dumb map_dumb = {
                 .handle = scanout->handle,
         };
