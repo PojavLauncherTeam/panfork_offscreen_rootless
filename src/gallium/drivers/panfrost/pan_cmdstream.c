@@ -2814,6 +2814,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
 {
         assert((void *)s.ptr <= bo->ptr.cpu + bo->size);
 
+        bool fragment = (cs->hw_resources & 2);
+        bool vertex = (cs->hw_resources & 12); /* TILER | IDVS */
+
         pan_command_stream *c = &cs->cs;
 
         // Give enough space for at least 64 instructions
@@ -2838,7 +2841,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
          * also wait for the previous fragment job to fix issues with
          * concurrent vertex jobs. Maybe this has got something to do with the
          * mysterious "slots". */
-        if (true || cs->hw_resources & 2) {
+        if (true || fragment) {
                 pan_pack_ins(c, CS_EVWAIT_64, cfg) {
                         cfg.condition = MALI_WAIT_CONDITION_HIGHER;
                         cfg.value = 0x4e;
@@ -2846,7 +2849,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
-        if (cs->hw_resources & 12) {
+        if (vertex) {
                 pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 3; }
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
@@ -2877,8 +2880,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 #endif
 
-        /* TODO define a macro... this is tiler|idvs */
-        if (cs->hw_resources & 12) {
+        if (vertex) {
                 pan_pack_ins(c, CS_FLUSH_TILER, _) { }
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 3; }
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
@@ -2886,7 +2888,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 }
         }
 
-        if (cs->hw_resources & 2) {
+        if (fragment) {
                 /* Skip the next operation if the batch doesn't use a tiler
                  * heap (i.e. it's just a blit) */
                 pan_emit_cs_ins(c, 22, 0x560030000001); /* b.ne w56, skip 1 */
@@ -2935,7 +2937,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 //}
         }
 
-        if (cs->hw_resources & 2) {
+        if (fragment) {
                 pan_emit_cs_32(c, 0x54, 0);
                 pan_emit_cs_ins(c, 0x24, 0x2540000f80211);
                 pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 1; }
