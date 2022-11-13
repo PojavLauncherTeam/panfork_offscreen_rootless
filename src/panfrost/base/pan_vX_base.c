@@ -43,6 +43,7 @@
 #include "util/os_file.h"
 
 #include "pan_base.h"
+#include "pan_cache.h"
 
 #include "drm-uapi/panfrost_drm.h"
 
@@ -1414,7 +1415,7 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 kbase_syncobj_update_fence(o, cs->event_mem_offset, seqnum);
         pthread_mutex_unlock(&k->queue_lock);
 
-        __asm__ volatile ("dmb sy" ::: "memory");
+        memory_barrier();
 
         bool active = CS_READ_REGISTER(cs, CS_ACTIVE);
         LOG("active is %i\n", active);
@@ -1423,9 +1424,9 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
         cs->last_insert = insert_offset;
 
         if (false /*active*/) {
-                __asm__ volatile ("dmb sy" ::: "memory");
+                memory_barrier();
                 CS_RING_DOORBELL(cs);
-                __asm__ volatile ("dmb sy" ::: "memory");
+                memory_barrier();
 
                 active = CS_READ_REGISTER(cs, CS_ACTIVE);
                 LOG("active is now %i\n", active);
