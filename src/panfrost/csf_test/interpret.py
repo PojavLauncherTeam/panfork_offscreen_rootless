@@ -71,10 +71,13 @@ STORE.i32.slot1.end @r2, ^r0, offset:0
 """,
 
     "preframe": """
-IADD_IMM.i32 r4, 0x0, #0x3f800000
-IADD_IMM.i32 r5, 0x0, #0x3f000000
-IADD_IMM.i32 r6, 0x0, #0x3f333333
-IADD_IMM.i32 r7, 0x0, #0x3ecccccd
+U16_TO_U32.discard r0, r59.h00
+U16_TO_U32 r1, ^r59.h10
+IADD_IMM.i32 r2, 0x0, #0x1
+IADD_IMM.i32 r3, 0x0, #0x0
+TEX_FETCH.slot0.skip.f.32.2d.wait @r4:r5:r6:r7, @r0:r1, ^r2
+FADD.f32 r4, ^r4, 0x40490FDB
+FADD.f32 r5, ^r5, 0x40490FDB
 BLEND.slot0.v4.f32.end @r4:r5:r6:r7, blend_descriptor_0.w0, r60, target:0x0
 """,
 
@@ -147,7 +150,8 @@ memory = {
     "ssbo": 4096,
     "tls": 4096,
 
-    "plane_0": 256 * 256 * 32, # 2 MB
+    #"plane_0": (256 * 256 * 32, 0x380f), # 2 MB
+    "plane_0": (256 * 256 * 32, 0x280f), # 2 MB
 
     "idk": HEAP_SIZE,
     "heap": HEAP_SIZE,
@@ -252,6 +256,36 @@ descriptors = {
         0 | (237 << 12) | (0 << 22) | (1 << 24),
     ],
 
+    "preframe_surface": [
+        # Plane descriptor, generic, tiled, RAW32 clump format
+        10 | (1 << 4) | (1 << 8) | (2 << 24),
+        256 * 256 * 4,
+        "plane_0",
+        0,
+        0, 0,
+        0, # was 15,
+    ],
+
+    "preframe_table": [
+        # Texture descriptor, 2D, format
+        2 | (2 << 4) | (187 << (10 + 12)),
+        # Width, height
+        255 | (255 << 16),
+        # Swizzle, interleave
+        1672 | (1 << 12),
+        0,
+        "preframe_surface",
+        0, 0,
+
+        # Sampler descriptor, clamp to edge
+        1 | (9 << 8) | (9 << 12) | (9 << 16),
+        0, 0, 0, 0, 0, 0, 0,
+    ],
+
+    "preframe_resources": [
+        ("preframe_table", (1 << (32 + 24))), 0x40, 0,
+    ],
+
     "dcds": [
         # Clean fragment write, primitive barrier
         (1 << 9) | (1 << 10),
@@ -269,7 +303,7 @@ descriptors = {
         0, # Attribute offset
         2, # FAU count
         0, 0, 0, 0, 0, 0, # unk
-        0, 0, # Resources
+        ("preframe_resources", 1), # Resources
         "preframe_shader", # Shader
         0, 0, # Thread storage
         "fau", # FAU
@@ -300,7 +334,7 @@ descriptors = {
         # Linear block format
         # 0123 swizzle
         # Clean pixel write enable
-        1 | (19 << 3) | (2 << 8) | (0o3210 << 16) | (1 << 31),
+        1 | (19 << 3) | (1 << 8) | (0o3210 << 16) | (1 << 31),
 
         # AFBC overlay
         # No YTR, no split, no wide, no reverse, no front, no alpha
@@ -310,7 +344,7 @@ descriptors = {
 
         # RT Buffer
         "plane_0",
-        256 * 4, # Row stride
+        256 * 4 * 16, # Row stride (for tiling)
         0x400, # Surface stride / Body offset
 
         # RT Clear
@@ -348,6 +382,34 @@ descriptors = {
 # and use f-strings again?
 
 cmds = """
+!cs 0
+resources fragment
+
+@ Bound min
+mov w2a, i16:0,0
+@ Bound max
+mov w2b, i16:255,255
+mov x28, $framebuffer+1
+
+slot 2
+
+fragment
+
+mov w4a, #0x0
+UNK 02 24, #0x4a0000ff0211
+wait 1
+
+mov x50, $ev
+evstr w5f, [x50], unk 0xfd, irq
+
+!raw sleep 20
+!memset plane_0 0 0 262144
+!raw sleep 200
+!dump plane_0 0 12
+!heatmap plane_0 0 262144 gran 4096 len 32768 stride 32768
+"""
+
+altcmds = """
 !cs 0
 
 @ Some time is required for the change to become active
