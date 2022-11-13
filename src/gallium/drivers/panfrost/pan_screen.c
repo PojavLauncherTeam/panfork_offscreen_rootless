@@ -77,6 +77,7 @@ static const struct debug_named_value panfrost_debug_options[] = {
         {"boclear",   PAN_DBG_BO_CLEAR, "Clear BOs on allocation"},
         {"nogpuc",    PAN_DBG_UNCACHED_GPU, "Use uncached GPU memory for textures"},
         {"nocpuc",    PAN_DBG_UNCACHED_CPU, "Use uncached CPU mappings for textures"},
+        {"log",       PAN_DBG_LOG,      "Log job submission etc."},
         DEBUG_NAMED_VALUE_END
 };
 

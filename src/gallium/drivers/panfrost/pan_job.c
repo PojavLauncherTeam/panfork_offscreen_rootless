@@ -963,8 +963,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 pandecode_cs_ring(dev, &ctx->kbase_cs_fragment, fs_offset);
         }
 
-        // TODO: Make a new debug flag?
-        bool log = (dev->debug & PAN_DBG_PERF);
+        bool log = (dev->debug & PAN_DBG_LOG);
 
         // TODO: We need better synchronisation than a single fake syncobj!
 
