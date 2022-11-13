@@ -1348,6 +1348,8 @@ cs_test(struct state *s, struct test *t)
                         if (!s->gpu)
                                 fprintf(stderr, "dumping buffer that doesn't exist!\n");
 
+                        cache_invalidate_range(s->cpu + offset, size);
+
                         if (!strcmp(mode, "hex"))
                                 pan_hexdump(stdout, s->cpu + offset, size, true);
                         else if (!strcmp(mode, "hex64"))
@@ -1369,6 +1371,8 @@ cs_test(struct state *s, struct test *t)
 
                         if (!s->gpu)
                                 fprintf(stderr, "dumping buffer that doesn't exist!\n");
+
+                        cache_invalidate_range(s->cpu + offset, size);
 
                         dump_heatmap(stdout, s->cpu + offset, size,
                                      gran, length, stride);
