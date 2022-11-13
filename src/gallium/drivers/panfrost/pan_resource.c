@@ -634,6 +634,7 @@ panfrost_bo_mmap_scanout(struct panfrost_bo *bo,
 
         bo->munmap_ptr = bo->ptr.cpu;
         bo->ptr.cpu = addr;
+        bo->cached = false;
 }
 
 static struct pipe_resource *

@@ -703,6 +703,9 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                 }
                 bo->flags = PAN_BO_SHARED;
                 bo->gem_handle = gem_handle;
+                /* kbase always maps dma-bufs with caching */
+                if (dev->kbase)
+                        bo->cached = true;
                 p_atomic_set(&bo->refcnt, 1);
         } else {
                 found = true;
