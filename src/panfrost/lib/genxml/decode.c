@@ -1054,6 +1054,9 @@ pandecode_resource_tables(mali_ptr addr, const char *label)
 static void
 pandecode_depth_stencil(mali_ptr addr)
 {
+        if (!addr)
+                return;
+
         MAP_ADDR(DEPTH_STENCIL, addr, cl);
         pan_unpack(cl, DEPTH_STENCIL, desc);
         DUMP_UNPACKED(DEPTH_STENCIL, desc, "Depth/stencil");
