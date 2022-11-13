@@ -1510,6 +1510,14 @@ static void
 kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
                bool invalidate)
 {
+#ifdef __aarch64__
+        /* I don't that memory barriers are needed here... having the `dmb sy`
+         * before submit should be enough. TODO what about dma-bufs? */
+        if (invalidate)
+                cache_invalidate_range(cpu, size);
+        else
+                cache_clean_range(cpu, size);
+#else
         struct kbase_ioctl_mem_sync sync = {
                 .handle = gpu,
                 .user_addr = (uintptr_t) cpu,
@@ -1521,6 +1529,7 @@ kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
         ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_SYNC, &sync);
         if (ret == -1)
                 perror("ioctl(KBASE_IOCTL_MEM_SYNC)");
+#endif
 }
 
 bool
