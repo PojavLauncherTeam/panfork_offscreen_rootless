@@ -134,10 +134,17 @@ struct panfrost_bo {
          * the VA may be too high for kbase to map to an equivalent CPU
          * address, in which case we must use the memory free icotl. */
         bool free_ioctl;
+
+        /* Is the BO cached CPU-side? */
+        bool cached;
 };
 
 bool
 panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers);
+void
+panfrost_bo_mem_invalidate(struct panfrost_bo *bo, size_t offset, size_t length);
+void
+panfrost_bo_mem_clean(struct panfrost_bo *bo, size_t offset, size_t length);
 void
 panfrost_bo_reference(struct panfrost_bo *bo);
 void

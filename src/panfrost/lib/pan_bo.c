@@ -74,8 +74,15 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
 
         void *cpu = NULL;
 
+        bool cached = false;
+
         if (dev->kbase) {
                 if (flags & PAN_BO_CACHEABLE) {
+                        if (!(dev->debug & PAN_DBG_UNCACHED_CPU)) {
+                                create_bo.flags |= MALI_BO_CACHED_CPU;
+                                /* TODO: What if kbase decides not to cache it? */
+                                cached = true;
+                        }
                         if (dev->debug & PAN_DBG_UNCACHED_GPU)
                                 create_bo.flags |= MALI_BO_UNCACHED_GPU;
                 }
@@ -112,6 +119,7 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
         bo->flags = flags;
         bo->dev = dev;
         bo->label = label;
+        bo->cached = cached;
         return bo;
 }
 
@@ -193,6 +201,32 @@ panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers)
          */
         assert(errno == ETIMEDOUT || errno == EBUSY);
         return false;
+}
+
+static void
+panfrost_bo_mem_op(struct panfrost_bo *bo, size_t offset, size_t length, bool invalidate)
+{
+        struct panfrost_device *dev = bo->dev;
+
+        assert(offset + length <= bo->size);
+
+        if (!bo->cached)
+                return;
+
+        dev->mali.mem_sync(&dev->mali, bo->ptr.gpu, bo->ptr.cpu + offset, length,
+                           invalidate);
+}
+
+void
+panfrost_bo_mem_invalidate(struct panfrost_bo *bo, size_t offset, size_t length)
+{
+        panfrost_bo_mem_op(bo, offset, length, true);
+}
+
+void
+panfrost_bo_mem_clean(struct panfrost_bo *bo, size_t offset, size_t length)
+{
+        panfrost_bo_mem_op(bo, offset, length, false);
 }
 
 /* Helper to calculate the bucket index of a BO */
@@ -471,8 +505,10 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (!(flags & (PAN_BO_INVISIBLE | PAN_BO_DELAY_MMAP)))
                 panfrost_bo_mmap(bo);
 
-        if ((dev->debug & PAN_DBG_BO_CLEAR) && !(flags & PAN_BO_INVISIBLE))
+        if ((dev->debug & PAN_DBG_BO_CLEAR) && !(flags & PAN_BO_INVISIBLE)) {
                 memset(bo->ptr.cpu, 0, bo->size);
+                panfrost_bo_mem_clean(bo, 0, bo->size);
+        }
 
         p_atomic_set(&bo->refcnt, 1);
 

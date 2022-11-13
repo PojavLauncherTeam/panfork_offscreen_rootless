@@ -579,10 +579,6 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                  * other. */
                 if (PAN_BASE_API >= 1)
                         flags |= BASE_MEM_COHERENT_LOCAL;
-
-                /* TODO: ++difficulty_level */
-                //if (PAN_BASE_API >= 1)
-                //        flags |= BASE_MEM_CACHED_CPU;
         }
 
         if (pan_flags & PANFROST_BO_HEAP) {
@@ -593,6 +589,11 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 a.in.extension = align_size;
                 flags |= BASE_MEM_GROW_ON_GPF;
         }
+
+#if PAN_BASE_API >= 1
+        if (pan_flags & MALI_BO_CACHED_CPU)
+                flags |= BASE_MEM_CACHED_CPU;
+#endif
 
 #if PAN_BASE_API >= 2
         if (pan_flags & MALI_BO_UNCACHED_GPU)

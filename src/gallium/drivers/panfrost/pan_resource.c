@@ -474,7 +474,9 @@ panfrost_resource_setup(struct panfrost_device *dev,
 static void
 panfrost_resource_init_afbc_headers(struct panfrost_resource *pres)
 {
-        panfrost_bo_mmap(pres->image.data.bo);
+        struct panfrost_bo *bo = pres->image.data.bo;
+
+        panfrost_bo_mmap(bo);
 
         unsigned nr_samples = MAX2(pres->base.nr_samples, 1);
 
@@ -483,16 +485,16 @@ panfrost_resource_init_afbc_headers(struct panfrost_resource *pres)
                         struct pan_image_slice_layout *slice = &pres->image.layout.slices[l];
 
                         for (unsigned s = 0; s < nr_samples; ++s) {
-                                void *ptr = pres->image.data.bo->ptr.cpu +
-                                            (i * pres->image.layout.array_stride) +
-                                            slice->offset +
-                                            (s * slice->afbc.surface_stride);
+                                size_t offset = (i * pres->image.layout.array_stride) +
+                                                slice->offset +
+                                                (s * slice->afbc.surface_stride);
 
                                 /* Zero-ed AFBC headers seem to encode a plain
                                  * black. Let's use this pattern to keep the
                                  * initialization simple.
                                  */
-                                memset(ptr, 0, slice->afbc.header_size);
+                                memset(bo->ptr.cpu + offset, 0, slice->afbc.header_size);
+                                panfrost_bo_mem_clean(bo, offset, slice->afbc.header_size);
                         }
                 }
         }
@@ -1013,6 +1015,8 @@ panfrost_ptr_map(struct pipe_context *pctx,
                 struct panfrost_resource *staging = pan_alloc_staging(ctx, rsrc, level, box);
                 assert(staging);
 
+                panfrost_bo_mmap(staging->image.data.bo);
+
                 /* Staging resources have one LOD: level 0. Query the strides
                  * on this LOD.
                  */
@@ -1035,9 +1039,11 @@ panfrost_ptr_map(struct pipe_context *pctx,
                         pan_blit_to_staging(pctx, transfer);
                         panfrost_flush_writer(ctx, staging, "AFBC read staging blit");
                         panfrost_bo_wait(staging->image.data.bo, INT64_MAX, false);
+
+                        panfrost_bo_mem_invalidate(staging->image.data.bo, 0,
+                                                   staging->image.data.bo->size);
                 }
 
-                panfrost_bo_mmap(staging->image.data.bo);
                 return staging->image.data.bo->ptr.cpu;
         }
 
@@ -1096,6 +1102,8 @@ panfrost_ptr_map(struct pipe_context *pctx,
                 copy_resource = false;
         }
 
+        bool cache_inval = true;
+
         if (create_new_bo) {
                 /* Make sure we re-emit any descriptors using this resource */
                 panfrost_dirty_state_all(ctx);
@@ -1120,12 +1128,14 @@ panfrost_ptr_map(struct pipe_context *pctx,
                                                            flags, bo->label);
 
                         if (newbo) {
-                                if (copy_resource)
-                                        memcpy(newbo->ptr.cpu, rsrc->image.data.bo->ptr.cpu, bo->size);
+                                if (copy_resource) {
+                                        panfrost_bo_mem_invalidate(bo, 0, bo->size);
+                                        memcpy(newbo->ptr.cpu, bo->ptr.cpu, bo->size);
+                                }
 
                                 panfrost_resource_swap_bo(ctx, rsrc, newbo);
 
-	                        if (!copy_resource &&
+                                if (!copy_resource &&
                                     drm_is_afbc(rsrc->image.layout.modifier))
                                         panfrost_resource_init_afbc_headers(rsrc);
 
@@ -1147,6 +1157,22 @@ panfrost_ptr_map(struct pipe_context *pctx,
                         panfrost_flush_writer(ctx, rsrc, "Synchronized read");
                         panfrost_bo_wait(bo, INT64_MAX, false);
                 }
+        } else {
+                /* No flush for writes to uninitialized */
+                cache_inval = false;
+        }
+
+        /* TODO: Only the accessed region for textures */
+        if (cache_inval) {
+                size_t offset = 0;
+                size_t size = bo->size;
+
+                if (resource->target == PIPE_BUFFER) {
+                        offset = box->x * (size_t) bytes_per_block;
+                        size = box->width * (size_t) bytes_per_block;
+                }
+
+                panfrost_bo_mem_invalidate(bo, offset, size);
         }
 
         /* For access to compressed textures, we want the (x, y, w, h)
@@ -1172,6 +1198,8 @@ panfrost_ptr_map(struct pipe_context *pctx,
                 /* Direct, persistent writes create holes in time for
                  * caching... I don't know if this is actually possible but we
                  * should still get it right */
+
+                // TODO: Fix this for cached BOs
 
                 unsigned dpw = PIPE_MAP_DIRECTLY | PIPE_MAP_WRITE | PIPE_MAP_PERSISTENT;
 
@@ -1326,8 +1354,13 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
          * reloads that can cascade into DATA_INVALID_FAULTs due to reading
          * malformed AFBC data if uninitialized */
 
-        if (trans->staging.rsrc) {
+        bool afbc = trans->staging.rsrc;
+
+        if (afbc) {
                 if (transfer->usage & PIPE_MAP_WRITE) {
+                        struct panfrost_resource *trans_rsrc = pan_resource(trans->staging.rsrc);
+                        struct panfrost_bo *trans_bo = trans_rsrc->image.data.bo;
+
                         if (panfrost_should_linear_convert(dev, prsrc, transfer)) {
 
                                 panfrost_bo_unreference(prsrc->image.data.bo);
@@ -1335,9 +1368,10 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
                                 panfrost_resource_setup(dev, prsrc, DRM_FORMAT_MOD_LINEAR,
                                                         prsrc->image.layout.format);
 
-                                prsrc->image.data.bo = pan_resource(trans->staging.rsrc)->image.data.bo;
+                                prsrc->image.data.bo = trans_bo;
                                 panfrost_bo_reference(prsrc->image.data.bo);
                         } else {
+                                panfrost_bo_mem_clean(trans_bo, 0, trans_bo->size);
                                 pan_blit_from_staging(pctx, trans);
                                 panfrost_flush_batches_accessing_rsrc(pan_context(pctx),
                                                 pan_resource(trans->staging.rsrc),
@@ -1387,6 +1421,25 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
                 }
         }
 
+        /* TODO: Only the accessed region */
+        /* It is important to not do this for AFBC resources, or else the
+         * clean might overwrite the result of the blit. */
+        if (!afbc && (transfer->usage & PIPE_MAP_WRITE)) {
+                size_t offset = 0;
+                size_t size = prsrc->image.data.bo->size;
+
+                /* TODO: Don't recalculate */
+                if (prsrc->base.target == PIPE_BUFFER) {
+                        enum pipe_format format = prsrc->image.layout.format;
+                        int bytes_per_block = util_format_get_blocksize(format);
+
+                        offset = transfer->box.x * (size_t) bytes_per_block;
+                        size = transfer->box.width * (size_t) bytes_per_block;
+                }
+
+                panfrost_bo_mem_clean(prsrc->image.data.bo,
+                                      offset, size);
+        }
 
         util_range_add(&prsrc->base, &prsrc->valid_buffer_range,
                        transfer->box.x,
@@ -1401,6 +1454,7 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
         ralloc_free(transfer);
 }
 
+// TODO: does this need to be changed for cached resources?
 static void
 panfrost_ptr_flush_region(struct pipe_context *pctx,
                                struct pipe_transfer *transfer,

@@ -210,6 +210,7 @@ void kbase_wait_fini(struct kbase_wait_ctx ctx);
 void kbase_ensure_handle_events(kbase k);
 
 /* Must not conflict with PANFROST_BO_* flags */
+#define MALI_BO_CACHED_CPU   (1 << 16)
 #define MALI_BO_UNCACHED_GPU (1 << 17)
 
 #endif
