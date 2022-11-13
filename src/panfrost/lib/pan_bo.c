@@ -75,6 +75,11 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
         void *cpu = NULL;
 
         if (dev->kbase) {
+                if (flags & PAN_BO_CACHEABLE) {
+                        if (dev->debug & PAN_DBG_UNCACHED_GPU)
+                                create_bo.flags |= MALI_BO_UNCACHED_GPU;
+                }
+
                 unsigned mali_flags = (flags & PAN_BO_EVENT) ? 0x8200f : 0;
 
                 struct base_ptr p = dev->mali.alloc(&dev->mali, size, create_bo.flags, mali_flags);

@@ -53,6 +53,9 @@
 /* Use event memory, required for CSF events to be signaled to the kernel */
 #define PAN_BO_EVENT              (1 << 5)
 
+/* Use the caching policy for resource BOs */
+#define PAN_BO_CACHEABLE          (1 << 6)
+
 /* GPU access flags */
 
 /* BO is either shared (can be accessed by more than one GPU batch) or private

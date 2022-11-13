@@ -75,6 +75,7 @@ static const struct debug_named_value panfrost_debug_options[] = {
         {"tiler",     PAN_DBG_TILER,    "Decode the tiler heap"},
         {"bolog",     PAN_DBG_BO_LOG,   "Log BO allocations/deallocations"},
         {"boclear",   PAN_DBG_BO_CLEAR, "Clear BOs on allocation"},
+        {"nogpuc",    PAN_DBG_UNCACHED_GPU, "Use uncached GPU memory for textures"},
         DEBUG_NAMED_VALUE_END
 };
 

@@ -744,8 +744,15 @@ panfrost_resource_create_with_modifier(struct pipe_screen *screen,
                 /* We create a BO immediately but don't bother mapping, since we don't
                  * care to map e.g. FBOs which the CPU probably won't touch */
 
+                /* For now, don't cache buffers as syncing can be slow when
+                 * too much memory is mapped. TODO: dynamically switch, or use
+                 * the STREAM_READ etc. hints? */
+                bool buffer = (template->target == PIPE_BUFFER);
+                unsigned cache_flag = buffer ? 0 : PAN_BO_CACHEABLE;
+
                 so->image.data.bo =
-                        panfrost_bo_create(dev, so->image.layout.data_size, PAN_BO_DELAY_MMAP, label);
+                        panfrost_bo_create(dev, so->image.layout.data_size,
+                                           PAN_BO_DELAY_MMAP | cache_flag, label);
 
                 so->constant_stencil = true;
         }
@@ -1353,10 +1360,13 @@ panfrost_ptr_unmap(struct pipe_context *pctx,
                                         panfrost_resource_setup(dev, prsrc, DRM_FORMAT_MOD_LINEAR,
                                                                 prsrc->image.layout.format);
                                         if (prsrc->image.layout.data_size > bo->size) {
+                                                /* We want the BO to be MMAPed. */
+                                                uint32_t flags = bo->flags & ~PAN_BO_DELAY_MMAP;
                                                 const char *label = bo->label;
+
                                                 panfrost_bo_unreference(bo);
                                                 bo = prsrc->image.data.bo =
-                                                        panfrost_bo_create(dev, prsrc->image.layout.data_size, 0, label);
+                                                        panfrost_bo_create(dev, prsrc->image.layout.data_size, flags, label);
                                                 assert(bo);
                                         }
 

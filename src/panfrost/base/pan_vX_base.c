@@ -593,6 +593,11 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 flags |= BASE_MEM_GROW_ON_GPF;
         }
 
+#if PAN_BASE_API >= 2
+        if (pan_flags & MALI_BO_UNCACHED_GPU)
+                flags |= BASE_MEM_UNCACHED_GPU;
+#endif
+
         if (!(pan_flags & PANFROST_BO_NOEXEC)) {
                 flags |= BASE_MEM_PROT_GPU_EX;
                 flags &= ~BASE_MEM_PROT_GPU_WR;
