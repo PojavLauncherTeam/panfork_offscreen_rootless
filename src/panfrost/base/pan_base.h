@@ -176,7 +176,7 @@ struct kbase {
         bool (*callback_all_queues)(kbase k, int32_t *count,
                                     void (*callback)(void *), void *data);
 
-        void (*mem_sync)(kbase k, base_va gpu, void *cpu, unsigned size,
+        void (*mem_sync)(kbase k, base_va gpu, void *cpu, size_t size,
                          bool invalidate);
 };
 

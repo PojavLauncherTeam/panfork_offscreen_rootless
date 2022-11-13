@@ -1501,7 +1501,7 @@ kbase_callback_all_queues(kbase k, int32_t *count,
 }
 
 static void
-kbase_mem_sync(kbase k, base_va gpu, void *cpu, unsigned size,
+kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
                bool invalidate)
 {
         struct kbase_ioctl_mem_sync sync = {
