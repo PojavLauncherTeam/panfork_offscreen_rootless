@@ -2855,6 +2855,9 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
                 pan_pack_ins(c, CS_HEAPINC, cfg) {
                         cfg.type = MALI_HEAP_STATISTIC_V_T_START;
                 }
+        } else if (fragment) {
+                pan_pack_ins(c, CS_SLOT, cfg) { cfg.index = 4; }
+                pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 1 << 4; }
         }
 
         // copying to the main buffer can make debugging easier.
@@ -2957,7 +2960,8 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // TODO: What about 48-bit overflow... just use EVADD instead?
         pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1);
         pan_pack_ins(c, CS_EVSTR_64, cfg) {
-                cfg.unk_2 = 4;
+                /* This is the scoreboard mask, right?.. */
+                cfg.unk_2 = (3 << 3);
                 cfg.value = 0x4a;
                 cfg.addr = 0x48;
         }
