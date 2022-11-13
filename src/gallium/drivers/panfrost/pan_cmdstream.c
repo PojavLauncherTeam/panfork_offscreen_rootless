@@ -1499,9 +1499,17 @@ panfrost_emit_const_buf(struct panfrost_batch *batch,
         size_t sys_size = sizeof(float) * 4 * ss->info.sysvals.sysval_count;
         struct panfrost_ptr transfer =
                 pan_pool_alloc_aligned(&batch->pool.base, sys_size, 16);
+        void *sys_cpu = malloc(sys_size);
+
+        /* Write to a shadow buffer to make pushing cheaper */
+        struct panfrost_ptr sys_shadow = {
+                .cpu = sys_cpu,
+                .gpu = transfer.gpu,
+        };
 
         /* Upload sysvals requested by the shader */
-        panfrost_upload_sysvals(batch, &transfer, ss, stage);
+        panfrost_upload_sysvals(batch, &sys_shadow, ss, stage);
+        memcpy(transfer.cpu, sys_cpu, sys_size);
 
         /* Next up, attach UBOs. UBO count includes gaps but no sysval UBO */
         struct panfrost_compiled_shader *shader = ctx->prog[stage];
@@ -1544,8 +1552,10 @@ panfrost_emit_const_buf(struct panfrost_batch *batch,
         if (pushed_words)
                 *pushed_words = ss->info.push.count;
 
-        if (ss->info.push.count == 0)
+        if (ss->info.push.count == 0) {
+                free(sys_cpu);
                 return ubos.gpu;
+        }
 
         /* Copy push constants required by the shader */
         struct panfrost_ptr push_transfer =
@@ -1597,12 +1607,14 @@ panfrost_emit_const_buf(struct panfrost_batch *batch,
                  * off to upload sysvals to a staging buffer on the CPU on the
                  * assumption sysvals will get pushed (TODO) */
 
-                const void *mapped_ubo = (src.ubo == sysval_ubo) ? transfer.cpu :
+                const void *mapped_ubo = (src.ubo == sysval_ubo) ? sys_cpu :
                         panfrost_map_constant_buffer_cpu(ctx, buf, src.ubo);
 
                 /* TODO: Is there any benefit to combining ranges */
                 memcpy(push_cpu + i, (uint8_t *) mapped_ubo + src.offset, 4);
         }
+
+        free(sys_cpu);
 
         return ubos.gpu;
 }
