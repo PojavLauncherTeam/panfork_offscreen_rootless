@@ -1701,10 +1701,14 @@ def run(text, capture=False):
     else:
         cap = {}
 
+    i = interpret(text) + "\n"
+
+    with open("/tmp/csf.cmds", "w") as f:
+        f.write(i)
+
     # TODO: Keep seperate or merge stdout/stderr?
     ret = subprocess.run(["csf_test", "/dev/stdin"],
-                         input=interpret(text), text=True,
-                         **cap)
+                         input=i, text=True, **cap)
     if ret.stderr is None:
         ret.stderr = ""
     if ret.stdout is None:
