@@ -247,9 +247,6 @@ struct panfrost_context {
         struct panfrost_cs kbase_cs_vertex;
         struct panfrost_cs kbase_cs_fragment;
         struct panfrost_bo *tiler_heap_desc;
-
-        struct list_head tiler_ctx_bos;
-        unsigned tiler_ctx_bo_count;
 };
 
 /* Corresponds to the CSO */

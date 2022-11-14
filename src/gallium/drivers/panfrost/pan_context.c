@@ -571,13 +571,6 @@ panfrost_destroy(struct pipe_context *pipe)
         struct panfrost_context *panfrost = pan_context(pipe);
         struct panfrost_device *dev = pan_device(pipe->screen);
 
-        // TODO: Might this cause problems if we don't wait?
-        list_for_each_entry_safe(struct panfrost_bo, entry,
-                                 &panfrost->tiler_ctx_bos, lru_link) {
-                list_del(&entry->lru_link);
-                panfrost_bo_unreference(entry);
-        }
-
         if (dev->kbase && dev->mali.context_create) {
                 dev->mali.cs_term(&dev->mali, &panfrost->kbase_cs_vertex.base);
                 dev->mali.cs_term(&dev->mali, &panfrost->kbase_cs_fragment.base);
@@ -1033,8 +1026,6 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
                 ctx->kbase_cs_vertex = panfrost_cs_create(ctx, 65536, 13);
                 ctx->kbase_cs_fragment = panfrost_cs_create(ctx, 65536, 2);
         }
-
-        list_inithead(&ctx->tiler_ctx_bos);
 
         /* Prepare for render! */
 
