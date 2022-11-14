@@ -601,8 +601,11 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
 #endif
 
         if (!(pan_flags & PANFROST_BO_NOEXEC)) {
+                /* Using SAME_VA for executable BOs would make it too likely
+                 * for a blend shader to end up on the wrong side of a 4 GB
+                 * boundary. */
                 flags |= BASE_MEM_PROT_GPU_EX;
-                flags &= ~BASE_MEM_PROT_GPU_WR;
+                flags &= ~(BASE_MEM_PROT_GPU_WR | BASE_MEM_SAME_VA);
 
                 if (PAN_BASE_API == 0) {
                         /* Assume 4K pages */
