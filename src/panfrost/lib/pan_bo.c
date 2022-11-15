@@ -690,7 +690,7 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
                 bo->dev = dev;
                 bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
-                if (sizeof(void *) > 4 || get_bo_offset.offset < (1LL << 32))
+                if (dev->kbase && (sizeof(void *) > 4 || get_bo_offset.offset < (1LL << 32)))
                         bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
                 else
                         bo->free_ioctl = true;
