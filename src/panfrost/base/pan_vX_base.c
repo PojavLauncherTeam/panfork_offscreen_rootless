@@ -47,27 +47,38 @@
 
 #include "drm-uapi/panfrost_drm.h"
 
+#define PAN_BASE_API (PAN_BASE_VER & 0xff)
+#if (PAN_BASE_VER & 0x100) == 0x100
+#define PAN_BASE_NOOP
+#endif
+
 #if PAN_BASE_API >= 2
 #include "csf/mali_gpu_csf_registers.h"
 
 #define MALI_USE_CSF 1
 #endif
 
+#include "mali_kbase_gpuprops.h"
+
+#ifndef PAN_BASE_NOOP
 #define kbase_mmap mmap
+#endif
 
 #if PAN_BASE_API >= 1
 #include "mali_base_kernel.h"
 #include "mali_kbase_ioctl.h"
 
+#ifdef PAN_BASE_NOOP
+#include "pan_base_noop.h"
+#else
 #define kbase_ioctl ioctl
+#endif
 #else
 
 #include "old/mali-ioctl.h"
 #include "old/mali-ioctl-midgard.h"
 #include "old/mali-props.h"
 #endif
-
-#include "mali_kbase_gpuprops.h"
 
 #define LOG(fmt, ...) do { \
                 if (k->verbose) { \
@@ -1042,6 +1053,10 @@ kbase_update_queue_callbacks(kbase k,
 static bool
 kbase_handle_events(kbase k)
 {
+#ifdef PAN_BASE_NOOP
+        return true;
+#endif
+
         /* This will clear the event count, so there's no need to do it in a
          * loop. */
         bool ret = kbase_read_event(k);
@@ -1407,6 +1422,7 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
         if (insert_offset == cs->last_insert)
                 return true;
 
+#ifndef PAN_BASE_NOOP
         struct kbase_sync_link *link = malloc(sizeof(*link));
         *link = (struct kbase_sync_link) {
                 .seqnum = seqnum,
@@ -1425,6 +1441,7 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
         if (o)
                 kbase_syncobj_update_fence(o, cs->event_mem_offset, seqnum);
         pthread_mutex_unlock(&k->queue_lock);
+#endif
 
         memory_barrier();
 
@@ -1544,7 +1561,9 @@ kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
 }
 
 bool
-#if PAN_BASE_API == 0
+#if defined(PAN_BASE_NOOP)
+kbase_open_csf_noop
+#elif PAN_BASE_API == 0
 kbase_open_old
 #elif PAN_BASE_API == 1
 kbase_open_new

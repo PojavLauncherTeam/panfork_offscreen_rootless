@@ -20,7 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-libpanfrost_base_versions = ['0', '1', '2']
+libpanfrost_base_versions = ['0', '1', '2', '258']
 libpanfrost_base_per_arch = []
 
 foreach ver : libpanfrost_base_versions
@@ -31,7 +31,7 @@ foreach ver : libpanfrost_base_versions
       inc_src, inc_include, inc_gallium, inc_mesa, inc_gallium_aux,
       include_directories('include'),
     ],
-    c_args : ['-DPAN_BASE_API=' + ver],
+    c_args : ['-DPAN_BASE_VER=' + ver],
     gnu_symbol_visibility : 'hidden',
 )
 endforeach

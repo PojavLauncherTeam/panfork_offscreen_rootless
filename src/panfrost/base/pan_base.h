@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Icecream95
+ * Copyright (C) 2022 Icecream95 <ixn@disroot.org>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -186,6 +186,7 @@ bool kbase_open(kbase k, int fd, unsigned cs_queue_count, bool verbose);
 bool kbase_open_old(kbase k);
 bool kbase_open_new(kbase k);
 bool kbase_open_csf(kbase k);
+bool kbase_open_csf_noop(kbase k);
 
 /* BO management */
 int kbase_alloc_gem_handle(kbase k, base_va va, int fd);
