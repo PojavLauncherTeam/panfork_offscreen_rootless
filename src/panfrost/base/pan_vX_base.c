@@ -1033,20 +1033,18 @@ kbase_update_queue_callbacks(kbase k,
 
                 LOG("seq %"PRIu64" %"PRIu64"\n", seqnum, link->seqnum);
 
-                /* Remove the link if the syncobj is now signaled */
-                if (seqnum > link->seqnum) {
-                        LOG("done, calling %p(%p)\n", link->callback, link->data);
-                        if (link->callback)
-                                link->callback(link->data);
-                        *list = link->next;
-                        if (&link->next == back)
-                                slot->back = list;
-                        free(link);
-                } else {
-                        // TODO: Assume that later syncobjs will have higher
-                        // values and so skip checking?
-                        list = &link->next;
-                }
+                /* Items in the list should be in order, there is no need to
+                 * check any more if we can't process this link yet. */
+                if (seqnum <= link->seqnum)
+                        break;
+
+                LOG("done, calling %p(%p)\n", link->callback, link->data);
+                if (link->callback)
+                        link->callback(link->data);
+                *list = link->next;
+                if (&link->next == back)
+                        slot->back = list;
+                free(link);
         }
 }
 
