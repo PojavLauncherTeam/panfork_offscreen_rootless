@@ -53,6 +53,8 @@
 #define MALI_USE_CSF 1
 #endif
 
+#define kbase_mmap mmap
+
 #if PAN_BASE_API >= 1
 #include "mali_base_kernel.h"
 #include "mali_kbase_ioctl.h"
@@ -199,9 +201,9 @@ set_flags(kbase k)
 static bool
 mmap_tracking(kbase k)
 {
-        k->tracking_region = mmap(NULL, k->page_size, PROT_NONE,
-                                  MAP_SHARED, k->fd,
-                                  BASE_MEM_MAP_TRACKING_HANDLE);
+        k->tracking_region = kbase_mmap(NULL, k->page_size, PROT_NONE,
+                                        MAP_SHARED, k->fd,
+                                        BASE_MEM_MAP_TRACKING_HANDLE);
 
         if (k->tracking_region == MAP_FAILED) {
                 perror("mmap(BASE_MEM_MAP_TRACKING_HANDLE)");
@@ -275,9 +277,9 @@ free_gpuprops(kbase k)
 static bool
 mmap_user_reg(kbase k)
 {
-        k->csf_user_reg = mmap(NULL, k->page_size, PROT_READ,
-                               MAP_SHARED, k->fd,
-                               BASEP_MEM_CSF_USER_REG_PAGE_HANDLE);
+        k->csf_user_reg = kbase_mmap(NULL, k->page_size, PROT_READ,
+                                     MAP_SHARED, k->fd,
+                                     BASEP_MEM_CSF_USER_REG_PAGE_HANDLE);
 
         if (k->csf_user_reg == MAP_FAILED) {
                 perror("mmap(BASEP_MEM_CSF_USER_REG_PAGE_HANDLE)");
@@ -638,9 +640,9 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
                 return r;
         }
 
-        void *ptr = mmap(NULL, size,
-                         PROT_READ | PROT_WRITE, MAP_SHARED,
-                         k->fd, a.out.gpu_va);
+        void *ptr = kbase_mmap(NULL, size,
+                               PROT_READ | PROT_WRITE, MAP_SHARED,
+                               k->fd, a.out.gpu_va);
 
         if (ptr == MAP_FAILED) {
                 perror("mmap(GPU BO)");
@@ -654,9 +656,9 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags)
         if (exec_align) {
                 gpu_va = ALIGN_POT(gpu_va, 1 << 24);
 
-                ptr = mmap(NULL, alloc_size,
-                           PROT_READ | PROT_WRITE, MAP_SHARED,
-                           k->fd, gpu_va);
+                ptr = kbase_mmap(NULL, alloc_size,
+                                 PROT_READ | PROT_WRITE, MAP_SHARED,
+                                 k->fd, gpu_va);
 
                 if (ptr == MAP_FAILED) {
                         perror("mmap(GPU EXEC BO)");
@@ -717,9 +719,9 @@ kbase_import_dmabuf(kbase k, int fd)
                 perror("ioctl(KBASE_IOCTL_MEM_IMPORT)");
                 handle = -1;
         } else if (import.out.flags & BASE_MEM_NEED_MMAP) {
-                uint64_t va = (uintptr_t) mmap(NULL, import.out.va_pages * k->page_size,
-                                               PROT_READ | PROT_WRITE,
-                                               MAP_SHARED, k->fd, import.out.gpu_va);
+                uint64_t va = (uintptr_t) kbase_mmap(NULL, import.out.va_pages * k->page_size,
+                                                     PROT_READ | PROT_WRITE,
+                                                     MAP_SHARED, k->fd, import.out.gpu_va);
 
                 handle = kbase_alloc_gem_handle_locked(k, va, dup);
         } else {
@@ -1280,10 +1282,10 @@ kbase_cs_bind_noevent(kbase k, struct kbase_context *ctx,
         }
 
         cs.user_io =
-                mmap(NULL,
-                     k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES,
-                     PROT_READ | PROT_WRITE, MAP_SHARED,
-                     k->fd, bind.out.mmap_handle);
+                kbase_mmap(NULL,
+                           k->page_size * BASEP_QUEUE_NR_MMAP_USER_PAGES,
+                           PROT_READ | PROT_WRITE, MAP_SHARED,
+                           k->fd, bind.out.mmap_handle);
 
         if (cs.user_io == MAP_FAILED) {
                 perror("mmap(CS USER IO)");
