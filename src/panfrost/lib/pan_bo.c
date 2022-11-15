@@ -667,6 +667,8 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
 
         if (dev->kbase) {
                 gem_handle = dev->mali.import_dmabuf(&dev->mali, fd);
+                if (gem_handle == -1)
+                        return NULL;
         } else {
                 ret = drmPrimeFDToHandle(dev->fd, fd, &gem_handle);
                 assert(!ret);
