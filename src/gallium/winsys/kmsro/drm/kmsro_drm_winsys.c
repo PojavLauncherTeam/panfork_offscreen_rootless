@@ -101,11 +101,15 @@ struct pipe_screen *kmsro_drm_screen_create(int fd,
 #endif
 
 #if defined(GALLIUM_PANFROST)
-   ro->gpu_fd = drmOpenWithType("panfrost", NULL, DRM_NODE_RENDER);
-   if (ro->gpu_fd < 0)
-      ro->gpu_fd = open("/dev/mali0", O_RDWR | O_CLOEXEC | O_NONBLOCK);
+   bool noop = getenv("KBASE_NOOP");
 
-   if (ro->gpu_fd >= 0) {
+   if (!noop) {
+      ro->gpu_fd = drmOpenWithType("panfrost", NULL, DRM_NODE_RENDER);
+      if (ro->gpu_fd < 0)
+         ro->gpu_fd = open("/dev/mali0", O_RDWR | O_CLOEXEC | O_NONBLOCK);
+   }
+
+   if ((ro->gpu_fd >= 0) || noop) {
       ro->create_for_resource = renderonly_create_kms_dumb_buffer_for_resource;
       screen = panfrost_drm_screen_create_renderonly(ro);
       if (!screen)

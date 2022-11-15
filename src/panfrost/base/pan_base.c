@@ -49,6 +49,9 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count, bool verbose)
         k->page_size = sysconf(_SC_PAGE_SIZE);
         k->verbose = verbose;
 
+        if (k->fd == -1)
+           return kbase_open_csf_noop(k);
+
         struct kbase_ioctl_version_check ver = { 0 };
         int ret = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK, &ver);
         int ret2 = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK_RESERVED, &ver);
