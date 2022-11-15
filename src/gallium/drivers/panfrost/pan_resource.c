@@ -795,10 +795,19 @@ panfrost_resource_create_with_modifiers(struct pipe_screen *screen,
                          const struct pipe_resource *template,
                          const uint64_t *modifiers, int count)
 {
+        struct panfrost_device *dev = pan_device(screen);
+
         for (unsigned i = 0; i < PAN_MODIFIER_COUNT; ++i) {
-                if (drm_find_modifier(pan_best_modifiers[i], modifiers, count)) {
-                        return panfrost_resource_create_with_modifier(screen, template,
-                                        pan_best_modifiers[i]);
+                uint64_t mod = pan_best_modifiers[i];
+
+                if (drm_is_afbc(mod) && !dev->has_afbc)
+                        continue;
+
+                if (mod != DRM_FORMAT_MOD_LINEAR && (dev->debug & PAN_DBG_LINEAR))
+                        continue;
+
+                if (drm_find_modifier(mod, modifiers, count)) {
+                        return panfrost_resource_create_with_modifier(screen, template, mod);
                 }
         }
 
