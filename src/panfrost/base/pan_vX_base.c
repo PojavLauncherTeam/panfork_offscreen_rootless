@@ -723,7 +723,12 @@ kbase_import_dmabuf(kbase k, int fd)
                                                      PROT_READ | PROT_WRITE,
                                                      MAP_SHARED, k->fd, import.out.gpu_va);
 
-                handle = kbase_alloc_gem_handle_locked(k, va, dup);
+                if (va == (uintptr_t) MAP_FAILED) {
+                        perror("mmap(IMPORTED BO)");
+                        handle = -1;
+                } else {
+                        handle = kbase_alloc_gem_handle_locked(k, va, dup);
+                }
         } else {
                 handle = kbase_alloc_gem_handle_locked(k, import.out.gpu_va, dup);
         }
