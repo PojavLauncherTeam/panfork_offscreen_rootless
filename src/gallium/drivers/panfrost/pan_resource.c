@@ -881,7 +881,7 @@ panfrost_clear_depth_stencil(struct pipe_context *pipe,
 
         /* TODO: dstx, etc. */
 
-        struct pipe_framebuffer_state tmp;
+        struct pipe_framebuffer_state tmp = {0};
         util_copy_framebuffer_state(&tmp, &ctx->pipe_framebuffer);
 
         struct pipe_framebuffer_state fb = {
