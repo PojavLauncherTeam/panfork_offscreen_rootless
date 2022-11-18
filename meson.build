@@ -865,9 +865,7 @@ endif
 
 with_gallium_st_nine =  get_option('gallium-nine')
 if with_gallium_st_nine
-  if not with_gallium_softpipe
-    error('The nine state tracker requires gallium softpipe/llvmpipe.')
-  elif not [
+  if not [
              with_gallium_crocus,
              with_gallium_freedreno,
              with_gallium_i915,
