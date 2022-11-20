@@ -20,7 +20,7 @@ Panfrost Wayland compositor (non-wlroots):
 
 #. Panfrost Wayland clients
 #. Panfrost X11 clients via Xwayland
-#. Blob Wayland clients (this seems to be broken at the moment)
+#. Blob Wayland clients
 
 Blob Wayland compositor:
 
