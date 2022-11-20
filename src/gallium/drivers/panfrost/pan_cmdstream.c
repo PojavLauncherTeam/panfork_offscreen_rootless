@@ -2958,8 +2958,7 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         }
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
-        // TODO: What about 48-bit overflow... just use EVADD instead?
-        pan_emit_cs_48(c, 0x4a, ++cs->seqnum + 1);
+        pan_emit_cs_64(c, 0x4a, ++cs->seqnum + 1);
         pan_pack_ins(c, CS_EVSTR_64, cfg) {
                 /* This is the scoreboard mask, right?.. */
                 cfg.unk_2 = (3 << 3);
@@ -2995,7 +2994,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
                 mali_ptr fs_seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_fragment.event_ptr;
 
                 pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
-                pan_emit_cs_48(cv, 0x4e, fragment_seqnum);
+                pan_emit_cs_64(cv, 0x4e, fragment_seqnum);
 
                 emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo,
                                batch->cs_vertex);
@@ -3012,7 +3011,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         mali_ptr seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_vertex.event_ptr;
 
         pan_emit_cs_48(cf, 0x4c, seqnum_ptr);
-        pan_emit_cs_48(cf, 0x4e, vertex_seqnum);
+        pan_emit_cs_64(cf, 0x4e, vertex_seqnum);
 
         // What does this instruction do?
         //pan_emit_cs_32(cf, 0x54, 0);

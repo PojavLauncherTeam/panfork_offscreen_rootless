@@ -276,16 +276,27 @@ pan_emit_cs_ins(pan_command_stream *s, uint8_t op, uint64_t instr)
 }
 
 static inline void
-pan_emit_cs_32(pan_command_stream *s, uint8_t index, uint32_t value)
+pan_emit_cs_32(pan_command_stream *s, uint8_t reg, uint32_t value)
 {
-   pan_emit_cs_ins(s, 2, ((uint64_t) index << 48) | value);
+   pan_emit_cs_ins(s, 2, ((uint64_t) reg << 48) | value);
 }
 
 static inline void
-pan_emit_cs_48(pan_command_stream *s, uint8_t index, uint64_t value)
+pan_emit_cs_48(pan_command_stream *s, uint8_t reg, uint64_t value)
 {
    assert(value < (1ULL << 48));
-   pan_emit_cs_ins(s, 1, ((uint64_t) index << 48) | value);
+   pan_emit_cs_ins(s, 1, ((uint64_t) reg << 48) | value);
+}
+
+static inline void
+pan_emit_cs_64(pan_command_stream *s, uint8_t reg, uint64_t value)
+{
+   if (value < (1ULL << 48)) {
+      pan_emit_cs_48(s, reg, value);
+   } else {
+      pan_emit_cs_32(s, reg, value);
+      pan_emit_cs_32(s, reg + 1, value >> 32);
+   }
 }
 """
 
