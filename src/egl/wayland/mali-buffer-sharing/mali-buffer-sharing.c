@@ -129,7 +129,7 @@ static const struct mali_buffer_sharing_interface mali_interface = {
 static void
 bind_mali(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 {
-        //struct wl_drm *drm = data;
+        struct wl_drm *drm = data;
         struct wl_resource *resource;
 
         resource = wl_resource_create(client, &mali_buffer_sharing_interface,
@@ -141,7 +141,7 @@ bind_mali(struct wl_client *client, void *data, uint32_t version, uint32_t id)
 
         wl_resource_set_implementation(resource, &mali_interface, data, NULL);
 
-        mali_buffer_sharing_send_alloc_device(resource, "display-subsystem");
+        mali_buffer_sharing_send_alloc_device(resource, drm->device_name);
 }
 
 struct wl_drm *

@@ -3261,10 +3261,20 @@ dri2_bind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
            wayland_drm_init(wl_dpy, device_name,
                             &wl_drm_callbacks, disp, flags);
 
+   drmSetVersion sv = {
+      .drm_di_major = 1,
+      .drm_di_minor = 4,
+      .drm_dd_major = -1,
+      .drm_dd_minor = -1,
+   };
+   drmSetInterfaceVersion(dri2_dpy->fd, &sv);
+
+   char *busid = drmGetBusid(dri2_dpy->fd);
    dri2_dpy->wl_server_mali =
-           mali_buffer_sharing_init(wl_dpy, device_name,
+           mali_buffer_sharing_init(wl_dpy, busid,
                                     &wl_drm_callbacks,
                                     disp);
+   drmFreeBusid(busid);
 
    free(device_name);
 
