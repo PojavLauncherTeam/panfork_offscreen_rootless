@@ -822,7 +822,7 @@ kbase_syncobj_dup(kbase k, struct kbase_syncobj *o)
         pthread_mutex_lock(&k->queue_lock);
 
         list_for_each_entry(struct kbase_fence, fence, &o->fences, link)
-                kbase_syncobj_add_fence(o, fence->slot, fence->value);
+                kbase_syncobj_add_fence(dup, fence->slot, fence->value);
 
         pthread_mutex_unlock(&k->queue_lock);
 
