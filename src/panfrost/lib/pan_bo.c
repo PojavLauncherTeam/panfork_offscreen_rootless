@@ -130,6 +130,17 @@ panfrost_bo_free(struct panfrost_bo *bo)
         struct drm_gem_close gem_close = { .handle = bo->gem_handle };
         int ret;
 
+        if (dev->bo_log) {
+                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
+
+                struct timespec tp;
+                clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+                fprintf(dev->bo_log, "%"PRIu64".%09li memfree %"PRIx64" to %"PRIx64" size %zu label %s obj (%p,%i,%i)\n",
+                        (uint64_t) tp.tv_sec, tp.tv_nsec, bo->ptr.gpu, bo->ptr.gpu + bo->size, bo->size, bo->label,
+                        bo, bo->gem_handle, fd);
+                fflush(NULL);
+        }
+
         if (dev->kbase) {
                 os_munmap(bo->ptr.cpu, bo->size);
                 if (bo->munmap_ptr)
