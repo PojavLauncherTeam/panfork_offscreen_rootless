@@ -811,6 +811,9 @@ panfrost_resource_create_with_modifiers(struct pipe_screen *screen,
                 if (mod != DRM_FORMAT_MOD_LINEAR && (dev->debug & PAN_DBG_LINEAR))
                         continue;
 
+                /* TODO: What if mod is an unsupported AFBC variant for this
+                 * format? */
+
                 if (drm_find_modifier(mod, modifiers, count)) {
                         return panfrost_resource_create_with_modifier(screen, template, mod);
                 }

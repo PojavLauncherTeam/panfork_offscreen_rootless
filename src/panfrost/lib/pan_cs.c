@@ -451,7 +451,9 @@ pan_afbc_compression_mode(enum pipe_format format)
         case PIPE_FORMAT_R10G10B10A2_UNORM: return MALI_AFBC_COMPRESSION_MODE_R10G10B10A2;
         case PIPE_FORMAT_R11G11B10_FLOAT: return MALI_AFBC_COMPRESSION_MODE_R11G11B10;
         case PIPE_FORMAT_S8_UINT: return MALI_AFBC_COMPRESSION_MODE_S8;
-        case PIPE_FORMAT_NONE: unreachable("invalid format for AFBC");
+        case PIPE_FORMAT_NONE:
+                fprintf(stderr, "invalid format for AFBC\n");
+                abort();
         default: unreachable("unknown canonical AFBC format");
         }
 }
