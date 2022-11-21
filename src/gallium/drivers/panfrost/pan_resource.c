@@ -143,14 +143,16 @@ panfrost_resource_from_handle(struct pipe_screen *pscreen,
                 return NULL;
         }
 
-        rsc->image.data.bo = panfrost_bo_import(dev, whandle->handle);
+        struct panfrost_bo *bo = panfrost_bo_import(dev, whandle->handle);
         /* Sometimes an import can fail e.g. on an invalid buffer fd, out of
          * memory space to mmap it etc.
          */
-        if (!rsc->image.data.bo) {
+        if (!bo) {
                 FREE(rsc);
                 return NULL;
         }
+
+        rsc->image.data.bo = bo;
 
         rsc->modifier_constant = true;
 
@@ -162,6 +164,9 @@ panfrost_resource_from_handle(struct pipe_screen *pscreen,
                         renderonly_create_gpu_import_for_resource(prsc, dev->ro, NULL);
                 /* failure is expected in some cases.. */
         }
+
+        if (rsc->scanout)
+                panfrost_bo_mmap_scanout(bo, dev->ro, rsc->scanout);
 
         return prsc;
 }
