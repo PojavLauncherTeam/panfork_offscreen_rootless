@@ -56,7 +56,7 @@
 
 static const struct debug_named_value panfrost_debug_options[] = {
         {"perf",      PAN_DBG_PERF,     "Enable performance warnings"},
-        {"trace",     PAN_DBG_TRACE,    "Trace the command stream"},
+        {"trace",     PAN_DBG_TRACE | PAN_DBG_BO_CLEAR, "Trace the command stream"},
         {"deqp",      PAN_DBG_DEQP,     "Hacks for dEQP"},
         {"dirty",     PAN_DBG_DIRTY,    "Always re-emit all state"},
         {"sync",      PAN_DBG_SYNC,     "Wait for each job's completion and abort on GPU faults"},
