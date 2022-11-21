@@ -52,6 +52,46 @@
 #include "pan_tiling.h"
 #include "decode.h"
 
+/* The kbase kernel driver always maps imported BOs with caching. When we
+ * don't want that, instead do mmap from the display driver side to get a
+ * write-combine mapping.
+ */
+static void
+panfrost_bo_mmap_scanout(struct panfrost_bo *bo,
+                         struct renderonly *ro,
+                         struct renderonly_scanout *scanout)
+{
+        struct panfrost_device *dev = bo->dev;
+
+        /* If we are fine with a cached mapping, just return */
+        if (!(dev->debug & PAN_DBG_UNCACHED_CPU))
+                return;
+
+        struct drm_mode_map_dumb map_dumb = {
+                .handle = scanout->handle,
+        };
+
+        int err = drmIoctl(ro->kms_fd, DRM_IOCTL_MODE_MAP_DUMB, &map_dumb);
+        if (err < 0) {
+                fprintf(stderr, "DRM_IOCTL_MODE_MAP_DUMB failed: %s\n",
+                        strerror(errno));
+                return;
+        }
+
+        void *addr = mmap(NULL, bo->size,
+                          PROT_READ | PROT_WRITE, MAP_SHARED,
+                          ro->kms_fd, map_dumb.offset);
+        if (addr == MAP_FAILED) {
+                fprintf(stderr, "kms_fd mmap failed: %s\n",
+                        strerror(errno));
+                return;
+        }
+
+        bo->munmap_ptr = bo->ptr.cpu;
+        bo->ptr.cpu = addr;
+        bo->cached = false;
+}
+
 static struct pipe_resource *
 panfrost_resource_from_handle(struct pipe_screen *pscreen,
                               const struct pipe_resource *templat,
@@ -595,46 +635,6 @@ panfrost_resource_set_damage_region(struct pipe_screen *screen,
                         pres->damage.tile_map.enable = false;
         }
 
-}
-
-/* The kbase kernel driver always maps imported BOs with caching. When we
- * don't want that, instead do mmap from the display driver side to get a
- * write-combine mapping.
- */
-static void
-panfrost_bo_mmap_scanout(struct panfrost_bo *bo,
-                         struct renderonly *ro,
-                         struct renderonly_scanout *scanout)
-{
-        struct panfrost_device *dev = bo->dev;
-
-        /* If we are fine with a cached mapping, just return */
-        if (!(dev->debug & PAN_DBG_UNCACHED_CPU))
-                return;
-
-        struct drm_mode_map_dumb map_dumb = {
-                .handle = scanout->handle,
-        };
-
-        int err = drmIoctl(ro->kms_fd, DRM_IOCTL_MODE_MAP_DUMB, &map_dumb);
-        if (err < 0) {
-                fprintf(stderr, "DRM_IOCTL_MODE_MAP_DUMB failed: %s\n",
-                        strerror(errno));
-                return;
-        }
-
-        void *addr = mmap(NULL, bo->size,
-                          PROT_READ | PROT_WRITE, MAP_SHARED,
-                          ro->kms_fd, map_dumb.offset);
-        if (addr == MAP_FAILED) {
-                fprintf(stderr, "kms_fd mmap failed: %s\n",
-                        strerror(errno));
-                return;
-        }
-
-        bo->munmap_ptr = bo->ptr.cpu;
-        bo->ptr.cpu = addr;
-        bo->cached = false;
 }
 
 static struct pipe_resource *
