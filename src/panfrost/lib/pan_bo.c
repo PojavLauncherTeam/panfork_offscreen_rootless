@@ -115,6 +115,8 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
         bo->size = create_bo.size;
         bo->ptr.gpu = create_bo.offset;
         bo->ptr.cpu = cpu;
+        if ((uintptr_t) bo->ptr.cpu != bo->ptr.gpu)
+                bo->free_ioctl = true;
         bo->gem_handle = create_bo.handle;
         bo->flags = flags;
         bo->dev = dev;
