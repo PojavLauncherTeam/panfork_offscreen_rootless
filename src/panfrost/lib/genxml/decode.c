@@ -1086,9 +1086,12 @@ pandecode_dcd(const struct MALI_DRAW *p, enum mali_job_type job_type,
         pandecode_depth_stencil(p->depth_stencil);
 
         for (unsigned i = 0; i < p->blend_count; ++i) {
+                MAP_ADDR(SHADER_PROGRAM, p->shader.shader, cl);
+                pan_unpack(cl, SHADER_PROGRAM, desc);
+
                 struct mali_blend_packed *PANDECODE_PTR_VAR(blend_descs, p->blend);
 
-                mali_ptr blend_shader = pandecode_blend(blend_descs, i, p->shader.shader);
+                mali_ptr blend_shader = pandecode_blend(blend_descs, i, desc.binary);
                 if (blend_shader) {
                         fprintf(pandecode_dump_stream, "Blend shader %u", i);
                         pandecode_shader_disassemble(blend_shader, 0, gpu_id);
