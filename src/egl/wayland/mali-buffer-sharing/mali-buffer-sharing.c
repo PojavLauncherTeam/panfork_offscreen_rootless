@@ -155,7 +155,7 @@ mali_buffer_sharing_init(struct wl_display *display, char *device_name,
                 return NULL;
 
         drm->display = display;
-        drm->device_name = strdup(device_name);
+        drm->device_name = strdup(device_name ?: "");
         drm->callbacks = *callbacks;
         drm->user_data = user_data;
         drm->flags = 1;
