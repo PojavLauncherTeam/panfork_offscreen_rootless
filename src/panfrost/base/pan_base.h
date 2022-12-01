@@ -136,6 +136,7 @@ struct kbase {
         void (*free)(kbase k, base_va va);
 
         int (*import_dmabuf)(kbase k, int fd);
+        void *(*mmap_import)(kbase k, base_va va, size_t size);
 
         void (*cache_clean)(void *ptr, size_t size);
         void (*cache_invalidate)(void *ptr, size_t size);

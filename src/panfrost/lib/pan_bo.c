@@ -702,12 +702,14 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                 }
 
                 bo->dev = dev;
-                bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
-                if (dev->kbase && (sizeof(void *) > 4 || get_bo_offset.offset < (1LL << 32)))
-                        bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
-                else
-                        bo->free_ioctl = true;
                 bo->size = lseek(fd, 0, SEEK_END);
+                bo->ptr.gpu = (mali_ptr) get_bo_offset.offset;
+                if (dev->kbase && (sizeof(void *) > 4 || get_bo_offset.offset < (1LL << 32))) {
+                        bo->ptr.cpu = (void *)(uintptr_t) get_bo_offset.offset;
+                } else if (dev->kbase) {
+                        bo->ptr.cpu = dev->mali.mmap_import(&dev->mali, bo->ptr.gpu, bo->size);
+                        bo->free_ioctl = true;
+                }
                 /* Sometimes this can fail and return -1. size of -1 is not
                  * a nice thing for mmap to try mmap. Be more robust also
                  * for zero sized maps and fail nicely too

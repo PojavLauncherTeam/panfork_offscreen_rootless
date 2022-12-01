@@ -749,6 +749,12 @@ kbase_import_dmabuf(kbase k, int fd)
         return handle;
 }
 
+static void *
+kbase_mmap_import(kbase k, base_va va, size_t size)
+{
+        return kbase_mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, k->fd, va);
+}
+
 struct kbase_fence {
         struct list_head link;
 
