@@ -1634,6 +1634,11 @@
     <field name="Address" size="8" start="40" type="register"/>
   </struct>
 
+  <struct name="CS Tailcall" layout="ins" op="33">
+    <field name="Length" size="8" start="32" type="register"/>
+    <field name="Address" size="8" start="40" type="register"/>
+  </struct>
+
   <struct name="CS Flush Tiler" layout="ins" op="9"/>
 
   <!-- TODO: What else can the instruction do? -->
