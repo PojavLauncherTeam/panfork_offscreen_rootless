@@ -2811,9 +2811,9 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 
 // TODO: Rewrite this!
 static void
-emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_stream s)
+emit_csf_queue(struct panfrost_cs *cs, pan_command_stream s)
 {
-        assert((void *)s.ptr <= bo->ptr.cpu + bo->size);
+        assert(s.ptr <= s.end);
 
         bool fragment = (cs->hw_resources & 2);
         bool vertex = (cs->hw_resources & 12); /* TILER | IDVS */
@@ -2864,23 +2864,23 @@ emit_csf_queue(struct panfrost_cs *cs, struct panfrost_bo *bo, pan_command_strea
         // copying to the main buffer can make debugging easier.
         // TODO: This needs to be more reliable.
 #if 0
-        unsigned length = (void *)s.ptr - bo->ptr.cpu;
+        unsigned length = (s.ptr - s.begin) * 8;
         unsigned clamped = MIN2(length, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
-        memcpy(c->ptr, bo->ptr.cpu, clamped);
+        memcpy(c->ptr, s->begin, clamped);
         c->ptr += clamped / 8;
 
         if (clamped != length) {
                 unsigned rest = length - clamped;
                 c->ptr = cs->bo->ptr.cpu;
-                memcpy(c->ptr, bo->ptr.cpu, rest);
+                memcpy(c->ptr, s->begin, rest);
                 c->ptr += rest / 8;
 
                 cs->offset += cs->bo->size;
         }
 #else
 
-        pan_emit_cs_48(c, 0x48, bo->ptr.gpu);
-        pan_emit_cs_32(c, 0x4a, (void *)s.ptr - bo->ptr.cpu);
+        pan_emit_cs_48(c, 0x48, s.gpu);
+        pan_emit_cs_32(c, 0x4a, (s.ptr - s.begin) * 8);
         pan_pack_ins(c, CS_CALL, cfg) { cfg.address = 0x48; cfg.length = 0x4a; }
 #endif
 
@@ -2980,8 +2980,17 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         pan_command_stream *cv = &batch->ctx->kbase_cs_vertex.cs;
         pan_command_stream *cf = &batch->ctx->kbase_cs_fragment.cs;
 
-        bool vert = (batch->cs_vertex.ptr != batch->cs_vertex_bo->ptr.cpu);
-        bool frag = (batch->cs_fragment.ptr != batch->cs_fragment_bo->ptr.cpu);
+        pan_command_stream v = batch->cs_vertex;
+        pan_command_stream f = batch->cs_fragment;
+
+        if (batch->cs_vertex_last_size) {
+                assert(v.ptr <= v.end);
+                *batch->cs_vertex_last_size = (v.ptr - v.begin) * 8;
+                v = batch->cs_vertex_first;
+        }
+
+        bool vert = (v.ptr != v.begin);
+        bool frag = (f.ptr != f.begin);
 
         // TODO: Clean up control-flow?
 
@@ -2996,8 +3005,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
                 pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
                 pan_emit_cs_64(cv, 0x4e, fragment_seqnum);
 
-                emit_csf_queue(&batch->ctx->kbase_cs_vertex, batch->cs_vertex_bo,
-                               batch->cs_vertex);
+                emit_csf_queue(&batch->ctx->kbase_cs_vertex, v);
         }
 
         if (!frag)
@@ -3020,7 +3028,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         assert(vert || batch->tiler_ctx.bifrost == 0);
         pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
-        emit_csf_queue(&batch->ctx->kbase_cs_fragment, batch->cs_fragment_bo, batch->cs_fragment);
+        emit_csf_queue(&batch->ctx->kbase_cs_fragment, f);
 }
 
 static void
@@ -3969,6 +3977,54 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
         batch->push_uniforms[PIPE_SHADER_VERTEX] = saved_push;
 }
 
+#if PAN_ARCH >= 10
+static pan_command_stream
+panfrost_batch_create_cs(struct panfrost_batch *batch, unsigned count)
+{
+        struct panfrost_ptr cs = pan_pool_alloc_aligned(&batch->pool.base, count * 8, 64);
+
+        return (pan_command_stream) {
+                .ptr = cs.cpu,
+                .begin = cs.cpu,
+                .end = cs.cpu + count,
+                .gpu = cs.gpu,
+        };
+}
+
+static uint64_t *
+panfrost_cs_vertex_allocate_instrs(struct panfrost_batch *batch, unsigned count)
+{
+        /* Doing a tail call to another buffer takes three instructions */
+        count += 3;
+
+        pan_command_stream v = batch->cs_vertex;
+
+        if (v.ptr + count > v.end) {
+                batch->cs_vertex = panfrost_batch_create_cs(batch, MAX2(count, 1 << 13));
+
+                /* The size will be filled in later. */
+                uint32_t *last_size = (uint32_t *)v.ptr;
+                pan_emit_cs_32(&v, 0x5e, 0);
+
+                pan_emit_cs_48(&v, 0x5c, batch->cs_vertex.gpu);
+                pan_pack_ins(&v, CS_TAILCALL, cfg) { cfg.address = 0x5c; cfg.length = 0x5e; }
+
+                assert(v.ptr <= v.end);
+
+                /* This is not strictly required, but makes disassembly look
+                 * nicer */
+                if (batch->cs_vertex_last_size)
+                        *batch->cs_vertex_last_size = (v.ptr - v.begin) * 8;
+
+                batch->cs_vertex_last_size = last_size;
+                if (!batch->cs_vertex_first.gpu)
+                        batch->cs_vertex_first = v;
+        }
+
+        return batch->cs_vertex.ptr + count;
+}
+#endif
+
 static void
 panfrost_direct_draw(struct panfrost_batch *batch,
                      const struct pipe_draw_info *info,
@@ -3979,6 +4035,11 @@ panfrost_direct_draw(struct panfrost_batch *batch,
                 return;
 
         struct panfrost_context *ctx = batch->ctx;
+
+#if PAN_ARCH >= 10
+        /* TODO: We don't need quite so much space */
+        uint64_t *limit = panfrost_cs_vertex_allocate_instrs(batch, 64);
+#endif
 
         /* If we change whether we're drawing points, or whether point sprites
          * are enabled (specified in the rasterizer), we may need to rebind
@@ -4119,8 +4180,13 @@ panfrost_direct_draw(struct panfrost_batch *batch,
 
 #if PAN_ARCH >= 10
         pan_pack_ins(&batch->cs_vertex, IDVS_LAUNCH, _);
+        /* TODO: Find a better way to specify that there were jobs */
         batch->scoreboard.first_job = 1;
         batch->scoreboard.first_tiler = NULL + 1;
+
+        /* Make sure we didn't use more CS instructions than we allocated
+         * space for */
+        assert(batch->cs_vertex.ptr <= limit);
 
 #else /* PAN_ARCH < 10 */
         panfrost_add_job(&batch->pool.base, &batch->scoreboard,
@@ -5118,34 +5184,8 @@ init_batch(struct panfrost_batch *batch)
 #endif
 
 #if PAN_ARCH >= 10
-        // TODO: Do tail-calls between BOs so that the size can be reduced
-        batch->cs_vertex_bo =
-                panfrost_batch_create_bo(batch, 1 << 20, 0, PIPE_SHADER_VERTEX,
-                                         "Vertex batch command stream");
-        batch->cs_fragment_bo =
-                panfrost_batch_create_bo(batch, 1 << 12, 0, PIPE_SHADER_FRAGMENT,
-                                         "Fragment batch command stream");
-
-        batch->cs_vertex.ptr = batch->cs_vertex_bo->ptr.cpu;
-        batch->cs_fragment.ptr = batch->cs_fragment_bo->ptr.cpu;
-
-        // TODO: clean up this mess
-
-        //pan_pack_ins(&batch->cs_vertex, CS_SLOT, cfg) { cfg.index = 6; }
-        //pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
-        //pan_pack_ins(&batch->cs_vertex, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
-        // TODO genxmlify
-        //pan_emit_cs_ins(&batch->cs_vertex, 0x31, 0);
-        //pan_emit_cs_ins(&batch->cs_vertex, 0, 0);
-
-        // UNK 00 31, #0x0 / UNK 00 09, #0x0 "wrapping" for vertex jobs
-
-        //pan_pack_ins(&batch->cs_fragment, CS_SLOT, cfg) { cfg.index = 6; }
-        //pan_pack_ins(&batch->cs_fragment, CS_WAIT, cfg) { cfg.slots = (1 << 6); }
-        // sigh
-        //pan_emit_cs_ins(&batch->cs_fragment, 0, 0);
-
-        // UNK 00 27, #0x4c4e10000000 on x40/0x0 for fragment jobs
+        batch->cs_vertex = panfrost_batch_create_cs(batch, 1 << 17);
+        batch->cs_fragment = panfrost_batch_create_cs(batch, 1 << 9);
 #endif
 }
 

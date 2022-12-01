@@ -195,12 +195,12 @@ struct panfrost_batch {
         /* Referenced resources, holds a pipe_reference. */
         struct set *resources;
 
-        /* Command stream pointers for CSF Valhall */
-        // TODO: Is using a separate BO required?
-        struct panfrost_bo *cs_vertex_bo;
-        struct panfrost_bo *cs_fragment_bo;
-
+        /* Command stream pointers for CSF Valhall. Vertex CS tracking is more
+         * complicated as there may be multiple buffers. */
         pan_command_stream cs_vertex;
+        uint32_t *cs_vertex_last_size;
+        pan_command_stream cs_vertex_first;
+
         pan_command_stream cs_fragment;
 
         bool needs_sync;
