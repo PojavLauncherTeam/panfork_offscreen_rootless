@@ -5184,7 +5184,7 @@ init_batch(struct panfrost_batch *batch)
 #endif
 
 #if PAN_ARCH >= 10
-        batch->cs_vertex = panfrost_batch_create_cs(batch, 1 << 17);
+        batch->cs_vertex = panfrost_batch_create_cs(batch, 1 << 13);
         batch->cs_fragment = panfrost_batch_create_cs(batch, 1 << 9);
 #endif
 }
