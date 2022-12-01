@@ -46,13 +46,12 @@ pack_header = """
 
 #include "util/bitpack_helpers.h"
 
-/* Assume that the caller has done adequate bounds checking */
-//typedef uint64_t * pan_command_stream;
+/* Most functions assume the caller has done bounds checking */
 typedef struct pan_command_stream {
-   union {
-      uint32_t values[1];
-      uint64_t *ptr;
-   };
+   uint64_t *ptr;
+   uint64_t *begin;
+   uint64_t *end;
+   uint64_t gpu;
 } pan_command_stream;
 
 struct pan_command_stream_decoded {
