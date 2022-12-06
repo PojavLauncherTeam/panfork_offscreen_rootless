@@ -124,6 +124,8 @@ struct panfrost_cs {
         pan_command_stream cs;
         mali_ptr event_ptr;
         uint64_t seqnum;
+        mali_ptr kcpu_event_ptr;
+        uint64_t kcpu_seqnum;
         uint64_t offset;
         unsigned hw_resources;
 };
