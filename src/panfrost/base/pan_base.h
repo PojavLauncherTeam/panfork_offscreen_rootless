@@ -52,6 +52,8 @@ struct kbase_event_slot {
 
 struct kbase_context {
         uint8_t csg_handle;
+        uint8_t kcpu_queue;
+        bool kcpu_init; // TODO: Always create a queue?
         uint32_t csg_uid;
         unsigned num_csi;
 

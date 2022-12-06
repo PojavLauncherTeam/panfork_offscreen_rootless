@@ -1247,8 +1247,12 @@ kbase_context_create(kbase k)
 }
 
 static void
+kbase_kcpu_queue_destroy(kbase k, struct kbase_context *ctx);
+
+static void
 kbase_context_destroy(kbase k, struct kbase_context *ctx)
 {
+        kbase_kcpu_queue_destroy(k, ctx);
         tiler_heap_term(k, ctx);
         cs_group_term(k, ctx);
         free(ctx);
@@ -1257,6 +1261,7 @@ kbase_context_destroy(kbase k, struct kbase_context *ctx)
 static bool
 kbase_context_recreate(kbase k, struct kbase_context *ctx)
 {
+        kbase_kcpu_queue_destroy(k, ctx);
         tiler_heap_term(k, ctx);
         cs_group_term(k, ctx);
 
@@ -1512,6 +1517,50 @@ kbase_cs_wait(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
         }
 
         return false;
+}
+
+static bool
+kbase_kcpu_queue_create(kbase k, struct kbase_context *ctx)
+{
+#ifdef PAN_BASE_NOOP
+        return false;
+#endif
+
+        if (ctx->kcpu_init)
+                return true;
+
+        struct kbase_ioctl_kcpu_queue_new create = {0};
+
+        int ret;
+        ret = ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_CREATE, &create);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_CREATE)");
+                return false;
+        }
+
+        ctx->kcpu_init = true;
+        return true;
+}
+
+static void
+kbase_kcpu_queue_destroy(kbase k, struct kbase_context *ctx)
+{
+        if (!ctx->kcpu_init)
+                return;
+
+        struct kbase_ioctl_kcpu_queue_delete destroy = {
+                .id = ctx->kcpu_queue,
+        };
+
+        int ret;
+        ret = ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_DELETE, &destroy);
+
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_DELETE)");
+        }
+
+        ctx->kcpu_init = false;
 }
 #endif
 
