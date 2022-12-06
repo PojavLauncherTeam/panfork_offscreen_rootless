@@ -195,6 +195,9 @@ struct panfrost_batch {
         /* Referenced resources, holds a pipe_reference. */
         struct set *resources;
 
+        /* Referenced dma-bufs FDs, for emitting synchronisation commands. */
+        struct util_dynarray dmabufs;
+
         /* Command stream pointers for CSF Valhall. Vertex CS tracking is more
          * complicated as there may be multiple buffers. */
         pan_command_stream cs_vertex;

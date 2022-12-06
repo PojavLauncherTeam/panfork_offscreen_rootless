@@ -88,6 +88,8 @@ panfrost_batch_init(struct panfrost_context *ctx,
         batch->resources =_mesa_set_create(NULL, _mesa_hash_pointer,
                                           _mesa_key_pointer_equal);
 
+        util_dynarray_init(&batch->dmabufs, NULL);
+
         /* Preallocate the main pool, since every batch has at least one job
          * structure so it will be used */
         panfrost_pool_init(&batch->pool, NULL, dev, 0, 65536, "Batch pool", true, true);
@@ -125,15 +127,27 @@ static void
 panfrost_batch_add_resource(struct panfrost_batch *batch,
                             struct panfrost_resource *rsrc)
 {
+        struct panfrost_context *ctx = batch->ctx;
+        struct panfrost_device *dev = pan_device(ctx->base.screen);
+
         bool found = false;
         _mesa_set_search_or_add(batch->resources, rsrc, &found);
 
-        if (!found) {
-                /* Cache number of batches accessing a resource */
-                rsrc->track.nr_users++;
+        /* Nothing to do if we already have the resource */
+        if (found)
+                return;
 
-                /* Reference the resource on the batch */
-                pipe_reference(NULL, &rsrc->base.reference);
+        /* Cache number of batches accessing a resource */
+        rsrc->track.nr_users++;
+
+        /* Reference the resource on the batch */
+        pipe_reference(NULL, &rsrc->base.reference);
+
+        if (rsrc->scanout) {
+                if (dev->has_dmabuf_fence) {
+                        int fd = rsrc->image.data.bo->dmabuf_fd;
+                        util_dynarray_append(&batch->dmabufs, int, fd);
+                }
         }
 }
 
@@ -199,6 +213,8 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
                 struct panfrost_bo *bo = pan_lookup_bo(dev, i);
                 panfrost_bo_unreference(bo);
         }
+
+        util_dynarray_fini(&batch->dmabufs);
 
         panfrost_batch_destroy_resources(ctx, batch);
         panfrost_pool_cleanup(&batch->pool);
