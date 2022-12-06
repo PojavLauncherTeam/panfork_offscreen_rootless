@@ -23,6 +23,8 @@
  * SOFTWARE.
  */
 
+#include "dma-uapi/dma-buf.h"
+
 #include "util/macros.h"
 #include "util/u_prim.h"
 #include "util/u_vbuf.h"
@@ -2808,6 +2810,41 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 }
 
 #if PAN_ARCH >= 10
+
+static int
+panfrost_export_dmabuf_fence(int dmabuf)
+{
+        struct dma_buf_export_sync_file export = {
+                .flags = DMA_BUF_SYNC_RW,
+        };
+
+        int err = drmIoctl(dmabuf, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &export);
+        if (err < 0) {
+                fprintf(stderr, "failed to export fence: %s\n",
+                        strerror(errno));
+                return -1;
+        }
+
+        return export.fd;
+}
+
+static bool
+panfrost_import_dmabuf_fence(int dmabuf, int fence)
+{
+        struct dma_buf_import_sync_file import = {
+                .flags = DMA_BUF_SYNC_RW,
+                .fd = fence,
+        };
+
+        int err = drmIoctl(dmabuf, DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &import);
+        if (err < 0) {
+                fprintf(stderr, "failed to import fence: %s\n",
+                        strerror(errno));
+                return false;
+        }
+
+        return true;
+}
 
 // TODO: Rewrite this!
 static void
