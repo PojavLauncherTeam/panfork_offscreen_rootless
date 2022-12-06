@@ -137,6 +137,9 @@ struct panfrost_bo {
 
         /* Is the BO cached CPU-side? */
         bool cached;
+
+        /* File descriptor for the dma-buf */
+        int dmabuf_fd;
 };
 
 bool

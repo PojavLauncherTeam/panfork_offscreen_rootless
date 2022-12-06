@@ -122,6 +122,7 @@ panfrost_bo_alloc(struct panfrost_device *dev, size_t size,
         bo->dev = dev;
         bo->label = label;
         bo->cached = cached;
+        bo->dmabuf_fd = -1;
         return bo;
 }
 
@@ -676,6 +677,7 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
         struct panfrost_bo *bo;
         struct drm_panfrost_get_bo_offset get_bo_offset = {0,};
         ASSERTED int ret;
+        kbase_handle handle = { .fd = -1 };
         unsigned gem_handle;
 
         if (dev->kbase) {
@@ -695,7 +697,8 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
         if (!bo->dev) {
                 get_bo_offset.handle = gem_handle;
                 if (dev->kbase) {
-                        get_bo_offset.offset = kbase_gem_handle_get(&dev->mali, gem_handle).va;
+                        handle = kbase_gem_handle_get(&dev->mali, gem_handle);
+                        get_bo_offset.offset = handle.va;
                 } else {
                         ret = drmIoctl(dev->fd, DRM_IOCTL_PANFROST_GET_BO_OFFSET, &get_bo_offset);
                         assert(!ret);
@@ -720,9 +723,16 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                 }
                 bo->flags = PAN_BO_SHARED;
                 bo->gem_handle = gem_handle;
-                /* kbase always maps dma-bufs with caching */
-                if (dev->kbase)
+                if (dev->kbase) {
+                        /* kbase always maps dma-bufs with caching */
                         bo->cached = true;
+
+                        /* Importing duplicates the FD, so we cache the FD
+                         * from the handle */
+                        bo->dmabuf_fd = handle.fd;
+                } else {
+                        bo->dmabuf_fd = -1;
+                }
                 p_atomic_set(&bo->refcnt, 1);
         } else {
                 found = true;
@@ -763,15 +773,14 @@ panfrost_bo_export(struct panfrost_bo *bo)
 {
         struct panfrost_device *dev = bo->dev;
 
-        if (dev->kbase) {
-                int fd = kbase_gem_handle_get(&dev->mali, bo->gem_handle).fd;
-                if (fd < 0)
-                        return -1;
+        if (bo->dmabuf_fd != -1) {
+                assert(bo->flags & PAN_BO_SHARED);
 
-                bo->flags |= PAN_BO_SHARED;
-
-                return os_dupfd_cloexec(fd);
+                return os_dupfd_cloexec(bo->dmabuf_fd);
         }
+
+        if (dev->kbase)
+                return -1;
 
         struct drm_prime_handle args = {
                 .handle = bo->gem_handle,
