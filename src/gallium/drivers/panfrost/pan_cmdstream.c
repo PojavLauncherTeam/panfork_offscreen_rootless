@@ -2821,8 +2821,9 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
 
         pan_command_stream *c = &cs->cs;
 
-        // Give enough space for at least 64 instructions
-        if ((void *)c->ptr >= cs->bo->ptr.cpu + cs->bo->size - 64 * 8) {
+        // Give enough space for at least 128 instructions
+        // TODO: Check in case we overrun this
+        if ((void *)c->ptr >= cs->bo->ptr.cpu + cs->bo->size - 128 * 8) {
                 assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
 
                 memset(c->ptr, 0, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
