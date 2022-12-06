@@ -1658,7 +1658,9 @@ class Context:
                 addr = 1
                 value = ((dst << 40) | (val << 32) | (mask << 16) |
                          (irq << 2) | unk0)
-            elif s[0] in ("evwait.ls", "evwait.hi"):
+            elif s[0].split(".")[0] == "evwait":
+                for mod in s[0].split(".")[1:]:
+                    assert(mod in {"lo", "hi", "inherit", "no_error"})
                 assert(len(s) == 3)
                 assert(s[1][0] in "wx")
                 assert(s[2][0] == "[")
@@ -1666,11 +1668,12 @@ class Context:
                 s = [x.strip("[]()") for x in s]
                 src = reg(s[2])
                 val = reg(s[1])
-                cond = 1 if s[0] == "evwait.hi" else 0
+                cond = 1 if ".hi" in s[0] else 0
+                error = 1 if ".no_error" in s[0] else 0
 
                 cmd = 53 if s[1][0] == "x" else 39
                 addr = 0
-                value = (src << 40) | (val << 32) | (cond << 28)
+                value = (src << 40) | (val << 32) | (cond << 28) | error
             elif s[0] in ("call", "tailcall"):
                 ss = [x for x in s if x.find('(') == -1 and x.find(')') == -1]
                 assert(len(ss) == 3)

@@ -1695,19 +1695,23 @@ pandecode_cs_command(uint64_t command, mali_ptr va,
                         ".ls",
                         ".hi",
                 }[(l >> 28) & 1];
+                const char *e = (const char *[]){
+                        ".inherit",
+                        ".no_error",
+                }[l & 1];
                 const char *type = (op > 50) ? "x" : "w";
 
                 /* Wait until the value in the destination register is changed
                  * to pass the comparison. For example, with .LS the value
                  * in memory must be less than or same as the reference to
                  * continue execution. */
-                if (addr || l & ~(1 << 28))
-                        pandecode_log("evwait%s (unk %02x), %s%02x, "
+                if (addr || l & ~((1 << 28) | (1 << 0)))
+                        pandecode_log("evwait%s%s (unk %02x), %s%02x, "
                                       "[x%02x, unk %x]\n",
-                                      m, addr, type, arg1, arg2, l);
+                                      m, e, addr, type, arg1, arg2, l);
                 else
-                        pandecode_log("evwait%s %s%02x, [x%02x]\n",
-                                      m, type, arg1, arg2);
+                        pandecode_log("evwait%s%s %s%02x, [x%02x]\n",
+                                      m, e, type, arg1, arg2);
                 break;
         }
 

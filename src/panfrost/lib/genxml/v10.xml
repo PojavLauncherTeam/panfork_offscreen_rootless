@@ -1602,12 +1602,14 @@
 
   <!-- TODO: Use a single instruction with two opcodes for bitness -->
   <struct name="CS EVWAIT" layout="ins" op="39">
+    <field name="No error" size="1" start="0" type="bool"/>
     <field name="Condition" size="1" start="28" type="Wait Condition"/>
     <field name="Value" size="8" start="32" type="register"/>
     <field name="Addr" size="8" start="40" type="register"/>
   </struct>
 
   <struct name="CS EVWAIT 64" layout="ins" op="53">
+    <field name="No error" size="1" start="0" type="bool"/>
     <field name="Condition" size="1" start="28" type="Wait Condition"/>
     <field name="Value" size="8" start="32" type="register"/>
     <field name="Addr" size="8" start="40" type="register"/>
