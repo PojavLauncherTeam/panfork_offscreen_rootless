@@ -1562,6 +1562,127 @@ kbase_kcpu_queue_destroy(kbase k, struct kbase_context *ctx)
 
         ctx->kcpu_init = false;
 }
+
+static int
+kbase_kcpu_fence_export(kbase k, struct kbase_context *ctx)
+{
+        if (!kbase_kcpu_queue_create(k, ctx))
+                return -1;
+
+        struct base_fence fence = {
+                .basep.fd = -1,
+        };
+
+        struct kbase_ioctl_kcpu_queue_enqueue fence_cmd = {
+                .addr = (uintptr_t) &(struct base_kcpu_command) {
+                        .type = BASE_KCPU_COMMAND_TYPE_FENCE_SIGNAL,
+                        .info.fence.fence = (uintptr_t) &fence,
+                },
+                .nr_commands = 1,
+                .id = ctx->kcpu_queue,
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_ENQUEUE, &fence_cmd);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_ENQUEUE(FENCE_SIGNAL))");
+                return -1;
+        }
+
+        return fence.basep.fd;
+}
+
+static bool
+kbase_kcpu_fence_import(kbase k, struct kbase_context *ctx, int fd)
+{
+        if (!kbase_kcpu_queue_create(k, ctx))
+                return -1;
+
+        struct kbase_ioctl_kcpu_queue_enqueue fence_cmd = {
+                .addr = (uintptr_t) &(struct base_kcpu_command) {
+                        .type = BASE_KCPU_COMMAND_TYPE_FENCE_WAIT,
+                        .info.fence.fence = (uintptr_t) &(struct base_fence) {
+                                .basep.fd = fd,
+                        },
+                },
+                .nr_commands = 1,
+                .id = ctx->kcpu_queue,
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_ENQUEUE, &fence_cmd);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_ENQUEUE(FENCE_WAIT))");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+kbase_kcpu_cqs_set(kbase k, struct kbase_context *ctx,
+                   base_va addr, uint64_t value)
+{
+        if (!kbase_kcpu_queue_create(k, ctx))
+                return false;
+
+        struct kbase_ioctl_kcpu_queue_enqueue set_cmd = {
+                .addr = (uintptr_t) &(struct base_kcpu_command) {
+                        .type = BASE_KCPU_COMMAND_TYPE_CQS_SET_OPERATION,
+                        .info.cqs_set_operation = {
+                                .objs = (uintptr_t) &(struct base_cqs_set_operation_info) {
+                                        .addr = addr,
+                                        .val = value,
+                                        .operation = BASEP_CQS_SET_OPERATION_SET,
+                                        .data_type = BASEP_CQS_DATA_TYPE_U64,
+                                },
+                                .nr_objs = 1,
+                        },
+                },
+                .nr_commands = 1,
+                .id = ctx->kcpu_queue,
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_ENQUEUE, &set_cmd);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_ENQUEUE(CQS_SET))");
+                return false;
+        }
+
+        return true;
+}
+
+static bool
+kbase_kcpu_cqs_wait(kbase k, struct kbase_context *ctx,
+                    base_va addr, uint64_t value)
+{
+        if (!kbase_kcpu_queue_create(k, ctx))
+                return false;
+
+        struct kbase_ioctl_kcpu_queue_enqueue wait_cmd = {
+                .addr = (uintptr_t) &(struct base_kcpu_command) {
+                        .type = BASE_KCPU_COMMAND_TYPE_CQS_WAIT_OPERATION,
+                        .info.cqs_wait_operation = {
+                                .objs = (uintptr_t) &(struct base_cqs_wait_operation_info) {
+                                        .addr = addr,
+                                        .val = value,
+                                        .operation = BASEP_CQS_WAIT_OPERATION_GT,
+                                        .data_type = BASEP_CQS_DATA_TYPE_U64,
+                                },
+                                .nr_objs = 1,
+                                .inherit_err_flags = 0,
+                        },
+                },
+                .nr_commands = 1,
+                .id = ctx->kcpu_queue,
+        };
+
+        int ret = kbase_ioctl(k->fd, KBASE_IOCTL_KCPU_QUEUE_ENQUEUE, &wait_cmd);
+        if (ret == -1) {
+                perror("ioctl(KBASE_IOCTL_KCPU_QUEUE_ENQUEUE(CQS_WAIT))");
+                return false;
+        }
+
+        return true;
+}
 #endif
 
 // TODO: Only define for CSF kbases?
@@ -1695,6 +1816,11 @@ kbase_open_csf
         k->cs_rebind = kbase_cs_rebind;
         k->cs_submit = kbase_cs_submit;
         k->cs_wait = kbase_cs_wait;
+
+        k->kcpu_fence_export = kbase_kcpu_fence_export;
+        k->kcpu_fence_import = kbase_kcpu_fence_import;
+        k->kcpu_cqs_set = kbase_kcpu_cqs_set;
+        k->kcpu_cqs_wait = kbase_kcpu_cqs_wait;
 #endif
 
         k->syncobj_create = kbase_syncobj_create;

@@ -169,6 +169,14 @@ struct kbase {
         bool (*cs_wait)(kbase k, struct kbase_cs *cs, uint64_t extract_offset,
                         struct kbase_syncobj *o);
 
+        int (*kcpu_fence_export)(kbase k, struct kbase_context *ctx);
+        bool (*kcpu_fence_import)(kbase k, struct kbase_context *ctx, int fd);
+
+        bool (*kcpu_cqs_set)(kbase k, struct kbase_context *ctx,
+                             base_va addr, uint64_t value);
+        bool (*kcpu_cqs_wait)(kbase k, struct kbase_context *ctx,
+                              base_va addr, uint64_t value);
+
         /* syncobj functions */
         struct kbase_syncobj *(*syncobj_create)(kbase k);
         void (*syncobj_destroy)(kbase k, struct kbase_syncobj *o);
