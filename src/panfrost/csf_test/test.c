@@ -90,13 +90,17 @@ cache_invalidate(volatile void *addr)
 static void
 cache_barrier(void)
 {
+#ifdef __ARM_ARCH
         __asm__ volatile ("dsb sy" ::: "memory");
+#endif
 }
 
 static void
 memory_barrier(void)
 {
+#ifdef __ARM_ARCH
         __asm__ volatile ("dmb sy" ::: "memory");
+#endif
 }
 
 typedef void (*cacheline_op)(volatile void *addr);

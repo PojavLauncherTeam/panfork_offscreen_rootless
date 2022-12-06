@@ -66,8 +66,6 @@ cache_invalidate_range(volatile void *start, size_t length)
 
 #endif /* __aarch64__ */
 
-/* TODO: How to do cache barriers when emulated? */
-
 /* The #ifdef covers both 32-bit and 64-bit ARM */
 #ifdef __ARM_ARCH
 static void
@@ -80,6 +78,18 @@ static void
 memory_barrier(void)
 {
         __asm__ volatile ("dmb sy" ::: "memory");
+}
+#else
+
+/* TODO: How to do cache barriers when emulated? */
+static void
+cache_barrier(void)
+{
+}
+
+static void
+memory_barrier(void)
+{
 }
 #endif
 #endif
