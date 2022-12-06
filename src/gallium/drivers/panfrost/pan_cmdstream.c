@@ -2851,6 +2851,8 @@ static void
 emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
                pan_command_stream s, bool first, bool last)
 {
+        struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
+
         assert(s.ptr <= s.end);
 
         bool fragment = (cs->hw_resources & 2);
@@ -2876,6 +2878,43 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
         // TODO: What does this need to be?
         pan_pack_ins(c, CS_WAIT, cfg) { cfg.slots = 0xff; }
+
+        /* For the first job in the batch, wait on dependencies */
+        // TODO: Usually the vertex job shouldn't have to wait for dmabufs!
+        if (first) {
+                uint64_t kcpu_seqnum = ++cs->kcpu_seqnum;
+
+                util_dynarray_foreach(&batch->dmabufs, int, fd) {
+                        int fence = panfrost_export_dmabuf_fence(*fd);
+
+                        /* TODO: poll on the dma-buf? */
+                        if (fence == -1)
+                                continue;
+
+                        // TODO: What if we reach the limit for number of KCPU
+                        // commands in a queue? It's pretty low (256)
+                        dev->mali.kcpu_fence_import(&dev->mali, cs->base.ctx,
+                                                    fence);
+
+                        close(fence);
+                }
+
+                bool ret = dev->mali.kcpu_cqs_set(&dev->mali, cs->base.ctx,
+                                  cs->kcpu_event_ptr, kcpu_seqnum + 1);
+
+                if (ret) {
+                        /* If we don't set no_error, kbase might decide to
+                         * pass on errors from waiting for fences. */
+                        pan_emit_cs_48(c, 0x42, cs->kcpu_event_ptr);
+                        pan_emit_cs_64(c, 0x40, kcpu_seqnum);
+                        pan_pack_ins(c, CS_EVWAIT_64, cfg) {
+                                cfg.no_error = true;
+                                cfg.condition = MALI_WAIT_CONDITION_HIGHER;
+                                cfg.value = 0x40;
+                                cfg.addr = 0x42;
+                        }
+                }
+        }
 
         /* Fragment jobs need to wait for the vertex job. Make vertex jobs
          * also wait for the previous fragment job to fix issues with
@@ -2994,6 +3033,32 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
 
                 //pan_emit_cs_32(c, 0x54, 0);
                 //pan_emit_cs_ins(c, 0x24, 0x540000000233ULL);
+        }
+
+        if (last) {
+                uint64_t kcpu_seqnum = ++cs->kcpu_seqnum;
+
+                pan_emit_cs_64(c, 0x40, kcpu_seqnum + 1);
+                pan_emit_cs_48(c, 0x42, cs->kcpu_event_ptr);
+                pan_pack_ins(c, CS_EVSTR_64, cfg) {
+                        /* This is the scoreboard mask, right?.. */
+                        cfg.unk_2 = (3 << 3);
+                        cfg.value = 0x40;
+                        cfg.addr = 0x42;
+                }
+
+                dev->mali.kcpu_cqs_wait(&dev->mali, cs->base.ctx,
+                                        cs->kcpu_event_ptr, kcpu_seqnum);
+
+                int fence = dev->mali.kcpu_fence_export(&dev->mali, cs->base.ctx);
+
+                if (fence != -1) {
+                        util_dynarray_foreach(&batch->dmabufs, int, fd) {
+                                panfrost_import_dmabuf_fence(*fd, fence);
+                        }
+                }
+
+                close(fence);
         }
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
