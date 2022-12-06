@@ -206,6 +206,9 @@ struct panfrost_device {
         const struct panfrost_model *model;
         bool has_afbc;
 
+        /* Does the kernel support dma-buf fence import/export? */
+        bool has_dmabuf_fence;
+
         /* Table of formats, indexed by a PIPE format */
         const struct panfrost_format *formats;
 
@@ -276,6 +279,9 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev);
 
 void
 panfrost_close_device(struct panfrost_device *dev);
+
+bool
+panfrost_check_dmabuf_fence(struct panfrost_device *dev);
 
 bool
 panfrost_supports_compressed_format(struct panfrost_device *dev, unsigned fmt);

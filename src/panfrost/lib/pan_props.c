@@ -24,6 +24,7 @@
  *   Alyssa Rosenzweig <alyssa.rosenzweig@collabora.com>
  */
 
+#include <fcntl.h>
 #include <xf86drm.h>
 
 #include "util/u_math.h"
@@ -31,6 +32,7 @@
 #include "util/hash_table.h"
 #include "util/u_thread.h"
 #include "drm-uapi/panfrost_drm.h"
+#include "dma-uapi/dma-buf.h"
 #include "pan_encoder.h"
 #include "pan_device.h"
 #include "pan_bo.h"
@@ -387,4 +389,84 @@ panfrost_close_device(struct panfrost_device *dev)
                 dev->mali.close(&dev->mali);
         else
                 close(dev->fd);
+}
+
+bool
+panfrost_check_dmabuf_fence(struct panfrost_device *dev)
+{
+        bool ret = false;
+        int err;
+
+        /* This function is only useful for kbase, where we can't create
+         * dma-bufs from the kbase FD. */
+        if (!dev->ro)
+                goto out;
+
+        struct drm_mode_create_dumb create_dumb = {
+                .width = 16,
+                .height = 16,
+                .bpp = 32,
+        };
+
+        err = drmIoctl(dev->ro->kms_fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_dumb);
+        if (err < 0) {
+                fprintf(stderr, "DRM_IOCTL_MODE_CREATE_DUMB failed "
+                        "for fence check: %s\n",
+                        strerror(errno));
+                goto out;
+        }
+
+        int fd;
+        err = drmPrimeHandleToFD(dev->ro->kms_fd, create_dumb.handle, O_CLOEXEC,
+                                 &fd);
+        if (err < 0) {
+                fprintf(stderr, "failed to export buffer for fence check: %s\n",
+                        strerror(errno));
+                goto free_dumb;
+        }
+
+        struct dma_buf_export_sync_file export = {
+                .flags = DMA_BUF_SYNC_RW,
+        };
+
+        /* ENOTTY is returned if the ioctl is unsupported */
+
+        err = drmIoctl(fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &export);
+        if (err < 0) {
+                if (errno != ENOTTY)
+                        fprintf(stderr, "failed to export fence: %s\n",
+                                strerror(errno));
+                goto free_fd;
+        }
+
+        struct dma_buf_import_sync_file import = {
+                .flags = DMA_BUF_SYNC_RW,
+                .fd = export.fd,
+        };
+
+        err = drmIoctl(fd, DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &import);
+        if (err < 0) {
+                if (errno != ENOTTY)
+                        fprintf(stderr, "failed to import fence: %s\n",
+                                strerror(errno));
+                goto free_sync;
+        }
+
+        /* We made it this far, the kernel must support the ioctls */
+        ret = true;
+
+free_sync:
+        close(export.fd);
+
+free_fd:
+        close(fd);
+
+free_dumb:
+        struct drm_mode_destroy_dumb destroy_dumb = {
+                .handle = create_dumb.handle,
+        };
+        drmIoctl(dev->ro->kms_fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_dumb);
+
+out:
+        return ret;
 }

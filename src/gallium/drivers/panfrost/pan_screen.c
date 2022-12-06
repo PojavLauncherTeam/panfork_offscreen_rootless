@@ -840,6 +840,10 @@ panfrost_create_screen(int fd, struct renderonly *ro)
 
         dev->ro = ro;
 
+        /* The functionality is only useful with kbase */
+        if (dev->kbase)
+                dev->has_dmabuf_fence = panfrost_check_dmabuf_fence(dev);
+
         screen->base.destroy = panfrost_destroy_screen;
 
         screen->base.get_name = panfrost_get_name;
