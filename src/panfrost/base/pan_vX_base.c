@@ -358,11 +358,15 @@ kbase_alloc(kbase k, size_t size, unsigned pan_flags, unsigned mali_flags);
 static bool
 alloc_event_mem(kbase k)
 {
-        k->event_mem = kbase_alloc(k, k->page_size,
+        k->event_mem = kbase_alloc(k, k->page_size * 2,
                                    PANFROST_BO_NOEXEC,
                                    BASE_MEM_PROT_CPU_RD | BASE_MEM_PROT_CPU_WR |
                                    BASE_MEM_PROT_GPU_RD | BASE_MEM_PROT_GPU_WR |
                                    BASE_MEM_SAME_VA | BASE_MEM_CSF_EVENT);
+        k->kcpu_event_mem = (struct base_ptr) {
+                .cpu = k->event_mem.cpu + k->page_size,
+                .gpu = k->event_mem.gpu + k->page_size,
+        };
         return k->event_mem.cpu;
 }
 
@@ -370,7 +374,7 @@ static bool
 free_event_mem(kbase k)
 {
         if (k->event_mem.cpu)
-                return munmap(k->event_mem.cpu, k->page_size) == 0;
+                return munmap(k->event_mem.cpu, k->page_size * 2) == 0;
         return true;
 }
 #endif
@@ -1347,10 +1351,15 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         uint64_t *event_data = k->event_mem.cpu + cs.event_mem_offset * 16;
 
         /* We use the "Higher" wait condition, so initialise to 1 to allow
-         * waiting before writing.... */
+         * waiting before writing... */
         event_data[0] = 1;
         /* And reset the error field to 0, to avoid INHERITing faults */
         event_data[1] = 0;
+
+        /* Just a zero-init is fine... reads and writes are always paired */
+        uint64_t *kcpu_data = k->kcpu_event_mem.cpu + cs.event_mem_offset * 16;
+        kcpu_data[0] = 0;
+        kcpu_data[1] = 0;
 
         return cs;
 }

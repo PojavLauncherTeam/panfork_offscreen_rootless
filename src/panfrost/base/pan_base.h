@@ -114,6 +114,7 @@ struct kbase {
         void *tracking_region;
         void *csf_user_reg;
         struct base_ptr event_mem;
+        struct base_ptr kcpu_event_mem;
         // TODO: dynamically size
         struct kbase_event_slot event_slots[256];
         // TODO: USe a bitset?
