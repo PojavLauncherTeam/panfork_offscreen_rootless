@@ -33,6 +33,7 @@ foreach ver : libpanfrost_base_versions
     ],
     c_args : ['-DPAN_BASE_VER=' + ver],
     gnu_symbol_visibility : 'hidden',
+    dependencies: [dep_valgrind],
 )
 endforeach
 

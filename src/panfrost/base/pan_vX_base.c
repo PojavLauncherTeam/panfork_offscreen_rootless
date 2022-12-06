@@ -37,6 +37,12 @@
 #include <poll.h>
 #include <pthread.h>
 
+#ifdef HAVE_VALGRIND
+#include <valgrind.h>
+#else
+#define RUNNING_ON_VALGRIND 0
+#endif
+
 #include "util/macros.h"
 #include "util/list.h"
 #include "util/u_atomic.h"
@@ -1547,13 +1553,20 @@ kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
                bool invalidate)
 {
 #ifdef __aarch64__
-        /* I don't that memory barriers are needed here... having the `dmb sy`
-         * before submit should be enough. TODO what about dma-bufs? */
-        if (invalidate)
-                cache_invalidate_range(cpu, size);
-        else
-                cache_clean_range(cpu, size);
-#else
+        /* Valgrind replaces the operations with DC CVAU, which is not enough
+         * for CPU<->GPU coherency. The ioctl can be used instead. */
+        if (!RUNNING_ON_VALGRIND) {
+                /* I don't that memory barriers are needed here... having the
+                 * DMB SY before submit should be enough. TODO what about
+                 * dma-bufs? */
+                if (invalidate)
+                        cache_invalidate_range(cpu, size);
+                else
+                        cache_clean_range(cpu, size);
+                return;
+        }
+#endif
+
         struct kbase_ioctl_mem_sync sync = {
                 .handle = gpu,
                 .user_addr = (uintptr_t) cpu,
@@ -1565,7 +1578,6 @@ kbase_mem_sync(kbase k, base_va gpu, void *cpu, size_t size,
         ret = kbase_ioctl(k->fd, KBASE_IOCTL_MEM_SYNC, &sync);
         if (ret == -1)
                 perror("ioctl(KBASE_IOCTL_MEM_SYNC)");
-#endif
 }
 
 bool
