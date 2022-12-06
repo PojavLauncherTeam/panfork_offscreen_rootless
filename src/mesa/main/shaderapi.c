@@ -70,7 +70,6 @@
 #include "state_tracker/st_context.h"
 #include "state_tracker/st_program.h"
 
-#ifdef ENABLE_SHADER_CACHE
 #if CUSTOM_SHADER_REPLACEMENT
 #include "shader_replacement.h"
 /* shader_replacement.h must declare a variable like this:
@@ -115,7 +114,6 @@ static char* load_shader_replacement(struct _shader_replacement *repl)
 {
    return NULL;
 }
-#endif
 #endif
 
 /**
@@ -1929,8 +1927,6 @@ _mesa_LinkProgram(GLuint programObj)
    link_program_error(ctx, shProg);
 }
 
-#ifdef ENABLE_SHADER_CACHE
-
 /**
  * Construct a full path for shader replacement functionality using
  * following format:
@@ -2063,8 +2059,6 @@ _mesa_read_shader_source(const gl_shader_stage stage, const char *source,
    return buffer;
 }
 
-#endif /* ENABLE_SHADER_CACHE */
-
 /**
  * Called via glShaderSource() and glShaderSourceARB() API functions.
  * Basically, concatenate the source code strings into one long string
@@ -2146,7 +2140,6 @@ shader_source(struct gl_context *ctx, GLuint shaderObj, GLsizei count,
    uint8_t original_sha1[SHA1_DIGEST_LENGTH];
    _mesa_sha1_compute(source, strlen(source), original_sha1);
 
-#ifdef ENABLE_SHADER_CACHE
    GLcharARB *replacement;
 
    /* Dump original shader source to MESA_SHADER_DUMP_PATH and replace
@@ -2159,7 +2152,6 @@ shader_source(struct gl_context *ctx, GLuint shaderObj, GLsizei count,
       free(source);
       source = replacement;
    }
-#endif /* ENABLE_SHADER_CACHE */
 
    set_shader_source(sh, source, original_sha1);
 
