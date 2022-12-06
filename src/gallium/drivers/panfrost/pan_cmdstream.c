@@ -2811,7 +2811,8 @@ emit_fragment_job(struct panfrost_batch *batch, const struct pan_fb_info *pfb)
 
 // TODO: Rewrite this!
 static void
-emit_csf_queue(struct panfrost_cs *cs, pan_command_stream s)
+emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
+               pan_command_stream s, bool first, bool last)
 {
         assert(s.ptr <= s.end);
 
@@ -3005,7 +3006,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
                 pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
                 pan_emit_cs_64(cv, 0x4e, fragment_seqnum);
 
-                emit_csf_queue(&batch->ctx->kbase_cs_vertex, v);
+                emit_csf_queue(batch, &batch->ctx->kbase_cs_vertex, v, true, !frag);
         }
 
         if (!frag)
@@ -3028,7 +3029,7 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         assert(vert || batch->tiler_ctx.bifrost == 0);
         pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
-        emit_csf_queue(&batch->ctx->kbase_cs_fragment, f);
+        emit_csf_queue(batch, &batch->ctx->kbase_cs_fragment, f, !vert, true);
 }
 
 static void
