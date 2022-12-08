@@ -1169,7 +1169,8 @@ panfrost_ptr_map(struct pipe_context *pctx,
             !(usage & PIPE_MAP_UNSYNCHRONIZED) &&
             !(resource->flags & PIPE_RESOURCE_FLAG_MAP_PERSISTENT) &&
             (usage & PIPE_MAP_WRITE) &&
-            rsrc->track.nr_users > 0) {
+            rsrc->track.nr_users > 0 &&
+            bo->size < 16 * 1024 * 1024) {
 
                 /* When a resource to be modified is already being used by a
                  * pending batch, it is often faster to copy the whole BO than
