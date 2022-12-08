@@ -1800,6 +1800,7 @@ kbase_open_csf
         k->alloc = kbase_alloc;
         k->free = kbase_free;
         k->import_dmabuf = kbase_import_dmabuf;
+        k->mmap_import = kbase_mmap_import;
 
         k->poll_event = kbase_poll_event;
         k->handle_events = kbase_handle_events;
