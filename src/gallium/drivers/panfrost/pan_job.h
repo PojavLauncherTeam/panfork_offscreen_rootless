@@ -205,6 +205,10 @@ struct panfrost_batch {
 
         struct util_dynarray resource_bos[PAN_USAGE_COUNT];
 
+        /* struct panfrost_usage */
+        struct util_dynarray vert_deps;
+        struct util_dynarray frag_deps;
+
         /* Referenced dma-bufs FDs, for emitting synchronisation commands. */
         struct util_dynarray dmabufs;
 

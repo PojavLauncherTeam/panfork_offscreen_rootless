@@ -91,6 +91,9 @@ panfrost_batch_init(struct panfrost_context *ctx,
         for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i)
                 util_dynarray_init(&batch->resource_bos[i], NULL);
 
+        util_dynarray_init(&batch->vert_deps, NULL);
+        util_dynarray_init(&batch->frag_deps, NULL);
+
         util_dynarray_init(&batch->dmabufs, NULL);
 
         /* Preallocate the main pool, since every batch has at least one job
@@ -218,6 +221,9 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
         }
 
         util_dynarray_fini(&batch->dmabufs);
+
+        util_dynarray_fini(&batch->vert_deps);
+        util_dynarray_fini(&batch->frag_deps);
 
         for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i)
                 util_dynarray_fini(&batch->resource_bos[i]);
@@ -958,6 +964,92 @@ pandecode_cs_ring(struct panfrost_device *dev, struct panfrost_cs *cs,
         pandecode_cs(cs->base.va + start, insert - start, dev->gpu_id);
 }
 
+static unsigned
+panfrost_add_dep_after(struct util_dynarray *deps,
+                       struct panfrost_usage u,
+                       unsigned index)
+{
+        unsigned size = util_dynarray_num_elements(deps, struct panfrost_usage);
+
+        for (unsigned i = index; i < size; ++i) {
+                struct panfrost_usage *d =
+                        util_dynarray_element(deps, struct panfrost_usage, i);
+
+                /* TODO: Remove d if it is an invalid entry? */
+
+                if (d->queue == u.queue) {
+                        d->seqnum = MAX2(d->seqnum, u.seqnum);
+                        return i;
+
+                } else if (d->queue > u.queue) {
+                        void *p = util_dynarray_grow(deps, struct panfrost_usage, 1);
+                        assert(p);
+                        memmove(util_dynarray_element(deps, struct panfrost_usage, i + 1),
+                                util_dynarray_element(deps, struct panfrost_usage, i),
+                                (size - i) * sizeof(struct panfrost_usage));
+
+                        *util_dynarray_element(deps, struct panfrost_usage, i) = u;
+                        return i;
+                }
+        }
+
+        util_dynarray_append(deps, struct panfrost_usage, u);
+        return size;
+}
+
+static void
+panfrost_update_deps(struct util_dynarray *deps, struct panfrost_bo *bo, bool write)
+{
+        /* Both lists should be sorted, so each dependency is at a higher
+         * index than the last */
+        unsigned index = 0;
+        util_dynarray_foreach(&bo->usage, struct panfrost_usage, u) {
+                /* read->read access does not require a dependency */
+                if (!write && !u->write)
+                        continue;
+
+                index = panfrost_add_dep_after(deps, *u, index);
+        }
+}
+
+static inline bool
+panfrost_usage_writes(enum panfrost_usage_type usage)
+{
+        return (usage == PAN_USAGE_WRITE_VERTEX) || (usage == PAN_USAGE_WRITE_FRAGMENT);
+}
+
+static inline bool
+panfrost_usage_fragment(enum panfrost_usage_type usage)
+{
+        return (usage == PAN_USAGE_READ_FRAGMENT) || (usage == PAN_USAGE_WRITE_FRAGMENT);
+}
+
+/* Removes invalid dependencies from deps */
+static void
+panfrost_clean_deps(struct panfrost_device *dev, struct util_dynarray *deps)
+{
+        kbase k = &dev->mali;
+
+        struct panfrost_usage *rebuild = util_dynarray_begin(deps);
+        unsigned index = 0;
+
+        util_dynarray_foreach(deps, struct panfrost_usage, u) {
+                /* Usages are ordered, so we can break here */
+                if (u->queue >= k->event_slot_usage)
+                        break;
+
+                struct kbase_event_slot *slot = &k->event_slots[u->queue];
+                if (slot->last_submit <= u->seqnum)
+                        continue;
+
+                /* This usage is valid, add it to the returned list */
+                rebuild[index++] = *u;
+        }
+
+        /* No need to check the return value, it can only shrink */
+        (void)! util_dynarray_resize(deps, struct panfrost_usage, index);
+}
+
 static int
 panfrost_batch_submit_csf(struct panfrost_batch *batch,
                           const struct pan_fb_info *fb)
@@ -969,6 +1061,41 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         if (panfrost_has_fragment_job(batch))
                 screen->vtbl.emit_fragment_job(batch, fb);
+
+        pthread_mutex_lock(&dev->bo_usage_lock);
+        for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i) {
+                bool write = panfrost_usage_writes(i);
+                pan_bo_access access = write ? PAN_BO_ACCESS_RW : PAN_BO_ACCESS_READ;
+                struct util_dynarray *deps;
+                unsigned queue;
+                uint64_t seqnum;
+
+                if (panfrost_usage_fragment(i)) {
+                        deps = &batch->frag_deps;
+                        queue = ctx->kbase_cs_fragment.base.event_mem_offset;
+                        seqnum = ctx->kbase_cs_fragment.seqnum;
+                } else {
+                        deps = &batch->vert_deps;
+                        queue = ctx->kbase_cs_vertex.base.event_mem_offset;
+                        seqnum = ctx->kbase_cs_vertex.seqnum;
+                }
+
+                util_dynarray_foreach(&batch->resource_bos[i], struct panfrost_bo *, bo) {
+                        panfrost_update_deps(deps, *bo, write);
+                        struct panfrost_usage u = {
+                                .queue = queue,
+                                .write = write,
+                                .seqnum = seqnum,
+                        };
+
+                        panfrost_add_dep_after(&(*bo)->usage, u, 0);
+                        (*bo)->gpu_access |= access;
+                }
+        }
+        pthread_mutex_unlock(&dev->bo_usage_lock);
+
+        panfrost_clean_deps(dev, &batch->vert_deps);
+        panfrost_clean_deps(dev, &batch->frag_deps);
 
         screen->vtbl.emit_csf_toplevel(batch);
 
