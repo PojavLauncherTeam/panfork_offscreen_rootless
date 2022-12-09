@@ -88,6 +88,9 @@ panfrost_batch_init(struct panfrost_context *ctx,
         batch->resources =_mesa_set_create(NULL, _mesa_hash_pointer,
                                           _mesa_key_pointer_equal);
 
+        for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i)
+                util_dynarray_init(&batch->resource_bos[i], NULL);
+
         util_dynarray_init(&batch->dmabufs, NULL);
 
         /* Preallocate the main pool, since every batch has at least one job
@@ -215,6 +218,9 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
         }
 
         util_dynarray_fini(&batch->dmabufs);
+
+        for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i)
+                util_dynarray_fini(&batch->resource_bos[i]);
 
         panfrost_batch_destroy_resources(ctx, batch);
         panfrost_pool_cleanup(&batch->pool);
@@ -406,6 +412,12 @@ panfrost_batch_read_rsrc(struct panfrost_batch *batch,
         uint32_t access = PAN_BO_ACCESS_READ |
                 panfrost_access_for_stage(stage);
 
+        enum panfrost_usage_type type = (stage == MESA_SHADER_FRAGMENT) ?
+                PAN_USAGE_READ_FRAGMENT : PAN_USAGE_READ_VERTEX;
+
+        util_dynarray_append(&batch->resource_bos[type], struct panfrost_bo *,
+                             rsrc->image.data.bo);
+
         panfrost_batch_add_bo_old(batch, rsrc->image.data.bo, access);
 
         if (rsrc->separate_stencil)
@@ -421,6 +433,12 @@ panfrost_batch_write_rsrc(struct panfrost_batch *batch,
 {
         uint32_t access = PAN_BO_ACCESS_WRITE |
                 panfrost_access_for_stage(stage);
+
+        enum panfrost_usage_type type = (stage == MESA_SHADER_FRAGMENT) ?
+                PAN_USAGE_WRITE_FRAGMENT : PAN_USAGE_WRITE_VERTEX;
+
+        util_dynarray_append(&batch->resource_bos[type], struct panfrost_bo *,
+                             rsrc->image.data.bo);
 
         panfrost_batch_add_bo_old(batch, rsrc->image.data.bo, access);
 

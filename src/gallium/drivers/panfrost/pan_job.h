@@ -79,6 +79,14 @@ pan_tristate_get(struct pan_tristate state)
         return (state.v == PAN_TRISTATE_TRUE);
 }
 
+enum panfrost_usage_type {
+        PAN_USAGE_READ_VERTEX,
+        PAN_USAGE_WRITE_VERTEX,
+        PAN_USAGE_READ_FRAGMENT,
+        PAN_USAGE_WRITE_FRAGMENT,
+        PAN_USAGE_COUNT,
+};
+
 /* A panfrost_batch corresponds to a bound FBO we're rendering to,
  * collecting over multiple draws. */
 
@@ -194,6 +202,8 @@ struct panfrost_batch {
 
         /* Referenced resources, holds a pipe_reference. */
         struct set *resources;
+
+        struct util_dynarray resource_bos[PAN_USAGE_COUNT];
 
         /* Referenced dma-bufs FDs, for emitting synchronisation commands. */
         struct util_dynarray dmabufs;
