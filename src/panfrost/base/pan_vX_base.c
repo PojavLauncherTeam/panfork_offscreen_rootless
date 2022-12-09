@@ -1539,6 +1539,7 @@ kbase_kcpu_queue_create(kbase k, struct kbase_context *ctx)
                 return false;
         }
 
+        ctx->kcpu_queue = create.id;
         ctx->kcpu_init = true;
         return true;
 }
