@@ -160,7 +160,7 @@ panfrost_bo_free(struct panfrost_bo *bo)
                 assert(0);
         }
 
-        /* BO will be freed with the sparse array, but zero to indicate free */
+        /* BO will be freed with the stable_array, but zero to indicate free */
         memset(bo, 0, sizeof(*bo));
 }
 

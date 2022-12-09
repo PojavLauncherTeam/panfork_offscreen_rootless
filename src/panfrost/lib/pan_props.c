@@ -340,7 +340,7 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
         else
                 dev->formats = panfrost_pipe_format_v9;
 
-        util_sparse_array_init(&dev->bo_map, sizeof(struct panfrost_bo), 512);
+        stable_array_init(&dev->bo_map, struct panfrost_bo);
 
         pthread_mutex_init(&dev->bo_cache.lock, NULL);
         list_inithead(&dev->bo_cache.lru);
@@ -378,7 +378,7 @@ panfrost_close_device(struct panfrost_device *dev)
                 panfrost_bo_unreference(dev->sample_positions);
                 panfrost_bo_cache_evict_all(dev);
                 pthread_mutex_destroy(&dev->bo_cache.lock);
-                util_sparse_array_finish(&dev->bo_map);
+                stable_array_fini(&dev->bo_map);
         }
 
         if (dev->kbase)

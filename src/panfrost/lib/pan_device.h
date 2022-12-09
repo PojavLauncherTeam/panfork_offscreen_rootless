@@ -35,7 +35,7 @@
 #include "util/u_dynarray.h"
 #include "util/bitset.h"
 #include "util/list.h"
-#include "util/sparse_array.h"
+#include "util/stable_array.h"
 
 #include "panfrost/util/pan_ir.h"
 #include "pan_pool.h"
@@ -223,7 +223,7 @@ struct panfrost_device {
         struct renderonly *ro;
 
         pthread_mutex_t bo_map_lock;
-        struct util_sparse_array bo_map;
+        struct stable_array bo_map;
 
         struct {
                 pthread_mutex_t lock;
@@ -304,7 +304,7 @@ panfrost_query_l2_slices(struct panfrost_device *dev);
 static inline struct panfrost_bo *
 pan_lookup_bo(struct panfrost_device *dev, uint32_t gem_handle)
 {
-        return (struct panfrost_bo *)util_sparse_array_get(&dev->bo_map, gem_handle);
+        return stable_array_get(&dev->bo_map, struct panfrost_bo, gem_handle);
 }
 
 static inline bool
