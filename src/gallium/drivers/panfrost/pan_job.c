@@ -199,6 +199,10 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
 {
         struct panfrost_device *dev = pan_device(ctx->base.screen);
 
+        /* Make sure we keep handling events, to free old BOs */
+        if (dev->kbase)
+                kbase_ensure_handle_events(&dev->mali);
+
         assert(batch->seqnum);
 
         if (ctx->batch == batch)
@@ -1151,8 +1155,6 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_fragment.base, fs_offset, ctx->syncobj_kbase))
                         reset = true;
         }
-
-        kbase_ensure_handle_events(&dev->mali);
 
         if (dev->debug & PAN_DBG_TILER) {
                 fflush(stdout);

@@ -561,6 +561,8 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
         if (!bo) {
                 for (unsigned i = 0; i < 5; ++i) {
                         usleep(20 * 1000 * i * i);
+                        if (dev->kbase)
+                                kbase_ensure_handle_events(&dev->mali);
                         panfrost_bo_cache_evict_all(dev);
                         bo = panfrost_bo_alloc(dev, size, flags, label);
                         if (bo)
