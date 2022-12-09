@@ -342,6 +342,8 @@ panfrost_open_device(void *memctx, int fd, struct panfrost_device *dev)
 
         stable_array_init(&dev->bo_map, struct panfrost_bo);
 
+        pthread_mutex_init(&dev->bo_usage_lock, NULL);
+        pthread_mutex_init(&dev->bo_map_lock, NULL);
         pthread_mutex_init(&dev->bo_cache.lock, NULL);
         list_inithead(&dev->bo_cache.lru);
 
@@ -378,6 +380,8 @@ panfrost_close_device(struct panfrost_device *dev)
                 panfrost_bo_unreference(dev->sample_positions);
                 panfrost_bo_cache_evict_all(dev);
                 pthread_mutex_destroy(&dev->bo_cache.lock);
+                pthread_mutex_destroy(&dev->bo_map_lock);
+                pthread_mutex_destroy(&dev->bo_usage_lock);
                 stable_array_fini(&dev->bo_map);
         }
 

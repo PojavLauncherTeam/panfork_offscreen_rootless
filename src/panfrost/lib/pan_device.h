@@ -222,6 +222,9 @@ struct panfrost_device {
 
         struct renderonly *ro;
 
+        /* Hold this while updating usage field of BOs */
+        pthread_mutex_t bo_usage_lock;
+
         pthread_mutex_t bo_map_lock;
         struct stable_array bo_map;
 

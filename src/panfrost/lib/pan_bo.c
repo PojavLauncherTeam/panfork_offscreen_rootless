@@ -526,6 +526,8 @@ panfrost_bo_create(struct panfrost_device *dev, size_t size,
 
         p_atomic_set(&bo->refcnt, 1);
 
+        util_dynarray_init(&bo->usage, NULL);
+
         if (dev->debug & (PAN_DBG_TRACE | PAN_DBG_SYNC)) {
                 if (flags & PAN_BO_INVISIBLE)
                         pandecode_inject_mmap(bo->ptr.gpu, NULL, bo->size, NULL);
@@ -640,6 +642,8 @@ panfrost_bo_unreference(struct panfrost_bo *bo)
                 return;
         }
 
+        util_dynarray_fini(&bo->usage);
+
         if (dev->kbase) {
                 /* Assume that all queues are using this BO, and so free the
                  * BO only after all currently-submitted jobs have finished.
@@ -723,6 +727,7 @@ panfrost_bo_import(struct panfrost_device *dev, int fd)
                 }
                 bo->flags = PAN_BO_SHARED;
                 bo->gem_handle = gem_handle;
+                util_dynarray_init(&bo->usage, NULL);
                 if (dev->kbase) {
                         /* kbase always maps dma-bufs with caching */
                         bo->cached = true;

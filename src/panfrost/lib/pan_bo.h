@@ -27,6 +27,7 @@
 #define __PAN_BO_H__
 
 #include "util/list.h"
+#include "util/u_dynarray.h"
 #include "panfrost-job.h"
 #include <time.h>
 
@@ -86,6 +87,12 @@ struct panfrost_ptr {
         mali_ptr gpu;
 };
 
+struct panfrost_usage {
+        uint32_t queue;
+        bool write;
+        uint64_t seqnum;
+};
+
 struct panfrost_bo {
         /* Must be first for casting */
         struct list_head bucket_link;
@@ -108,6 +115,8 @@ struct panfrost_bo {
 
         /* Mapping for the entire object (all levels) */
         struct panfrost_ptr ptr;
+
+        struct util_dynarray usage;
 
         /* Size of all entire trees */
         size_t size;
