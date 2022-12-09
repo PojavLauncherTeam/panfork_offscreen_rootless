@@ -310,6 +310,12 @@ pan_lookup_bo(struct panfrost_device *dev, uint32_t gem_handle)
         return stable_array_get(&dev->bo_map, struct panfrost_bo, gem_handle);
 }
 
+static inline struct panfrost_bo *
+pan_lookup_bo_existing(struct panfrost_device *dev, uint32_t gem_handle)
+{
+        return stable_array_get_existing(&dev->bo_map, struct panfrost_bo, gem_handle);
+}
+
 static inline bool
 pan_is_bifrost(const struct panfrost_device *dev)
 {

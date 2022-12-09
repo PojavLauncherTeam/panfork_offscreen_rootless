@@ -36,9 +36,8 @@
  *  2. Elements are not moved in memory, so it is safe to store a pointer to
  *     something in a stable_array.
  *
- *  3. The data structure is thread-safe. However, to improve performance, no
- *     atomic operations are used in the fast path, which should be fine on
- *     every architecture except Alpha.
+ *  3. The data structure is thread-safe. To improve performance, there is
+ *     also a fast path that does not require atomics.
  *
  *  4. Although the data structure is not lock-free, there is a limit on the
  *     number of times that a lock is ever acquired--a maximum of 32 times the
@@ -98,22 +97,36 @@ stable_array_get_bytes(struct stable_array *buf, unsigned idx, size_t eltsize)
 
    struct stable_array_index i = stable_array_get_index(idx);
 
-   if (!buf->buckets[i.bucket]) {
+   uint8_t *bucket = p_atomic_read(&buf->buckets[i.bucket]);
+
+   if (!bucket) {
       simple_mtx_lock(&buf->lock);
-      if (!buf->buckets[i.bucket]) {
+      bucket = buf->buckets[i.bucket];
+
+      if (!bucket) {
          /* The first two buckets both have two elements */
-         uint8_t *bucket = (uint8_t *)calloc(1U << MAX2(i.bucket, 1), eltsize);
-         /* An atomic is needed as otherwise another thread might access
-          * the memory before calloc has finished zeroing it. */
+         bucket = (uint8_t *)calloc(1U << MAX2(i.bucket, 1), eltsize);
+
          p_atomic_set(&buf->buckets[i.bucket], bucket);
       }
       simple_mtx_unlock(&buf->lock);
    }
+
+   return bucket + eltsize * i.idx;
+}
+
+static inline void *
+stable_array_get_existing_bytes(struct stable_array *buf, unsigned idx, size_t eltsize)
+{
+   assert(eltsize == buf->eltsize);
+
+   struct stable_array_index i = stable_array_get_index(idx);
 
    return buf->buckets[i.bucket] + eltsize * i.idx;
 }
 
 #define stable_array_init(buf, type) stable_array_init_bytes((buf), sizeof(type))
 #define stable_array_get(buf, type, idx) ((type*)stable_array_get_bytes((buf), (idx), sizeof(type)))
+#define stable_array_get_existing(buf, type, idx) ((type*)stable_array_get_existing_bytes((buf), (idx), sizeof(type)))
 
 #endif

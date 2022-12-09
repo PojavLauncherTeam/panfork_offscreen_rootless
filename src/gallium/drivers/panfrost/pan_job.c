@@ -213,7 +213,7 @@ panfrost_batch_cleanup(struct panfrost_context *ctx, struct panfrost_batch *batc
                 if (!flags[i])
                         continue;
 
-                struct panfrost_bo *bo = pan_lookup_bo(dev, i);
+                struct panfrost_bo *bo = pan_lookup_bo_existing(dev, i);
                 panfrost_bo_unreference(bo);
         }
 
@@ -765,7 +765,7 @@ panfrost_batch_submit_ioctl(struct panfrost_batch *batch,
                  * We also preserve existing flags as this batch might not
                  * be the first one to access the BO.
                  */
-                struct panfrost_bo *bo = pan_lookup_bo(dev, i);
+                struct panfrost_bo *bo = pan_lookup_bo_existing(dev, i);
 
                 bo->gpu_access |= flags[i] & (PAN_BO_ACCESS_RW);
         }
