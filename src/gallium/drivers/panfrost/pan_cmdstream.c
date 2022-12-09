@@ -2872,7 +2872,8 @@ panfrost_cs_ring_allocate_instrs(struct panfrost_cs *cs, unsigned count)
 // TODO: Rewrite this!
 static void
 emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
-               pan_command_stream s, bool first, bool last)
+               pan_command_stream s, struct util_dynarray *deps,
+               bool first, bool last)
 {
         struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
 
@@ -2881,7 +2882,8 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         bool fragment = (cs->hw_resources & 2);
         bool vertex = (cs->hw_resources & 12); /* TILER | IDVS */
 
-        uint64_t *limit = panfrost_cs_ring_allocate_instrs(cs, 128);
+        uint64_t *limit = panfrost_cs_ring_allocate_instrs(cs,
+                128 + util_dynarray_num_elements(deps, struct panfrost_usage) * 4);
 
         pan_command_stream *c = &cs->cs;
 
@@ -2896,6 +2898,23 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         /* For the first job in the batch, wait on dependencies */
         // TODO: Usually the vertex job shouldn't have to wait for dmabufs!
         if (first) {
+                mali_ptr seqnum_ptr_base = dev->mali.event_mem.gpu;
+
+                util_dynarray_foreach(deps, struct panfrost_usage, u) {
+                        /* Note the multiplication in the call to
+                         * cs_ring_allocate_instrs. pan_emit_cs_64 might be
+                         * split, so the total is four instructions. */
+                        pan_emit_cs_48(c, 0x42, seqnum_ptr_base +
+                                       u->queue * PAN_EVENT_SIZE);
+                        pan_emit_cs_64(c, 0x40, u->seqnum);
+                        pan_pack_ins(c, CS_EVWAIT_64, cfg) {
+                                cfg.no_error = true;
+                                cfg.condition = MALI_WAIT_CONDITION_HIGHER;
+                                cfg.value = 0x40;
+                                cfg.addr = 0x42;
+                        }
+                }
+
                 uint64_t kcpu_seqnum = ++cs->kcpu_seqnum;
 
                 util_dynarray_foreach(&batch->dmabufs, int, fd) {
@@ -3113,7 +3132,8 @@ emit_csf_toplevel(struct panfrost_batch *batch)
                 pan_emit_cs_48(cv, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
                 pan_pack_ins(cv, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
 
-                emit_csf_queue(batch, &batch->ctx->kbase_cs_vertex, v, true, !frag);
+                emit_csf_queue(batch, &batch->ctx->kbase_cs_vertex, v,
+                               &batch->vert_deps, true, !frag);
         }
 
         if (!frag)
@@ -3136,7 +3156,8 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         assert(vert || batch->tiler_ctx.bifrost == 0);
         pan_emit_cs_48(cf, 0x56, batch->tiler_ctx.bifrost);
 
-        emit_csf_queue(batch, &batch->ctx->kbase_cs_fragment, f, !vert, true);
+        emit_csf_queue(batch, &batch->ctx->kbase_cs_fragment, f,
+                       &batch->frag_deps, !vert, true);
 }
 
 static void
