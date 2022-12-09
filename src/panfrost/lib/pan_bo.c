@@ -185,12 +185,17 @@ panfrost_bo_usage_finished(struct panfrost_bo *bo, bool readers)
                         break;
 
                 struct kbase_event_slot *slot = &k->event_slots[u->queue];
+                uint64_t seqnum = u->seqnum;
 
-                /* Skip invalid dependencies. TODO clean it up? */
-                if (slot->last_submit <= u->seqnum)
+                /* There is a race condition, where we can depend on an
+                 * unsubmitted batch. In that cade, decrease the seqnum.
+                 * Otherwise, skip invalid dependencies. TODO: do GC? */
+                if (slot->last_submit == seqnum)
+                        --seqnum;
+                else if (slot->last_submit < seqnum)
                         continue;
 
-                if (slot->last <= u->seqnum) {
+                if (slot->last <= seqnum) {
                         ret = false;
                         break;
                 }

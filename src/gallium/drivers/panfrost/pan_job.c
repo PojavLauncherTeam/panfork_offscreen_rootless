@@ -1040,11 +1040,22 @@ panfrost_clean_deps(struct panfrost_device *dev, struct util_dynarray *deps)
                         break;
 
                 struct kbase_event_slot *slot = &k->event_slots[u->queue];
-                if (slot->last_submit <= u->seqnum)
+                uint64_t seqnum = u->seqnum;
+
+                /* There is a race condition, where we can depend on an
+                 * unsubmitted batch. In that cade, decrease the seqnum.
+                 * Otherwise, skip invalid dependencies. */
+                if (slot->last_submit == seqnum)
+                        --seqnum;
+                else if (slot->last_submit < seqnum)
                         continue;
 
                 /* This usage is valid, add it to the returned list */
-                rebuild[index++] = *u;
+                rebuild[index++] = (struct panfrost_usage) {
+                        .queue = u->queue,
+                        .write = u->write,
+                        .seqnum = seqnum,
+                };
         }
 
         /* No need to check the return value, it can only shrink */
