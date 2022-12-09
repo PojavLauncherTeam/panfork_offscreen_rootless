@@ -47,6 +47,7 @@ struct kbase_sync_link {
 struct kbase_event_slot {
         struct kbase_sync_link *syncobjs;
         struct kbase_sync_link **back;
+        uint64_t last_submit;
         uint64_t last;
 };
 

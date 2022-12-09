@@ -1055,8 +1055,7 @@ kbase_update_queue_callbacks(kbase k,
                         break;
 
                 LOG("done, calling %p(%p)\n", link->callback, link->data);
-                if (link->callback)
-                        link->callback(link->data);
+                link->callback(link->data);
                 *list = link->next;
                 if (&link->next == back)
                         slot->back = list;
@@ -1366,6 +1365,10 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         kcpu_data[0] = 0;
         kcpu_data[1] = 0;
 
+        /* To match the event data */
+        k->event_slots[cs.event_mem_offset].last = 1;
+        k->event_slots[cs.event_mem_offset].last_submit = 1;
+
         return cs;
 }
 
@@ -1451,20 +1454,11 @@ kbase_cs_submit(kbase k, struct kbase_cs *cs, uint64_t insert_offset,
                 return true;
 
 #ifndef PAN_BASE_NOOP
-        struct kbase_sync_link *link = malloc(sizeof(*link));
-        *link = (struct kbase_sync_link) {
-                .seqnum = seqnum,
-        };
-
         struct kbase_event_slot *slot =
                 &k->event_slots[cs->event_mem_offset];
 
         pthread_mutex_lock(&k->queue_lock);
-        struct kbase_sync_link **list = slot->back;
-        slot->back = &link->next;
-
-        assert(!*list);
-        *list = link;
+        slot->last_submit = seqnum + 1;
 
         if (o)
                 kbase_syncobj_update_fence(o, cs->event_mem_offset, seqnum);
@@ -1686,16 +1680,14 @@ kbase_callback_all_queues(kbase k, int32_t *count,
         for (unsigned i = 0; i < k->event_slot_usage; ++i) {
                 struct kbase_event_slot *slot = &k->event_slots[i];
 
-                if (!slot->back || slot->back == &slot->syncobjs)
+                /* There is no need to do anything for idle slots */
+                if (slot->last == slot->last_submit)
                         continue;
-
-                struct kbase_sync_link *last =
-                        container_of(slot->back, struct kbase_sync_link, next);
 
                 struct kbase_sync_link *link = malloc(sizeof(*link));
                 *link = (struct kbase_sync_link) {
                         .next = NULL,
-                        .seqnum = last->seqnum,
+                        .seqnum = slot->last_submit,
                         .callback = callback,
                         .data = data,
                 };
