@@ -78,6 +78,7 @@ static const struct debug_named_value panfrost_debug_options[] = {
         {"nogpuc",    PAN_DBG_UNCACHED_GPU, "Use uncached GPU memory for textures"},
         {"nocpuc",    PAN_DBG_UNCACHED_CPU, "Use uncached CPU mappings for textures"},
         {"log",       PAN_DBG_LOG,      "Log job submission etc."},
+        {"gofaster",  PAN_DBG_GOFASTER, "Experimental performance improvements"},
         DEBUG_NAMED_VALUE_END
 };
 

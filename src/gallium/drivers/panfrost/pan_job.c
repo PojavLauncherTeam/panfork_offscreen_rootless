@@ -57,12 +57,6 @@ panfrost_batch_add_surface(struct panfrost_batch *batch, struct pipe_surface *su
         if (surf) {
                 struct panfrost_resource *rsrc = pan_resource(surf->texture);
                 panfrost_batch_write_rsrc(batch, rsrc, PIPE_SHADER_FRAGMENT);
-
-                /* I know this looks like a hack, but the blob does this too!
-                 * However, it might be possible to use the FENCE_SIGNAL KCPU
-                 * command to avoid the wait. */
-                if (rsrc->base.bind & (PIPE_BIND_SCANOUT | PIPE_BIND_DISPLAY_TARGET))
-                        batch->needs_sync = true;
         }
 }
 
@@ -111,7 +105,7 @@ panfrost_batch_init(struct panfrost_context *ctx,
 
         panfrost_batch_add_surface(batch, batch->key.zsbuf);
 
-        if (dev->debug & PAN_DBG_SYNC)
+        if ((dev->debug & PAN_DBG_SYNC) || !(dev->debug & PAN_DBG_GOFASTER))
                 batch->needs_sync = true;
 
         screen->vtbl.init_batch(batch);
@@ -153,6 +147,9 @@ panfrost_batch_add_resource(struct panfrost_batch *batch,
                 if (dev->has_dmabuf_fence) {
                         int fd = rsrc->image.data.bo->dmabuf_fd;
                         util_dynarray_append(&batch->dmabufs, int, fd);
+                } else {
+                        perf_debug_ctx(ctx, "Forcing sync on batch");
+                        batch->needs_sync = true;
                 }
         }
 }
@@ -1141,7 +1138,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         bool reset = false;
 
         // TODO: How will we know to reset a CS when waiting is not done?
-        if (true || batch->needs_sync) {
+        if (batch->needs_sync) {
                 if (!dev->mali.cs_wait(&dev->mali, &ctx->kbase_cs_vertex.base, vs_offset, ctx->syncobj_kbase))
                         reset = true;
 
