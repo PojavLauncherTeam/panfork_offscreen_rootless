@@ -173,6 +173,8 @@ panfrost_bo_usage_finished(struct panfrost_bo *bo, bool readers)
         bool ret = true;
 
         pthread_mutex_lock(&dev->bo_usage_lock);
+        pthread_mutex_lock(&dev->mali.queue_lock);
+
         util_dynarray_foreach(&bo->usage, struct panfrost_usage, u) {
                 /* Skip if we are only waiting for writers */
                 if (!u->write && !readers)
@@ -193,6 +195,8 @@ panfrost_bo_usage_finished(struct panfrost_bo *bo, bool readers)
                         break;
                 }
         }
+
+        pthread_mutex_unlock(&dev->mali.queue_lock);
         pthread_mutex_unlock(&dev->bo_usage_lock);
 
         return ret;

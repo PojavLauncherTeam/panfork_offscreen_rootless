@@ -1065,6 +1065,7 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
 
         pthread_mutex_lock(&dev->bo_usage_lock);
         for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i) {
+
                 bool write = panfrost_usage_writes(i);
                 pan_bo_access access = write ? PAN_BO_ACCESS_RW : PAN_BO_ACCESS_READ;
                 struct util_dynarray *deps;
@@ -1107,8 +1108,13 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
                 panfrost_add_dep_after(&ctx->tiler_heap_desc->usage, u, 0);
         }
 
+        /* TODO: Use atomics in kbase code to avoid lock? */
+        pthread_mutex_lock(&dev->mali.queue_lock);
+
         panfrost_clean_deps(dev, &batch->vert_deps);
         panfrost_clean_deps(dev, &batch->frag_deps);
+
+        pthread_mutex_unlock(&dev->mali.queue_lock);
 
         screen->vtbl.emit_csf_toplevel(batch);
 
