@@ -1098,6 +1098,18 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         }
         pthread_mutex_unlock(&dev->bo_usage_lock);
 
+        /* For now, only a single batch can use each tiler heap at once */
+        if (ctx->tiler_heap_desc) {
+                panfrost_update_deps(&batch->vert_deps, ctx->tiler_heap_desc, true);
+
+                struct panfrost_usage u = {
+                        .queue = ctx->kbase_cs_fragment.base.event_mem_offset,
+                        .write = true,
+                        .seqnum = ctx->kbase_cs_fragment.seqnum,
+                };
+                panfrost_add_dep_after(&ctx->tiler_heap_desc->usage, u, 0);
+        }
+
         panfrost_clean_deps(dev, &batch->vert_deps);
         panfrost_clean_deps(dev, &batch->frag_deps);
 
