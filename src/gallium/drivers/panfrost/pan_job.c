@@ -978,7 +978,7 @@ panfrost_add_dep_after(struct util_dynarray *deps,
 
                 /* TODO: Remove d if it is an invalid entry? */
 
-                if (d->queue == u.queue) {
+                if ((d->queue == u.queue) && (d->write == u.write)) {
                         d->seqnum = MAX2(d->seqnum, u.seqnum);
                         return i;
 
