@@ -15,21 +15,29 @@ Panfrost Wayland compositor (wlroots):
 
 #. Panfrost Wayland clients
 #. Panfrost X11 clients via Xwayland [1]_
+#. Blob X11 clients via Xwayland + dri2to3 [2]_
 
 Panfrost Wayland compositor (non-wlroots):
 
 #. Panfrost Wayland clients
 #. Panfrost X11 clients via Xwayland
 #. Blob Wayland clients
+#. Blob X11 clients via Xwayland + dri2to3 [2]_
 
 Blob Wayland compositor:
 
 #. Panfrost Wayland clients
 #. Blob Wayland clients
 
-Panfrost Xorg server: [2]_
+Panfrost Xorg server: [3]_
 
 #. Panfrost X11 clients
+#. Blob X11 clients
+
+Blob Xorg server:
+
+#. Panfrost X11 clients
+#. Blob X11 clients
 
 Applications using KMS/DRM will also work.
 
@@ -37,7 +45,9 @@ Applications using KMS/DRM will also work.
        the kernel configuration. The option is broken and should never
        be enabled anyway.
 
-.. [2] For Radxa Debian/Ubuntu, the ``xserver-xorg-core`` version
+.. [2] See https://gitlab.com/panfork/dri2to3
+
+.. [3] For Radxa Debian/Ubuntu, the ``xserver-xorg-core`` version
        installed by default is not compatible with Panfrost. But note
        that upstream Xorg does not work will the blob, so Mesa must be
        installed so that it is used by default. (see the "Usage"
@@ -53,13 +63,9 @@ Broken combinations:
 #. Panfrost wlroots + Blob Wayland does not work because wlroots does
    not expose the ``mali_buffer_sharing`` protocol. This might be
    fixable.
-#. Blob Xorg server + Panfrost X11 raises ``CS_INHERIT_FAULT``s
-#. Panfrost Xorg server + Blob X11 raises ``GPU_SHAREABILITY_FAULT``s
 #. Blob Wayland compositor + Panfrost X11 does not work because the
    blob does not expose the required protocols for Xwayland
    acceleration to work
-#. Any Wayland compositor + Blob X11 does not work because Xwayland
-   exposes DRI3, but Blob X11 drivers only work with DRI2
 
 Source
 ------
