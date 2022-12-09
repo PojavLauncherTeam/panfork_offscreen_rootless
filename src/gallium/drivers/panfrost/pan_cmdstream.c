@@ -2930,11 +2930,8 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
                 }
         }
 
-        /* Fragment jobs need to wait for the vertex job. Make vertex jobs
-         * also wait for the previous fragment job to fix issues with
-         * concurrent vertex jobs. Maybe this has got something to do with the
-         * mysterious "slots". */
-        if (true || fragment) {
+        /* Fragment jobs need to wait for the vertex job */
+        if (fragment && !first) {
                 pan_pack_ins(c, CS_EVWAIT_64, cfg) {
                         cfg.condition = MALI_WAIT_CONDITION_HIGHER;
                         cfg.value = 0x4e;
@@ -3115,13 +3112,6 @@ emit_csf_toplevel(struct panfrost_batch *batch)
         if (vert) {
                 pan_emit_cs_48(cv, 0x48, batch->ctx->kbase_ctx->tiler_heap_va);
                 pan_pack_ins(cv, CS_HEAPCTX, cfg) { cfg.address = 0x48; }
-
-                uint64_t fragment_seqnum = batch->ctx->kbase_cs_fragment.seqnum;
-                // TODO: this assumes SAME_VA
-                mali_ptr fs_seqnum_ptr = (uintptr_t) batch->ctx->kbase_cs_fragment.event_ptr;
-
-                pan_emit_cs_48(cv, 0x4c, fs_seqnum_ptr);
-                pan_emit_cs_64(cv, 0x4e, fragment_seqnum);
 
                 emit_csf_queue(batch, &batch->ctx->kbase_cs_vertex, v, true, !frag);
         }
