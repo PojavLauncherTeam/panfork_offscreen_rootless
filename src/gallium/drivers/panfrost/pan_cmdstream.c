@@ -3073,7 +3073,7 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         }
 
         pan_emit_cs_48(c, 0x48, cs->event_ptr);
-        pan_emit_cs_64(c, 0x4a, ++cs->seqnum + 1);
+        pan_emit_cs_64(c, 0x4a, cs->seqnum + 1);
         pan_pack_ins(c, CS_EVSTR_64, cfg) {
                 /* This is the scoreboard mask, right?.. */
                 cfg.unk_2 = (3 << 3);

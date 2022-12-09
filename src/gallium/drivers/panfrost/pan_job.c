@@ -1059,8 +1059,12 @@ panfrost_batch_submit_csf(struct panfrost_batch *batch,
         struct panfrost_screen *screen = pan_screen(pscreen);
         struct panfrost_device *dev = pan_device(pscreen);
 
-        if (panfrost_has_fragment_job(batch))
+        ++ctx->kbase_cs_vertex.seqnum;
+
+        if (panfrost_has_fragment_job(batch)) {
                 screen->vtbl.emit_fragment_job(batch, fb);
+                ++ctx->kbase_cs_fragment.seqnum;
+        }
 
         pthread_mutex_lock(&dev->bo_usage_lock);
         for (unsigned i = 0; i < PAN_USAGE_COUNT; ++i) {
