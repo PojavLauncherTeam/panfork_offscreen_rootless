@@ -442,6 +442,10 @@ panfrost_bo_cache_put(struct panfrost_bo *bo)
         clock_gettime(CLOCK_MONOTONIC, &time);
         bo->last_used = time.tv_sec;
 
+        /* For kbase, the GPU can't be accessing this BO any more */
+        if (dev->kbase)
+                bo->gpu_access = 0;
+
         /* Let's do some cleanup in the BO cache while we hold the
          * lock.
          */
