@@ -53,16 +53,14 @@ kbase_open(kbase k, int fd, unsigned cs_queue_count, bool verbose)
            return kbase_open_csf_noop(k);
 
         struct kbase_ioctl_version_check ver = { 0 };
-        int ret = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK, &ver);
-        int ret2 = ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK_RESERVED, &ver);
 
-        if (ret == 0) {
+        if (ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK_RESERVED, &ver) == 0) {
+                return kbase_open_csf(k);
+        } else if (ioctl(k->fd, KBASE_IOCTL_VERSION_CHECK, &ver) == 0) {
                 if (ver.major == 3)
                         return kbase_open_old(k);
                 else
                         return kbase_open_new(k);
-        } else if (ret2 == 0) {
-                return kbase_open_csf(k);
         }
 
         return false;
