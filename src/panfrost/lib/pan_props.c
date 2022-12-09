@@ -461,8 +461,10 @@ free_sync:
 free_fd:
         close(fd);
 
+        /* Some compilers don't like goto to a declaration */
+        struct drm_mode_destroy_dumb destroy_dumb;
 free_dumb:
-        struct drm_mode_destroy_dumb destroy_dumb = {
+        destroy_dumb = (struct drm_mode_destroy_dumb) {
                 .handle = create_dumb.handle,
         };
         drmIoctl(dev->ro->kms_fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_dumb);
