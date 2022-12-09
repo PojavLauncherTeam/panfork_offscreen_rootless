@@ -28,6 +28,8 @@
 #include "util/u_dynarray.h"
 #include "util/list.h"
 
+#define PAN_EVENT_SIZE 16
+
 typedef uint64_t base_va;
 struct base_ptr {
         void *cpu;

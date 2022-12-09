@@ -1352,7 +1352,7 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         k->event_slots[cs.event_mem_offset].back =
                 &k->event_slots[cs.event_mem_offset].syncobjs;
 
-        uint64_t *event_data = k->event_mem.cpu + cs.event_mem_offset * 16;
+        uint64_t *event_data = k->event_mem.cpu + cs.event_mem_offset * PAN_EVENT_SIZE;
 
         /* We use the "Higher" wait condition, so initialise to 1 to allow
          * waiting before writing... */
@@ -1361,7 +1361,7 @@ kbase_cs_bind(kbase k, struct kbase_context *ctx,
         event_data[1] = 0;
 
         /* Just a zero-init is fine... reads and writes are always paired */
-        uint64_t *kcpu_data = k->kcpu_event_mem.cpu + cs.event_mem_offset * 16;
+        uint64_t *kcpu_data = k->kcpu_event_mem.cpu + cs.event_mem_offset * PAN_EVENT_SIZE;
         kcpu_data[0] = 0;
         kcpu_data[1] = 0;
 
