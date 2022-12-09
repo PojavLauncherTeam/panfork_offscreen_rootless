@@ -2846,6 +2846,29 @@ panfrost_import_dmabuf_fence(int dmabuf, int fence)
         return true;
 }
 
+static uint64_t *
+panfrost_cs_ring_allocate_instrs(struct panfrost_cs *cs, unsigned count)
+{
+        pan_command_stream c = cs->cs;
+
+        if (c.ptr + count > c.end) {
+                assert(c.ptr <= c.end);
+                assert(c.begin + count <= c.ptr);
+
+                /* Instructions are in a ring buffer, simply NOP out the end
+                 * and start back from the start. Possibly, doing a TAILCALL
+                 * straight to the start could also work. */
+                memset(c.ptr, 0, (c.end - c.ptr) * 8);
+                c.ptr = c.begin;
+
+                cs->offset += cs->base.size;
+                cs->cs = c;
+        }
+
+        /* TODO: Check against the extract offset */
+        return c.ptr + count;
+}
+
 // TODO: Rewrite this!
 static void
 emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
@@ -2858,18 +2881,9 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         bool fragment = (cs->hw_resources & 2);
         bool vertex = (cs->hw_resources & 12); /* TILER | IDVS */
 
+        uint64_t *limit = panfrost_cs_ring_allocate_instrs(cs, 128);
+
         pan_command_stream *c = &cs->cs;
-
-        // Give enough space for at least 128 instructions
-        // TODO: Check in case we overrun this
-        if ((void *)c->ptr >= cs->bo->ptr.cpu + cs->bo->size - 128 * 8) {
-                assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
-
-                memset(c->ptr, 0, cs->bo->ptr.cpu + cs->bo->size - (void *)c->ptr);
-                c->ptr = cs->bo->ptr.cpu;
-
-                cs->offset += cs->bo->size;
-        }
 
         /* First, do some waiting at the start of the job */
 
@@ -3075,7 +3089,7 @@ emit_csf_queue(struct panfrost_batch *batch, struct panfrost_cs *cs,
         while ((uintptr_t)c->ptr & 63)
                 pan_emit_cs_ins(c, 0, 0);
 
-        assert((void *)c->ptr <= cs->bo->ptr.cpu + cs->bo->size);
+        assert(c->ptr <= limit);
 }
 
 static void
@@ -3145,6 +3159,9 @@ init_cs(struct panfrost_context *ctx, struct panfrost_cs *cs)
 
         cs->offset = 0;
         c->ptr = cs->bo->ptr.cpu;
+        c->begin = cs->bo->ptr.cpu;
+        c->end = cs->bo->ptr.cpu + cs->base.size;
+        c->gpu = cs->bo->ptr.gpu;
 
         // eight instructions == 64 bytes
         pan_pack_ins(c, CS_RESOURCES, cfg) { cfg.mask = cs->hw_resources; }
