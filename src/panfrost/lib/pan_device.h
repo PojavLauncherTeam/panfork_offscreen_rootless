@@ -269,7 +269,7 @@ struct panfrost_device {
 
         struct panfrost_bo *sample_positions;
 
-        struct kbase mali;
+        struct kbase_ mali;
 
         FILE *bo_log;
 };

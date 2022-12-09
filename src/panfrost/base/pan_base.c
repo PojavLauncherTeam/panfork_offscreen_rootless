@@ -43,7 +43,7 @@
 bool
 kbase_open(kbase k, int fd, unsigned cs_queue_count, bool verbose)
 {
-        *k = (struct kbase) {0};
+        *k = (struct kbase_) {0};
         k->fd = fd;
         k->cs_queue_count = cs_queue_count;
         k->page_size = sysconf(_SC_PAGE_SIZE);

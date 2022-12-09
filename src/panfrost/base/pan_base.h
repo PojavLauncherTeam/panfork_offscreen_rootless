@@ -76,9 +76,6 @@ struct kbase_cs {
         uint32_t *latest_flush;
 };
 
-struct kbase;
-typedef struct kbase *kbase;
-
 #define KBASE_SLOT_COUNT 2
 
 typedef struct {
@@ -89,7 +86,10 @@ typedef struct {
         uint8_t last_access[KBASE_SLOT_COUNT];
 } kbase_handle;
 
-struct kbase {
+struct kbase_;
+typedef struct kbase_ *kbase;
+
+struct kbase_ {
         unsigned setup_state;
         bool verbose;
 
