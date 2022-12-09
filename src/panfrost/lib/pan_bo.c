@@ -164,6 +164,40 @@ panfrost_bo_free(struct panfrost_bo *bo)
         memset(bo, 0, sizeof(*bo));
 }
 
+static bool
+panfrost_bo_usage_finished(struct panfrost_bo *bo, bool readers)
+{
+        struct panfrost_device *dev = bo->dev;
+        kbase k = &dev->mali;
+
+        bool ret = true;
+
+        pthread_mutex_lock(&dev->bo_usage_lock);
+        util_dynarray_foreach(&bo->usage, struct panfrost_usage, u) {
+                /* Skip if we are only waiting for writers */
+                if (!u->write && !readers)
+                        continue;
+
+                /* Usages are ordered, so everything else is also invalid */
+                if (u->queue >= k->event_slot_usage)
+                        break;
+
+                struct kbase_event_slot *slot = &k->event_slots[u->queue];
+
+                /* Skip invalid dependencies. TODO clean it up? */
+                if (slot->last_submit <= u->seqnum)
+                        continue;
+
+                if (slot->last <= u->seqnum) {
+                        ret = false;
+                        break;
+                }
+        }
+        pthread_mutex_unlock(&dev->bo_usage_lock);
+
+        return ret;
+}
+
 /* Returns true if the BO is ready, false otherwise.
  * access_type is encoding the type of access one wants to ensure is done.
  * Waiting is always done for writers, but if wait_readers is set then readers
@@ -179,6 +213,8 @@ panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers)
         };
         int ret;
 
+        /* TODO: With driver-handled sync, is gpu_access even worth it? */
+
         /* If the BO has been exported or imported we can't rely on the cached
          * state, we need to call the WAIT_BO ioctl.
          */
@@ -192,6 +228,23 @@ panfrost_bo_wait(struct panfrost_bo *bo, int64_t timeout_ns, bool wait_readers)
                  */
                 if (!wait_readers && !(bo->gpu_access & PAN_BO_ACCESS_WRITE))
                         return true;
+        }
+
+        if (dev->kbase && (dev->arch >= 10)) {
+                struct kbase_wait_ctx wait = kbase_wait_init(&dev->mali, timeout_ns);
+                while (kbase_wait_for_event(&wait)) {
+                        if (panfrost_bo_usage_finished(bo, wait_readers))
+                                break;
+                }
+                kbase_wait_fini(wait);
+
+                bool ret = panfrost_bo_usage_finished(bo, wait_readers);
+                if (bo->flags & PAN_BO_SHARED)
+                        ret &= kbase_poll_fd_until(bo->dmabuf_fd, wait_readers, wait.until);
+
+                if (ret)
+                        bo->gpu_access &= (wait_readers ? 0 : PAN_BO_ACCESS_READ);
+                return ret;
         }
 
         /* The ioctl returns >= 0 value when the BO we are waiting for is ready
