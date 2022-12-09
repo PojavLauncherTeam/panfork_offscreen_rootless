@@ -33,6 +33,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <poll.h>
 #include <pthread.h>
 
 #include "util/macros.h"
@@ -274,4 +275,27 @@ kbase_ensure_handle_events(kbase k)
                 pthread_mutex_unlock(&k->event_read_lock);
                 kbase_wait_signal(k);
         }
+}
+
+bool
+kbase_poll_fd_until(int fd, bool wait_shared, struct timespec tp)
+{
+        struct pollfd pfd = {
+                .fd = fd,
+                .events = wait_shared ? POLLOUT : POLLIN,
+        };
+
+        uint64_t timeout = ns_until(tp);
+
+        struct timespec t = {
+                .tv_sec = timeout / 1000000000,
+                .tv_nsec = timeout % 1000000000,
+        };
+
+        int ret = ppoll(&pfd, 1, &t, NULL);
+
+        if (ret == -1 && errno != EINTR)
+                perror("kbase_poll_fd_until");
+
+        return ret != 0;
 }

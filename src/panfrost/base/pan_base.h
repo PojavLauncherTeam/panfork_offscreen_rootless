@@ -223,6 +223,8 @@ void kbase_wait_fini(struct kbase_wait_ctx ctx);
 
 void kbase_ensure_handle_events(kbase k);
 
+bool kbase_poll_fd_until(int fd, bool wait_shared, struct timespec tp);
+
 /* Must not conflict with PANFROST_BO_* flags */
 #define MALI_BO_CACHED_CPU   (1 << 16)
 #define MALI_BO_UNCACHED_GPU (1 << 17)
