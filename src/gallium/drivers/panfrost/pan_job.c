@@ -348,7 +348,7 @@ panfrost_batch_update_access(struct panfrost_batch *batch,
                 }
         }
 
-        if (writes) {
+        if (writes && (writer != batch)) {
                 _mesa_hash_table_insert(ctx->writers, rsrc, batch);
                 rsrc->track.nr_writers++;
         }
