@@ -47,10 +47,10 @@ jobs:
 	  #Now, build OSMesa with panfrost
           envsubst <android-${{matrix.arch}} >build-crossfile
           meson setup "build-android" \
-            --prefix=/tmp/zink \
+            --prefix=/tmp/pan \
             --cross-file "build-crossfile" \
             -Dplatforms=android \
-            -Dplatform-sdk-version=25 \
+            -Dplatform-sdk-version=26 \
             -Dandroid-stub=true \
             -Dllvm=disabled \
             -Dxlib-lease=disabled \
@@ -60,11 +60,11 @@ jobs:
             -Dopengl=true \
             -Dosmesa=true \
             -Dvulkan-drivers= \
-            -Dgallium-drivers=swrast,zink \
+            -Dgallium-drivers=swrast,panfrost \
             -Dshared-glapi=false
           ninja -C "build-android" install
       - name: Upload libraries
         uses: actions/upload-artifact@v2
         with:
-          name: libzink_${{matrix.arch}}
-          path: /tmp/zink
+          name: panfrost_${{matrix.arch}}
+          path: /tmp/pan
