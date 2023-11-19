@@ -16,8 +16,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Disable symlinks in git config
-        run: git config --global core.symlinks false
         
       - uses: actions/checkout@v2
 
