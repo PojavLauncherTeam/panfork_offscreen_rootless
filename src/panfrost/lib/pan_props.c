@@ -78,10 +78,6 @@ const struct panfrost_model panfrost_model_list[] = {
         MODEL(0xa802, "G710", "TODx", HAS_ANISO, 65536, {}),
 };
 
-#undef NO_ANISO
-#undef HAS_ANISO
-#undef MODEL
-
 const struct panfrost_model panfrost_unknown_model = {
    .gpu_id = 0,
    .name = "Unknowm Mali device (Panfrost)",
@@ -89,7 +85,11 @@ const struct panfrost_model panfrost_unknown_model = {
    .min_rev_anisotropic = NO_ANISO, 
    .tilebuffer_size = 8192, 
    .quirks = {}, 
-}
+};
+
+#undef NO_ANISO
+#undef HAS_ANISO
+#undef MODEL
 
 /*
  * Look up a supported model by its GPU ID, or return NULL if the model is not
