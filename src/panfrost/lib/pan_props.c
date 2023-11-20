@@ -82,6 +82,15 @@ const struct panfrost_model panfrost_model_list[] = {
 #undef HAS_ANISO
 #undef MODEL
 
+const struct panfrost_model panfrost_unknown_model = {
+   .gpu_id = 0,
+   .name = "Unknowm Mali device (Panfrost)",
+   .performance_counters = "AAAA",
+   .min_rev_anisotropic = NO_ANISO, 
+   .tilebuffer_size = 8192, 
+   .quirks = {}, 
+}
+
 /*
  * Look up a supported model by its GPU ID, or return NULL if the model is not
  * supported at this time.
@@ -89,12 +98,13 @@ const struct panfrost_model panfrost_model_list[] = {
 const struct panfrost_model *
 panfrost_get_model(uint32_t gpu_id)
 {
+        
         for (unsigned i = 0; i < ARRAY_SIZE(panfrost_model_list); ++i) {
                 if (panfrost_model_list[i].gpu_id == gpu_id)
                         return &panfrost_model_list[i];
         }
 
-        return NULL;
+        return &panfrost_unknown_model;
 }
 
 /* Abstraction over the raw drm_panfrost_get_param ioctl for fetching
